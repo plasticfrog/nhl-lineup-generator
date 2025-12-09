@@ -19,47 +19,61 @@ def extract_players_from_image(image_file):
     """Extract player names from screenshot using OCR"""
     try:
         image = Image.open(image_file)
-        text = pytesseract.image_to_string(image, config='--psm 11')
+        text = pytesseract.image_to_string(image, config='--psm 6')
         
         lines = text.split('\n')
-        names = []
+        all_names = []
         
         for line in lines:
             line = line.strip()
             if not line:
                 continue
-                
-            skip_patterns = [
-                'defensive', 'pairing', 'forward', '===', '---', 'www',
-                'http', '.com', '.org', 'mlb', 'nhl', 'tv', '://'
-            ]
+            
+            # Skip lines with these patterns
+            skip_patterns = ['defensive', 'pairing', 'forward', '===', '---']
             if any(skip in line.lower() for skip in skip_patterns):
                 continue
             
-            if len(line) < 5 or len(line) > 50:
+            # Must have significant alphabetic content
+            alpha_count = sum(1 for c in line if c.isalpha())
+            if alpha_count < 10:  # Need at least 10 letters for a name line
                 continue
             
+            # Split into potential name chunks (2-3 word patterns)
             words = line.split()
-            if len(words) < 2 or len(words) > 3:
-                continue
             
-            valid_words = []
-            for word in words:
-                alpha_chars = sum(1 for c in word if c.isalpha())
-                total_chars = len(word)
+            # Try to extract names (pattern: FIRSTNAME LASTNAME or FIRSTNAME MIDDLE LASTNAME)
+            i = 0
+            while i < len(words):
+                word = words[i]
                 
-                if alpha_chars >= 2 and total_chars > 0 and (alpha_chars / total_chars) >= 0.5:
-                    clean = ''.join(c for c in word if c.isalpha() or c in ['-', "'",' '])
-                    if clean and len(clean) >= 2:
-                        valid_words.append(clean.upper().strip())
-            
-            if len(valid_words) == 2 or len(valid_words) == 3:
-                if all(len(w) >= 2 for w in valid_words):
-                    full_name = ' '.join(valid_words)
-                    if len(full_name.replace(' ', '')) >= 8:
-                        names.append(full_name)
+                # Skip if not mostly letters
+                if not word or sum(c.isalpha() for c in word) < 2:
+                    i += 1
+                    continue
+                
+                # Try to form a 2 or 3 word name
+                name_words = []
+                for j in range(i, min(i+3, len(words))):
+                    w = words[j]
+                    alpha_chars = sum(1 for c in w if c.isalpha())
+                    if alpha_chars >= 2 and alpha_chars / len(w) >= 0.5:
+                        clean = ''.join(c for c in w if c.isalpha() or c in ['-', "'"])
+                        if clean:
+                            name_words.append(clean.upper())
+                
+                # If we have 2-3 words, it's likely a name
+                if len(name_words) >= 2:
+                    full_name = ' '.join(name_words[:3])  # Max 3 words
+                    if len(full_name.replace(' ', '')) >= 8:  # At least 8 letters total
+                        all_names.append(full_name)
+                        i += len(name_words)
+                    else:
+                        i += 1
+                else:
+                    i += 1
         
-        return names
+        return all_names
     except Exception as e:
         print(f"OCR Error: {str(e)}")
         return []
@@ -185,5 +199,7 @@ def process_lineup():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    # Run on all interfaces so it's accessible on network
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Get port from environment variable (Railway uses PORT)
+    port = int(os.environ.get('PORT', 5000))
+    # Run on all interfaces so it's accessible on Railway
+    app.run(host='0.0.0.0', port=port, debug=False)
