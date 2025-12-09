@@ -1,10 +1,8 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify
 import pytesseract
 from PIL import Image
 import requests
 import os
-import io
-import base64
 import time
 from collections import Counter
 
@@ -15,61 +13,41 @@ app.config['UPLOAD_FOLDER'] = '/tmp/nhl_uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def extract_players_from_image(image_file):
-    """Extract player names from screenshot using OCR - handles 3-column layout and hyphenated names"""
+    """Extract player names from screenshot - handles jersey layout"""
     try:
         image = Image.open(image_file)
         text = pytesseract.image_to_string(image, config='--psm 6')
         
         lines = [l.strip() for l in text.split('\n') if l.strip()]
         all_names = []
-        i = 0
         
-        while i < len(lines):
-            line = lines[i]
-            
-            alpha_count = sum(1 for c in line if c.isalpha())
-            if alpha_count < 10:
-                i += 1
+        for line in lines:
+            alpha = sum(1 for c in line if c.isalpha())
+            if alpha < 15:
                 continue
             
-            skip_patterns = ['defensive', 'pairing', 'forward']
-            if any(p in line.lower() for p in skip_patterns):
-                i += 1
+            if 'defensive' in line.lower() or 'pairing' in line.lower():
                 continue
-            
-            next_line = lines[i+1] if i+1 < len(lines) else ""
-            
-            if line.rstrip().endswith('-'):
-                next_words = [w for w in next_line.split() if w.replace('-','').isalpha() and len(w) > 2]
-                if next_words:
-                    line = line + next_words[0]
-                    i += 1
             
             words = []
             for word in line.split():
-                clean = ''.join(c for c in word if c.isalpha() or c in ['-', "'"])
-                if clean and len(clean) >= 2:
-                    clean = clean.rstrip('-')
-                    if clean:
-                        words.append(clean.upper())
+                clean = ''.join(c for c in word if c.isalpha())
+                if len(clean) >= 3:
+                    words.append(clean.upper())
             
-            if len(words) >= 4:
-                if len(words) == 6:
-                    all_names.append(f"{words[0]} {words[1]}")
-                    all_names.append(f"{words[2]} {words[3]}")
-                    all_names.append(f"{words[4]} {words[5]}")
-                elif len(words) == 4:
-                    all_names.append(f"{words[0]} {words[1]}")
-                    all_names.append(f"{words[2]} {words[3]}")
-                elif len(words) == 2:
-                    all_names.append(f"{words[0]} {words[1]}")
-                else:
-                    j = 0
-                    while j < len(words) - 1:
-                        all_names.append(f"{words[j]} {words[j+1]}")
-                        j += 2
+            if len(words) < 4:
+                continue
             
-            i += 1
+            if len(words) == 4:
+                all_names.append(f"{words[0]} {words[1]}")
+                all_names.append(f"{words[2]} {words[3]}")
+            elif len(words) == 6:
+                all_names.append(f"{words[0]} {words[1]}")
+                all_names.append(f"{words[2]} {words[3]}")
+                all_names.append(f"{words[4]} {words[5]}")
+            else:
+                for i in range(0, len(words)-1, 2):
+                    all_names.append(f"{words[i]} {words[i+1]}")
         
         return all_names
     except Exception as e:
@@ -154,7 +132,7 @@ def process_lineup():
                 found_teams.append(result['team'])
                 time.sleep(0.3)
         
-        default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'TOR'
+        default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'PHI'
         
         for player_name in forwards + defensemen:
             result = search_player(player_name, default_team)
