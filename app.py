@@ -12,50 +12,101 @@ app.config['UPLOAD_FOLDER'] = '/tmp/nhl_uploads'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-def extract_players_from_image(image_file):
-    """Extract player names from screenshot - handles jersey layout"""
+def extract_players_from_image(image_file, expected_count):
+    """Extract player names - ALWAYS returns exactly expected_count names"""
     try:
         image = Image.open(image_file)
-        text = pytesseract.image_to_string(image, config='--psm 6')
         
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
-        all_names = []
+        # Try multiple OCR modes for reliability
+        texts = []
+        for psm in [6, 11, 3]:
+            try:
+                text = pytesseract.image_to_string(image, config=f'--psm {psm}')
+                texts.append(text)
+            except:
+                pass
+        
+        # Combine all OCR attempts
+        all_text = '\n'.join(texts)
+        lines = [l.strip() for l in all_text.split('\n') if l.strip()]
+        
+        # Extract all potential names
+        potential_names = []
+        seen = set()
         
         for line in lines:
-            alpha = sum(1 for c in line if c.isalpha())
-            if alpha < 15:
+            # Skip obvious non-names
+            if any(skip in line.lower() for skip in ['defensive', 'pairing', 'forward', 'line', 'http', 'www']):
                 continue
             
-            if 'defensive' in line.lower() or 'pairing' in line.lower():
+            # Count letters
+            alpha_count = sum(1 for c in line if c.isalpha())
+            if alpha_count < 6:
                 continue
             
+            # Extract word sequences
             words = []
             for word in line.split():
-                clean = ''.join(c for c in word if c.isalpha())
-                if len(clean) >= 3:
+                # Keep only alphabetic characters
+                clean = ''.join(c for c in word if c.isalpha() or c == '-')
+                if len(clean) >= 2:
                     words.append(clean.upper())
             
-            if len(words) < 4:
-                continue
-            
-            if len(words) == 4:
-                all_names.append(f"{words[0]} {words[1]}")
-                all_names.append(f"{words[2]} {words[3]}")
-            elif len(words) == 6:
-                all_names.append(f"{words[0]} {words[1]}")
-                all_names.append(f"{words[2]} {words[3]}")
-                all_names.append(f"{words[4]} {words[5]}")
-            else:
-                for i in range(0, len(words)-1, 2):
-                    all_names.append(f"{words[i]} {words[i+1]}")
+            # Try to form 2-word or 3-word names
+            if len(words) >= 2:
+                # Try all combinations of 2-3 consecutive words
+                for i in range(len(words)):
+                    # 2-word name
+                    if i + 1 < len(words):
+                        name = f"{words[i]} {words[i+1]}"
+                        if len(name.replace(' ', '')) >= 6 and name not in seen:
+                            potential_names.append(name)
+                            seen.add(name)
+                    
+                    # 3-word name
+                    if i + 2 < len(words):
+                        name = f"{words[i]} {words[i+1]} {words[i+2]}"
+                        if len(name.replace(' ', '')) >= 8 and name not in seen:
+                            potential_names.append(name)
+                            seen.add(name)
         
-        return all_names
+        # Remove obvious duplicates and substrings
+        unique_names = []
+        for name in potential_names:
+            # Check if it's a substring of an existing name
+            is_substring = False
+            for existing in unique_names:
+                if name in existing or existing in name:
+                    if len(name) > len(existing):
+                        # Replace with longer version
+                        unique_names.remove(existing)
+                        unique_names.append(name)
+                    is_substring = True
+                    break
+            
+            if not is_substring:
+                unique_names.append(name)
+        
+        # Take first expected_count names
+        result = unique_names[:expected_count]
+        
+        # Fill with placeholders if we don't have enough
+        while len(result) < expected_count:
+            result.append(f"PLAYER {len(result) + 1}")
+        
+        return result[:expected_count]
+        
     except Exception as e:
         print(f"OCR Error: {str(e)}")
-        return []
+        # Return placeholders on error
+        return [f"PLAYER {i+1}" for i in range(expected_count)]
 
 def search_player(player_name, known_team=None):
     """Search for player using NHL API"""
+    # Skip placeholders
+    if player_name.startswith("PLAYER "):
+        return None
+    
     try:
         search_name = player_name.lower().replace(' ', '%20')
         search_url = f"https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q={search_name}"
@@ -74,6 +125,7 @@ def search_player(player_name, known_team=None):
                             'team': player.get('teamAbbrev', None),
                             'full_name': player.get('name')
                         }
+                # Return first result as fallback
                 return {
                     'id': data[0].get('playerId'),
                     'team': data[0].get('teamAbbrev', None),
@@ -120,20 +172,27 @@ def process_lineup():
         if not forwards_file or not defense_file:
             return jsonify({'error': 'Both screenshots required'}), 400
         
-        forwards = extract_players_from_image(forwards_file)
-        defensemen = extract_players_from_image(defense_file)
+        # Extract EXACTLY 12 forwards and 6 defense
+        forwards = extract_players_from_image(forwards_file, 12)
+        defensemen = extract_players_from_image(defense_file, 6)
         
+        print(f"Extracted forwards: {forwards}")
+        print(f"Extracted defensemen: {defensemen}")
+        
+        # Get player data
         all_players = []
         found_teams = []
         
+        # First pass: identify team
         for player_name in forwards + defensemen:
             result = search_player(player_name)
             if result and result['team']:
                 found_teams.append(result['team'])
-                time.sleep(0.3)
+                time.sleep(0.2)
         
-        default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'PHI'
+        default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'NHL'
         
+        # Second pass: get all player data
         for player_name in forwards + defensemen:
             result = search_player(player_name, default_team)
             
@@ -149,6 +208,7 @@ def process_lineup():
                     'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{result['team']}/{result['id']}.png"
                 })
             else:
+                # Placeholder - no API match
                 all_players.append({
                     'name': player_name,
                     'id': None,
@@ -158,7 +218,7 @@ def process_lineup():
                     'headshot_url': None
                 })
             
-            time.sleep(0.3)
+            time.sleep(0.2)
         
         return jsonify({
             'forwards': [p for p in all_players if p['is_forward']],
@@ -167,6 +227,7 @@ def process_lineup():
         })
         
     except Exception as e:
+        print(f"Process error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
