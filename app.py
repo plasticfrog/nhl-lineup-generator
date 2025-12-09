@@ -16,62 +16,50 @@ app.config['UPLOAD_FOLDER'] = '/tmp/nhl_uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def extract_players_from_image(image_file):
-    """Extract player names from screenshot using OCR"""
+    """Extract player names from screenshot using OCR - handles 3-column layout"""
     try:
         image = Image.open(image_file)
         text = pytesseract.image_to_string(image, config='--psm 6')
         
-        lines = text.split('\n')
+        lines = [l.strip() for l in text.split('\n') if l.strip()]
         all_names = []
         
         for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            
-            # Skip lines with these patterns
-            skip_patterns = ['defensive', 'pairing', 'forward', '===', '---']
-            if any(skip in line.lower() for skip in skip_patterns):
-                continue
-            
-            # Must have significant alphabetic content
+            # Skip non-name lines
             alpha_count = sum(1 for c in line if c.isalpha())
-            if alpha_count < 10:  # Need at least 10 letters for a name line
+            if alpha_count < 10:
                 continue
             
-            # Split into potential name chunks (2-3 word patterns)
-            words = line.split()
+            skip_patterns = ['defensive', 'pairing', 'forward']
+            if any(p in line.lower() for p in skip_patterns):
+                continue
             
-            # Try to extract names (pattern: FIRSTNAME LASTNAME or FIRSTNAME MIDDLE LASTNAME)
-            i = 0
-            while i < len(words):
-                word = words[i]
+            # Extract only alphabetic words (names), keep hyphens
+            words = []
+            for word in line.split():
+                clean = ''.join(c for c in word if c.isalpha() or c in ['-', "'"])
+                if clean and len(clean) >= 2 and clean.count('-') <= 1:  # Max one hyphen
+                    words.append(clean.upper())
+            
+            if len(words) >= 4:  # Has at least 2 names (2 words each)
+                # Screenshots have 3 columns with 2-word names
+                # Pattern: FIRST1 LAST1 FIRST2 LAST2 FIRST3 LAST3 = 6 words
                 
-                # Skip if not mostly letters
-                if not word or sum(c.isalpha() for c in word) < 2:
-                    i += 1
-                    continue
-                
-                # Try to form a 2 or 3 word name
-                name_words = []
-                for j in range(i, min(i+3, len(words))):
-                    w = words[j]
-                    alpha_chars = sum(1 for c in w if c.isalpha())
-                    if alpha_chars >= 2 and alpha_chars / len(w) >= 0.5:
-                        clean = ''.join(c for c in w if c.isalpha() or c in ['-', "'"])
-                        if clean:
-                            name_words.append(clean.upper())
-                
-                # If we have 2-3 words, it's likely a name
-                if len(name_words) >= 2:
-                    full_name = ' '.join(name_words[:3])  # Max 3 words
-                    if len(full_name.replace(' ', '')) >= 8:  # At least 8 letters total
-                        all_names.append(full_name)
-                        i += len(name_words)
-                    else:
-                        i += 1
+                if len(words) == 6:  # Perfect: 3 names, 2 words each
+                    all_names.append(f"{words[0]} {words[1]}")
+                    all_names.append(f"{words[2]} {words[3]}")
+                    all_names.append(f"{words[4]} {words[5]}")
+                elif len(words) == 4:  # 2 names, 2 words each (defense often has 2 per row)
+                    all_names.append(f"{words[0]} {words[1]}")
+                    all_names.append(f"{words[2]} {words[3]}")
+                elif len(words) == 2:  # Single name
+                    all_names.append(f"{words[0]} {words[1]}")
                 else:
-                    i += 1
+                    # Fall back to pairing words sequentially
+                    i = 0
+                    while i < len(words) - 1:
+                        all_names.append(f"{words[i]} {words[i+1]}")
+                        i += 2
         
         return all_names
     except Exception as e:
