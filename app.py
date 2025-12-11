@@ -64,13 +64,14 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
     return None
 
 def extract_players_from_image(image_file, expected_count, team_roster):
-    """Extract player names from screenshot and match to roster"""
+    """Extract player names and validate against roster"""
     try:
         image = Image.open(image_file)
         text = pytesseract.image_to_string(image, config='--psm 6')
         
         lines = text.split('\n')
-        ocr_names = []
+        matched_names = []
+        used_roster = set()
         
         for line in lines:
             line = line.strip()
@@ -81,35 +82,27 @@ def extract_players_from_image(image_file, expected_count, team_roster):
             upper = sum(1 for c in line if c.isupper())
             spaces = line.count(' ')
             
-            # Good line: 20+ letters, mostly uppercase, 3+ spaces
-            if alpha > 20 and upper > 15 and spaces >= 3:
+            # Good line: decent amount of uppercase, multiple spaces
+            if alpha > 15 and upper > 10 and spaces >= 2:
                 words = []
                 for word in line.split():
                     clean = ''.join(c for c in word if c.isalpha() or c == '-')
-                    if len(clean) >= 2:
+                    if clean:
                         words.append(clean.upper())
                 
-                # Split into name pairs (2 words each)
-                for i in range(0, len(words)-1, 2):
-                    if i+1 < len(words):
-                        ocr_names.append(f"{words[i]} {words[i+1]}")
+                # Try all consecutive word pairs
+                for i in range(len(words)-1):
+                    potential_name = f"{words[i]} {words[i+1]}"
+                    
+                    # Try to match against roster
+                    match = match_name_to_roster(potential_name, team_roster, used_roster)
+                    
+                    if match and match not in matched_names:
+                        matched_names.append(match)
+                        used_roster.add(match)
+                        print(f"  Matched '{potential_name}' -> '{match}'")
         
-        print(f"OCR extracted {len(ocr_names)} names: {ocr_names}")
-        
-        # Match OCR names to roster
-        matched_names = []
-        used_names = set()
-        
-        for ocr_name in ocr_names:
-            match = match_name_to_roster(ocr_name, team_roster, used_names)
-            
-            if match:
-                matched_names.append(match)
-                used_names.add(match)
-                print(f"  Matched '{ocr_name}' -> '{match}'")
-            else:
-                matched_names.append(ocr_name)
-                print(f"  No match for '{ocr_name}', keeping OCR")
+        print(f"Matched {len(matched_names)} players from OCR")
         
         # Pad with placeholders if needed
         while len(matched_names) < expected_count:
@@ -208,10 +201,12 @@ def process_lineup():
         roster_response = requests.get(roster_url, headers=headers, timeout=10)
         
         roster_data = {}
+        goalies_list = []
+        
         if roster_response.status_code == 200:
             roster_json = roster_response.json()
             
-            # Build lookup: NAME -> {id, number, position}
+            # Build lookup for forwards and defense
             for position_group in ['forwards', 'defensemen']:
                 for player in roster_json.get(position_group, []):
                     first = player.get('firstName', {}).get('default', '')
@@ -223,8 +218,26 @@ def process_lineup():
                         'number': str(player.get('sweaterNumber', '')),
                         'is_forward': position_group == 'forwards'
                     }
+            
+            # Get goalies (first 2)
+            for player in roster_json.get('goalies', [])[:2]:
+                first = player.get('firstName', {}).get('default', '')
+                last = player.get('lastName', {}).get('default', '')
+                full_name = f"{first} {last}".strip()
+                player_id = player.get('id')
+                number = str(player.get('sweaterNumber', ''))
+                
+                # Create URL-friendly name (lowercase, hyphens)
+                url_name = full_name.lower().replace(' ', '-')
+                
+                goalies_list.append({
+                    'name': full_name.upper(),
+                    'id': player_id,
+                    'number': number,
+                    'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{default_team}/{player_id}.png"
+                })
         
-        print(f"Got roster data for {len(roster_data)} players")
+        print(f"Got roster data for {len(roster_data)} players and {len(goalies_list)} goalies")
         
         # Get roster lists for matching
         roster_forwards = [name for name, data in roster_data.items() if data['is_forward']]
@@ -246,7 +259,6 @@ def process_lineup():
         
         for player_name in forwards + defensemen:
             if player_name in roster_data:
-                # Use roster data directly
                 player_info = roster_data[player_name]
                 all_players.append({
                     'name': player_name,
@@ -257,7 +269,6 @@ def process_lineup():
                     'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{default_team}/{player_info['id']}.png"
                 })
             else:
-                # Fallback: player not in roster
                 all_players.append({
                     'name': player_name,
                     'id': None,
@@ -270,6 +281,7 @@ def process_lineup():
         return jsonify({
             'forwards': [p for p in all_players if p['is_forward']],
             'defensemen': [p for p in all_players if not p['is_forward']],
+            'goalies': goalies_list,
             'team': default_team
         })
         
