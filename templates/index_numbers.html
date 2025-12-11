@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NHL Lineup Generator - Number Entry</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .subtitle {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            opacity: 0.8;
+        }
+        
+        .method-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .method-btn {
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .method-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+        
+        .method-btn.active {
+            background: #4CAF50;
+            border-color: #4CAF50;
+        }
+        
+        .upload-section {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 40px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        
+        .input-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .input-box {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .input-label {
+            font-size: 1.3em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: block;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            font-size: 1.1em;
+            font-family: 'Courier New', monospace;
+            background: rgba(0,0,0,0.3);
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 5px;
+            color: white;
+            resize: vertical;
+        }
+        
+        textarea::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+        
+        .upload-box {
+            background: rgba(255,255,255,0.05);
+            border: 3px dashed rgba(255,255,255,0.3);
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .upload-box:hover {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+        
+        .upload-box.has-file {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.2);
+        }
+        
+        .upload-box.dragover {
+            border-color: #2196F3;
+            background: rgba(33, 150, 243, 0.2);
+            transform: scale(1.02);
+        }
+        
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+        
+        .file-name {
+            margin-top: 15px;
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .generate-btn {
+            width: 100%;
+            padding: 20px;
+            font-size: 1.5em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+        }
+        
+        .generate-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.6);
+        }
+        
+        .generate-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 2px solid #f44336;
+            color: #ffcdd2;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .instructions {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 15px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+        
+        .example {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏒 NHL Lineup Generator</h1>
+        <p class="subtitle">Enter line combinations by jersey numbers</p>
+        
+        <div class="method-toggle">
+            <button class="method-btn" onclick="window.location.href='/'">Screenshot Method</button>
+            <button class="method-btn active">Number Entry Method</button>
+        </div>
+        
+        <div class="upload-section">
+            <div class="config-section" style="margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                <div>
+                    <label style="display: block; margin-bottom: 10px; font-weight: bold;">Team:</label>
+                    <select id="team-select" style="width: 100%; padding: 12px; font-size: 1.1em; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2);">
+                        <option value="">Select Team</option>
+                        <option value="ANA">Anaheim Ducks</option>
+                        <option value="BOS">Boston Bruins</option>
+                        <option value="BUF">Buffalo Sabres</option>
+                        <option value="CAR">Carolina Hurricanes</option>
+                        <option value="CBJ">Columbus Blue Jackets</option>
+                        <option value="CGY">Calgary Flames</option>
+                        <option value="CHI">Chicago Blackhawks</option>
+                        <option value="COL">Colorado Avalanche</option>
+                        <option value="DAL">Dallas Stars</option>
+                        <option value="DET">Detroit Red Wings</option>
+                        <option value="EDM">Edmonton Oilers</option>
+                        <option value="FLA">Florida Panthers</option>
+                        <option value="LAK">Los Angeles Kings</option>
+                        <option value="MIN">Minnesota Wild</option>
+                        <option value="MTL">Montreal Canadiens</option>
+                        <option value="NJD">New Jersey Devils</option>
+                        <option value="NSH">Nashville Predators</option>
+                        <option value="NYI">New York Islanders</option>
+                        <option value="NYR">New York Rangers</option>
+                        <option value="OTT">Ottawa Senators</option>
+                        <option value="PHI">Philadelphia Flyers</option>
+                        <option value="PIT">Pittsburgh Penguins</option>
+                        <option value="SEA">Seattle Kraken</option>
+                        <option value="SJS">San Jose Sharks</option>
+                        <option value="STL">St. Louis Blues</option>
+                        <option value="TBL">Tampa Bay Lightning</option>
+                        <option value="TOR">Toronto Maple Leafs</option>
+                        <option value="UTA">Utah Hockey Club</option>
+                        <option value="VAN">Vancouver Canucks</option>
+                        <option value="VGK">Vegas Golden Knights</option>
+                        <option value="WPG">Winnipeg Jets</option>
+                        <option value="WSH">Washington Capitals</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 10px; font-weight: bold;">Forward Lines:</label>
+                    <select id="forward-lines" style="width: 100%; padding: 12px; font-size: 1.1em; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2);">
+                        <option value="3">3 lines (9 players)</option>
+                        <option value="4" selected>4 lines (12 players)</option>
+                        <option value="5">5 lines (15 players)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 10px; font-weight: bold;">Defense Pairs:</label>
+                    <select id="defense-pairs" style="width: 100%; padding: 12px; font-size: 1.1em; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2);">
+                        <option value="2">2 pairs (4 players)</option>
+                        <option value="3" selected>3 pairs (6 players)</option>
+                        <option value="4">4 pairs (8 players)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="input-grid">
+                <!-- Left: Line combinations input -->
+                <div class="input-box">
+                    <label class="input-label">📋 Line Combinations (Numbers)</label>
+                    <textarea id="lines-input" placeholder="Enter line combinations:
+
+Example:
+46-22-11
+39-14-74
+29-27-10
+91-18-19
+
+   24-6
+   36-9
+   96-47
+
+Or upload a screenshot below..."></textarea>
+                    
+                    <div class="upload-box" id="lines-screenshot-box" onclick="document.getElementById('lines-screenshot-input').click()" style="margin-top: 20px; min-height: 120px;">
+                        <div class="upload-icon">📸</div>
+                        <div style="font-size: 0.9em;">Or upload screenshot of lines</div>
+                        <div class="file-name" id="lines-screenshot-name"></div>
+                    </div>
+                    <input type="file" id="lines-screenshot-input" accept="image/*" onchange="handleLinesScreenshot(this)">
+                </div>
+                
+                <!-- Right: Roster upload -->
+                <div class="input-box">
+                    <label class="input-label">📊 Team Roster</label>
+                    <div class="upload-box" id="roster-box" onclick="document.getElementById('roster-input').click()">
+                        <div class="upload-icon">📄</div>
+                        <div style="font-size: 1.1em; margin-bottom: 10px;">Upload Roster Screenshot</div>
+                        <div style="font-size: 0.9em; opacity: 0.7;">Stats table with #, Name, Position</div>
+                        <div class="file-name" id="roster-name"></div>
+                    </div>
+                    <input type="file" id="roster-input" accept="image/*" onchange="handleRosterUpload(this)">
+                </div>
+            </div>
+            
+            <button class="generate-btn" id="generate-btn" onclick="generateLineup()" disabled>
+                Generate Lineup
+            </button>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing your lineup... This may take a minute.</p>
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="instructions">
+            <h3>📖 How to Use:</h3>
+            <ol>
+                <li><strong>Enter Line Combinations:</strong> Type or paste jersey numbers in format like "46-22-11" (3 forwards per line) and "24-6" (2 defensemen per pair)</li>
+                <li><strong>OR Upload Screenshot:</strong> Take a screenshot of your line combinations and upload it</li>
+                <li><strong>Upload Roster:</strong> Screenshot of team roster stats table (must show jersey numbers and player names)</li>
+                <li><strong>Generate:</strong> Click "Generate Lineup" and the system will match numbers to names</li>
+            </ol>
+            
+            <h3 style="margin-top: 20px;">Format Examples:</h3>
+            <div class="example">
+Flyers
+46-22-11
+39-14-74
+29-27-10
+91-18-19
+
+   24-6
+   36-9
+   96-47
+   80/33
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let linesText = '';
+        let linesScreenshot = null;
+        let rosterScreenshot = null;
+        
+        // Setup drag and drop for roster box
+        function setupDragAndDrop(boxId, callback) {
+            const box = document.getElementById(boxId);
+            
+            box.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                box.classList.add('dragover');
+            });
+            
+            box.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                box.classList.remove('dragover');
+            });
+            
+            box.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                box.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type.startsWith('image/')) {
+                    callback(files[0]);
+                }
+            });
+        }
+        
+        setupDragAndDrop('roster-box', (file) => {
+            const input = document.getElementById('roster-input');
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            input.files = dataTransfer.files;
+            handleRosterUpload(input);
+        });
+        
+        setupDragAndDrop('lines-screenshot-box', (file) => {
+            const input = document.getElementById('lines-screenshot-input');
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            input.files = dataTransfer.files;
+            handleLinesScreenshot(input);
+        });
+        
+        // Monitor text input
+        document.getElementById('lines-input').addEventListener('input', (e) => {
+            linesText = e.target.value.trim();
+            checkReadyToGenerate();
+        });
+        
+        function handleLinesScreenshot(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            linesScreenshot = file;
+            document.getElementById('lines-screenshot-name').textContent = file.name;
+            document.getElementById('lines-screenshot-box').classList.add('has-file');
+            checkReadyToGenerate();
+        }
+        
+        function handleRosterUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            rosterScreenshot = file;
+            document.getElementById('roster-name').textContent = file.name;
+            document.getElementById('roster-box').classList.add('has-file');
+            checkReadyToGenerate();
+        }
+        
+        function checkReadyToGenerate() {
+            const hasLines = linesText.length > 5 || linesScreenshot;
+            const hasRoster = rosterScreenshot;
+            const hasTeam = document.getElementById('team-select').value !== '';
+            
+            document.getElementById('generate-btn').disabled = !(hasLines && hasRoster && hasTeam);
+        }
+        
+        // Monitor team selection
+        document.getElementById('team-select').addEventListener('change', checkReadyToGenerate);
+        
+        async function generateLineup() {
+            const formData = new FormData();
+            
+            // Add configuration
+            formData.append('team', document.getElementById('team-select').value);
+            formData.append('forward_lines', document.getElementById('forward-lines').value);
+            formData.append('defense_pairs', document.getElementById('defense-pairs').value);
+            
+            // Add lines data
+            if (linesScreenshot) {
+                formData.append('lines_screenshot', linesScreenshot);
+            } else if (linesText) {
+                formData.append('lines_text', linesText);
+            }
+            
+            // Add roster screenshot
+            formData.append('roster_screenshot', rosterScreenshot);
+            
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('generate-btn').disabled = true;
+            
+            try {
+                const response = await fetch('/process_numbers', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Processing failed');
+                }
+                
+                // Clear old goalie data before storing new lineup
+                const staffData = JSON.parse(localStorage.getItem('nhl_lineup_staff') || '{}');
+                delete staffData['Goalie_1'];
+                delete staffData['Goalie_2'];
+                localStorage.setItem('nhl_lineup_staff', JSON.stringify(staffData));
+                
+                // Store data and open lineup page
+                localStorage.setItem('lineup_data', JSON.stringify(data));
+                window.open('/lineup', '_blank');
+                
+                // Show success
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('generate-btn').disabled = false;
+                
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Error: ' + error.message;
+                document.getElementById('generate-btn').disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
