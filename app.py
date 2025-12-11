@@ -12,39 +12,6 @@ app.config['UPLOAD_FOLDER'] = '/tmp/nhl_uploads'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-def get_team_roster(team_abbrev):
-    """Get full roster from NHL API"""
-    try:
-        url = f"https://api-web.nhle.com/v1/roster/{team_abbrev}/current"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            forwards = []
-            defensemen = []
-            
-            for player in data.get('forwards', []):
-                first = player.get('firstName', {}).get('default', '')
-                last = player.get('lastName', {}).get('default', '')
-                name = f"{first} {last}".strip().upper()
-                if name:
-                    forwards.append(name)
-            
-            for player in data.get('defensemen', []):
-                first = player.get('firstName', {}).get('default', '')
-                last = player.get('lastName', {}).get('default', '')
-                name = f"{first} {last}".strip().upper()
-                if name:
-                    defensemen.append(name)
-            
-            return forwards, defensemen
-    except Exception as e:
-        print(f"Roster API Error: {e}")
-    
-    return [], []
-
 def match_name_to_roster(ocr_name, roster_list, used_names):
     """Find best matching name from roster using fuzzy matching"""
     best_match = None
@@ -91,7 +58,6 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
             best_score = score
             best_match = roster_name
     
-    # Only return match if score is decent
     if best_score >= 50:
         return best_match
     
@@ -119,7 +85,7 @@ def extract_players_from_image(image_file, expected_count, team_roster):
             if alpha > 20 and upper > 15 and spaces >= 3:
                 words = []
                 for word in line.split():
-                    clean = ''.join(c for c in word if c.isalpha())
+                    clean = ''.join(c for c in word if c.isalpha() or c == '-')
                     if len(clean) >= 2:
                         words.append(clean.upper())
                 
@@ -142,7 +108,6 @@ def extract_players_from_image(image_file, expected_count, team_roster):
                 used_names.add(match)
                 print(f"  Matched '{ocr_name}' -> '{match}'")
             else:
-                # No good match, keep OCR name
                 matched_names.append(ocr_name)
                 print(f"  No match for '{ocr_name}', keeping OCR")
         
@@ -189,25 +154,6 @@ def search_player(player_name, known_team=None):
     
     return None
 
-def get_jersey_number(player_id, team):
-    """Fetch jersey number from NHL API"""
-    try:
-        roster_url = f"https://api-web.nhle.com/v1/roster/{team}/current"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(roster_url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            for position_group in ['forwards', 'defensemen', 'goalies']:
-                if position_group in data:
-                    for player in data[position_group]:
-                        if str(player.get('id')) == str(player_id):
-                            return str(player.get('sweaterNumber', ''))
-    except:
-        pass
-    
-    return ''
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -225,12 +171,10 @@ def process_lineup():
         if not forwards_file or not defense_file:
             return jsonify({'error': 'Both screenshots required'}), 400
         
-        # First, identify the team
+        # Detect team
         print("Identifying team...")
-        temp_forwards = []
-        temp_defensemen = []
+        temp_names = []
         
-        # Quick OCR to get some names for team detection
         for img in [forwards_file, defense_file]:
             img.seek(0)
             image = Image.open(img)
@@ -242,26 +186,49 @@ def process_lineup():
                     words = [w for w in line.split() if len(''.join(c for c in w if c.isalpha())) >= 3]
                     if len(words) >= 4:
                         name = f"{words[0]} {words[1]}"
-                        temp_forwards.append(name)
-                        if len(temp_forwards) >= 3:
+                        temp_names.append(name)
+                        if len(temp_names) >= 3:
                             break
-            if len(temp_forwards) >= 3:
+            if len(temp_names) >= 3:
                 break
         
-        # Detect team
         found_teams = []
-        for name in temp_forwards[:5]:
+        for name in temp_names[:5]:
             result = search_player(name)
             if result and result['team']:
                 found_teams.append(result['team'])
                 time.sleep(0.2)
         
-        default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'NHL'
+        default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'TOR'
         print(f"Detected team: {default_team}")
         
-        # Get full roster
-        roster_forwards, roster_defense = get_team_roster(default_team)
-        print(f"Got roster: {len(roster_forwards)} forwards, {len(roster_defense)} defense")
+        # Get full roster with IDs
+        roster_url = f"https://api-web.nhle.com/v1/roster/{default_team}/current"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        roster_response = requests.get(roster_url, headers=headers, timeout=10)
+        
+        roster_data = {}
+        if roster_response.status_code == 200:
+            roster_json = roster_response.json()
+            
+            # Build lookup: NAME -> {id, number, position}
+            for position_group in ['forwards', 'defensemen']:
+                for player in roster_json.get(position_group, []):
+                    first = player.get('firstName', {}).get('default', '')
+                    last = player.get('lastName', {}).get('default', '')
+                    full_name = f"{first} {last}".strip().upper()
+                    
+                    roster_data[full_name] = {
+                        'id': player.get('id'),
+                        'number': str(player.get('sweaterNumber', '')),
+                        'is_forward': position_group == 'forwards'
+                    }
+        
+        print(f"Got roster data for {len(roster_data)} players")
+        
+        # Get roster lists for matching
+        roster_forwards = [name for name, data in roster_data.items() if data['is_forward']]
+        roster_defense = [name for name, data in roster_data.items() if not data['is_forward']]
         
         # Reset file pointers
         forwards_file.seek(0)
@@ -274,24 +241,23 @@ def process_lineup():
         print(f"Final forwards: {forwards}")
         print(f"Final defense: {defensemen}")
         
-        # Get player data
+        # Build player data using roster
         all_players = []
         
         for player_name in forwards + defensemen:
-            result = search_player(player_name, default_team)
-            
-            if result and result['id'] and result['team']:
-                jersey_number = get_jersey_number(result['id'], result['team'])
-                
+            if player_name in roster_data:
+                # Use roster data directly
+                player_info = roster_data[player_name]
                 all_players.append({
                     'name': player_name,
-                    'id': result['id'],
-                    'team': result['team'],
-                    'number': jersey_number,
+                    'id': player_info['id'],
+                    'team': default_team,
+                    'number': player_info['number'],
                     'is_forward': player_name in forwards,
-                    'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{result['team']}/{result['id']}.png"
+                    'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{default_team}/{player_info['id']}.png"
                 })
             else:
+                # Fallback: player not in roster
                 all_players.append({
                     'name': player_name,
                     'id': None,
@@ -300,8 +266,6 @@ def process_lineup():
                     'is_forward': player_name in forwards,
                     'headshot_url': None
                 })
-            
-            time.sleep(0.2)
         
         return jsonify({
             'forwards': [p for p in all_players if p['is_forward']],
@@ -311,6 +275,8 @@ def process_lineup():
         
     except Exception as e:
         print(f"Process error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
