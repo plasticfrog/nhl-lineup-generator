@@ -210,6 +210,11 @@
         <h1>🏒 NHL Lineup Generator</h1>
         <p class="subtitle">Upload your lineup screenshots and generate a printable lineup sheet</p>
         
+        <div style="display: flex; justify-content: center; gap: 20px; margin-bottom: 30px;">
+            <button style="padding: 15px 30px; font-size: 1.1em; font-weight: bold; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; background: #4CAF50; color: white; cursor: pointer;">Screenshot Method</button>
+            <button onclick="window.location.href='/numbers'" style="padding: 15px 30px; font-size: 1.1em; font-weight: bold; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; background: rgba(255,255,255,0.1); color: white; cursor: pointer; transition: all 0.3s;">Number Entry Method</button>
+        </div>
+        
         <div class="upload-section">
             <div class="upload-grid">
                 <div class="upload-box" id="forwards-box" onclick="document.getElementById('forwards-input').click()">
