@@ -352,11 +352,8 @@
                     throw new Error(data.error || 'Processing failed');
                 }
                 
-                // Clear old goalie data before storing new lineup
-                const staffData = JSON.parse(localStorage.getItem('nhl_lineup_staff') || '{}');
-                delete staffData['Goalie_1'];
-                delete staffData['Goalie_2'];
-                localStorage.setItem('nhl_lineup_staff', JSON.stringify(staffData));
+                // Clear ALL staff data (goalies + coaches) before storing new lineup
+                localStorage.removeItem('nhl_lineup_staff');
                 
                 // Store data and open lineup page
                 localStorage.setItem('lineup_data', JSON.stringify(data));
