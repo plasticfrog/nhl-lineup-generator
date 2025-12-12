@@ -260,8 +260,8 @@
         </div>
         
         <div class="upload-section">
-            <div class="config-section" style="margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
-                <div>
+            <div class="config-section" style="margin-bottom: 30px;">
+                <div style="max-width: 400px; margin: 0 auto;">
                     <label style="display: block; margin-bottom: 10px; font-weight: bold;">Team:</label>
                     <select id="team-select" style="width: 100%; padding: 12px; font-size: 1.1em; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2);">
                         <option value="">Select Team</option>
@@ -297,22 +297,6 @@
                         <option value="VGK">Vegas Golden Knights</option>
                         <option value="WPG">Winnipeg Jets</option>
                         <option value="WSH">Washington Capitals</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 10px; font-weight: bold;">Forward Lines:</label>
-                    <select id="forward-lines" style="width: 100%; padding: 12px; font-size: 1.1em; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2);">
-                        <option value="3">3 lines (9 players)</option>
-                        <option value="4" selected>4 lines (12 players)</option>
-                        <option value="5">5 lines (15 players)</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 10px; font-weight: bold;">Defense Pairs:</label>
-                    <select id="defense-pairs" style="width: 100%; padding: 12px; font-size: 1.1em; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2);">
-                        <option value="2">2 pairs (4 players)</option>
-                        <option value="3" selected>3 pairs (6 players)</option>
-                        <option value="4">4 pairs (8 players)</option>
                     </select>
                 </div>
             </div>
@@ -484,8 +468,6 @@ Flyers
             
             // Add configuration
             formData.append('team', document.getElementById('team-select').value);
-            formData.append('forward_lines', document.getElementById('forward-lines').value);
-            formData.append('defense_pairs', document.getElementById('defense-pairs').value);
             
             // Add lines data
             if (linesScreenshot) {
