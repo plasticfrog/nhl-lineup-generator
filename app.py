@@ -404,8 +404,11 @@ def process_lineup():
                 player_id = player.get('id')
                 number = str(player.get('sweaterNumber', ''))
                 
+                # Format as "#NUMBER LASTNAME"
+                display_name = f"#{number} {last.upper()}" if number and last else full_name.upper()
+                
                 goalies_list.append({
-                    'name': full_name.upper(),
+                    'name': display_name,
                     'id': player_id,
                     'number': number,
                     'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{default_team}/{player_id}.png"
@@ -532,8 +535,11 @@ def process_numbers():
                 player_id = player.get('id')
                 number = str(player.get('sweaterNumber', ''))
                 
+                # Format as "#NUMBER LASTNAME"
+                display_name = f"#{number} {last.upper()}" if number and last else full_name.upper()
+                
                 goalies_list.append({
-                    'name': full_name.upper(),
+                    'name': display_name,
                     'id': player_id,
                     'number': number,
                     'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{player_id}.png"
