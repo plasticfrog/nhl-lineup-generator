@@ -156,36 +156,77 @@ def get_coaches_from_espn(team_abbrev):
     """Fetch coaching staff from ESPN API"""
     try:
         espn_team = ESPN_TEAM_MAP.get(team_abbrev, team_abbrev.lower())
-        url = f"https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/{espn_team}"
+        
+        # Try multiple ESPN endpoints
+        urls = [
+            f"https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/{espn_team}",
+            f"https://site.web.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/{espn_team}",
+            f"http://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/{espn_team}"
+        ]
         
         headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=10)
         
-        if response.status_code == 200:
-            data = response.json()
-            
-            coaches_list = []
-            
-            # Check for coaches in team data
-            if 'team' in data and 'coaches' in data['team']:
-                for coach in data['team']['coaches']:
-                    name = coach.get('displayName', coach.get('fullName', ''))
-                    role = coach.get('position', {}).get('name', 'COACH')
+        for url in urls:
+            try:
+                print(f"Trying ESPN URL: {url}")
+                response = requests.get(url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    data = response.json()
                     
-                    # Try to get headshot
-                    headshot = None
-                    if 'headshot' in coach:
-                        headshot = coach['headshot'].get('href')
+                    coaches_list = []
                     
-                    coaches_list.append({
-                        'name': name.upper(),
-                        'role': role.upper(),
-                        'headshot_url': headshot
-                    })
+                    # Debug: print available keys
+                    print(f"ESPN response keys: {list(data.keys())}")
                     
-                    print(f"ESPN Coach: {name} - {role} - Photo: {headshot}")
-            
-            return coaches_list[:3]  # Return max 3 coaches
+                    # Try different possible paths for coaches
+                    coaches_data = None
+                    
+                    if 'team' in data:
+                        print(f"Team keys: {list(data['team'].keys())}")
+                        if 'coaches' in data['team']:
+                            coaches_data = data['team']['coaches']
+                        elif 'coach' in data['team']:
+                            coaches_data = [data['team']['coach']]
+                    
+                    if coaches_data:
+                        for coach in coaches_data:
+                            name = coach.get('displayName') or coach.get('fullName') or coach.get('name', '')
+                            
+                            # Try different ways to get role/position
+                            role = 'COACH'
+                            if 'position' in coach:
+                                if isinstance(coach['position'], dict):
+                                    role = coach['position'].get('name', 'COACH')
+                                else:
+                                    role = coach['position']
+                            elif 'title' in coach:
+                                role = coach['title']
+                            
+                            # Try to get headshot
+                            headshot = None
+                            if 'headshot' in coach:
+                                if isinstance(coach['headshot'], dict):
+                                    headshot = coach['headshot'].get('href')
+                                else:
+                                    headshot = coach['headshot']
+                            elif 'photo' in coach:
+                                headshot = coach['photo']
+                            
+                            coaches_list.append({
+                                'name': name.upper(),
+                                'role': role.upper(),
+                                'headshot_url': headshot
+                            })
+                            
+                            print(f"ESPN Coach found: {name} - {role} - Photo: {headshot}")
+                    
+                    if coaches_list:
+                        return coaches_list[:3]  # Return max 3 coaches
+                        
+            except Exception as e:
+                print(f"ESPN URL {url} failed: {str(e)}")
+                continue
             
     except Exception as e:
         print(f"ESPN coaches error: {str(e)}")
