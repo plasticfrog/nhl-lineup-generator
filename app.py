@@ -74,7 +74,240 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
     
     return None
 
+def extract_players_from_combined_image(image_file, roster_forwards, roster_defense):
+    """Extract players from single image with forwards and defense in multi-column layout"""
+    try:
+        image = Image.open(image_file)
+        text = pytesseract.image_to_string(image, config='--psm 6')
+        
+        print("Combined image OCR:")
+        print(text)
+        print("\n" + "="*70)
+        
+        lines = text.split('\n')
+        
+        # Extract player names in order (OCR reads left-to-right)
+        all_names = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Skip headers and stats lines
+            if any(keyword in line.upper() for keyword in ['FORWARD', 'DEFENSE', 'GOALTENDER', 'OVERALL', 'HOME', 'ROAD', 'COACH', 'SCRATCH', 'AT ']):
+                continue
+            
+            # Skip stat lines (contain lots of numbers like "iP: 31 G7 A:1 P:18")
+            if 'iP:' in line or 'G:' in line or 'A:' in line or 'GAA:' in line or 'SVP:' in line:
+                continue
+            
+            # Skip lines with physical stats (height/weight)
+            if 'H:' in line or 'W:' in line or 'Ace:' in line:
+                continue
+            
+            alpha = sum(1 for c in line if c.isalpha())
+            upper = sum(1 for c in line if c.isupper())
+            
+            # Good name line: lots of uppercase letters, few numbers
+            if alpha > 10 and upper > 8:
+                words = []
+                for word in line.split():
+                    clean = ''.join(c for c in word if c.isalpha() or c == '-')
+                    if len(clean) >= 3:  # Min 3 letters
+                        words.append(clean.upper())
+                
+                # Process words - each pair is likely a full name
+                for i in range(0, len(words)-1, 2):
+                    if i+1 < len(words):
+                        name = f"{words[i]} {words[i+1]}"
+                        all_names.append(name)
+                        print(f"  Extracted: {name}")
+        
+        print(f"\nTotal names extracted: {len(all_names)}")
+        print(f"Names: {all_names}")
+        
+        # Match to roster
+        matched_forwards = []
+        matched_defense = []
+        used_roster = set()
+        
+        # First 12 names should be forwards
+        for name in all_names[:12]:
+            match = match_name_to_roster(name, roster_forwards, used_roster)
+            if match:
+                matched_forwards.append(match)
+                used_roster.add(match)
+                print(f"  Forward: '{name}' -> '{match}'")
+            else:
+                matched_forwards.append(name)
+                print(f"  Forward: '{name}' (no match)")
+        
+        # Next 6 names should be defense
+        for name in all_names[12:18]:
+            match = match_name_to_roster(name, roster_defense, used_roster)
+            if match:
+                matched_defense.append(match)
+                used_roster.add(match)
+                print(f"  Defense: '{name}' -> '{match}'")
+            else:
+                matched_defense.append(name)
+                print(f"  Defense: '{name}' (no match)")
+        
+        # Pad if needed
+        while len(matched_forwards) < 12:
+            matched_forwards.append(f"PLAYER {len(matched_forwards)+1}")
+        
+        while len(matched_defense) < 6:
+            matched_defense.append(f"PLAYER {len(matched_defense)+1}")
+        
+        return matched_forwards[:12], matched_defense[:6]
+        
+    except Exception as e:
+        print(f"Combined OCR Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return [f"PLAYER {i+1}" for i in range(12)], [f"PLAYER {i+1}" for i in range(6)]
+
 def extract_players_from_image(image_file, expected_count, team_roster):
+    """Extract player names from separate forwards or defense image"""
+    try:
+        image = Image.open(image_file)
+        text = pytesseract.image_to_string(image, config='--psm 6')
+        
+        lines = text.split('\n')
+        matched_names = []
+        used_roster = set()
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            alpha = sum(1 for c in line if c.isalpha())
+            upper = sum(1 for c in line if c.isupper())
+            spaces = line.count(' ')
+            
+            if alpha > 15 and upper > 10 and spaces >= 2:
+                words = []
+                for word in line.split():
+                    clean = ''.join(c for c in word if c.isalpha() or c == '-')
+                    if clean:
+                        words.append(clean.upper())
+                
+                for i in range(len(words)-1):
+                    potential_name = f"{words[i]} {words[i+1]}"
+                    
+                    match = match_name_to_roster(potential_name, team_roster, used_roster)
+                    
+                    if match and match not in matched_names:
+                        matched_names.append(match)
+                        used_roster.add(match)
+                        print(f"  Matched '{potential_name}' -> '{match}'")
+        
+        print(f"Matched {len(matched_names)} players from OCR")
+        
+        while len(matched_names) < expected_count:
+            matched_names.append(f"PLAYER {len(matched_names)+1}")
+        
+        return matched_names[:expected_count]
+        
+    except Exception as e:
+        print(f"OCR Error: {str(e)}")
+        return [f"PLAYER {i+1}" for i in range(expected_count)]
+    """Extract players from single image with forwards and defense in multi-column layout"""
+    try:
+        image = Image.open(image_file)
+        text = pytesseract.image_to_string(image, config='--psm 6')
+        
+        print("Combined image OCR:")
+        print(text)
+        print("\n" + "="*70)
+        
+        lines = text.split('\n')
+        
+        # Extract player names in order (OCR reads left-to-right)
+        all_names = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Skip headers and stats lines
+            if any(keyword in line.upper() for keyword in ['FORWARD', 'DEFENSE', 'GOALTENDER', 'OVERALL', 'HOME', 'ROAD', 'COACH', 'SCRATCH', 'AT ']):
+                continue
+            
+            # Skip stat lines (contain lots of numbers like "iP: 31 G7 A:1 P:18")
+            if 'iP:' in line or 'G:' in line or 'A:' in line or 'GAA:' in line or 'SVP:' in line:
+                continue
+            
+            # Skip lines with physical stats (height/weight)
+            if 'H:' in line or 'W:' in line or 'Ace:' in line:
+                continue
+            
+            alpha = sum(1 for c in line if c.isalpha())
+            upper = sum(1 for c in line if c.isupper())
+            
+            # Good name line: lots of uppercase letters, few numbers
+            if alpha > 10 and upper > 8:
+                words = []
+                for word in line.split():
+                    clean = ''.join(c for c in word if c.isalpha() or c == '-')
+                    if len(clean) >= 3:  # Min 3 letters
+                        words.append(clean.upper())
+                
+                # Process words - each pair is likely a full name
+                for i in range(0, len(words)-1, 2):
+                    if i+1 < len(words):
+                        name = f"{words[i]} {words[i+1]}"
+                        all_names.append(name)
+                        print(f"  Extracted: {name}")
+        
+        print(f"\nTotal names extracted: {len(all_names)}")
+        print(f"Names: {all_names}")
+        
+        # Match to roster
+        matched_forwards = []
+        matched_defense = []
+        used_roster = set()
+        
+        # First 12 names should be forwards
+        for name in all_names[:12]:
+            match = match_name_to_roster(name, roster_forwards, used_roster)
+            if match:
+                matched_forwards.append(match)
+                used_roster.add(match)
+                print(f"  Forward: '{name}' -> '{match}'")
+            else:
+                matched_forwards.append(name)
+                print(f"  Forward: '{name}' (no match)")
+        
+        # Next 6 names should be defense
+        for name in all_names[12:18]:
+            match = match_name_to_roster(name, roster_defense, used_roster)
+            if match:
+                matched_defense.append(match)
+                used_roster.add(match)
+                print(f"  Defense: '{name}' -> '{match}'")
+            else:
+                matched_defense.append(name)
+                print(f"  Defense: '{name}' (no match)")
+        
+        # Pad if needed
+        while len(matched_forwards) < 12:
+            matched_forwards.append(f"PLAYER {len(matched_forwards)+1}")
+        
+        while len(matched_defense) < 6:
+            matched_defense.append(f"PLAYER {len(matched_defense)+1}")
+        
+        return matched_forwards[:12], matched_defense[:6]
+        
+    except Exception as e:
+        print(f"Combined OCR Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return [f"PLAYER {i+1}" for i in range(12)], [f"PLAYER {i+1}" for i in range(6)]
     """Extract player names and validate against roster"""
     try:
         image = Image.open(image_file)
@@ -479,9 +712,7 @@ def process_lineup():
         # Extract players
         if combined_file:
             combined_file.seek(0)
-            all_matched = extract_players_from_image(combined_file, 18, roster_forwards + roster_defense)
-            forwards = all_matched[:12]
-            defensemen = all_matched[12:18]
+            forwards, defensemen = extract_players_from_combined_image(combined_file, roster_forwards, roster_defense)
         else:
             forwards_file.seek(0)
             defense_file.seek(0)
