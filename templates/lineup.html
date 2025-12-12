@@ -502,7 +502,7 @@
 
     <script>
         // Load data from localStorage (set by index.html)
-        const lineupData = JSON.parse(localStorage.getItem('lineup_data') || '{"forwards":[],"defensemen":[],"goalies":[],"team":""}');
+        const lineupData = JSON.parse(localStorage.getItem('lineup_data') || '{"forwards":[],"defensemen":[],"goalies":[],"coaches":[],"team":""}');
         
         const FORWARDS = lineupData.forwards.map(p => ({
             name: p.name,
@@ -520,6 +520,11 @@
             name: g.name,
             image: g.headshot_url,
             number: g.number || ''
+        })) : [];
+        
+        const COACHES = lineupData.coaches ? lineupData.coaches.map(c => ({
+            name: c.name,
+            role: c.role
         })) : [];
 
         const STORAGE_KEY = 'nhl_lineup_custom_images_nogap';
@@ -820,6 +825,18 @@
                     name: goalieData.name,
                     image: goalieData.image,
                     role: 'GOALIE'
+                };
+                staffData[key] = prefilledData;
+                localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData));
+            }
+            
+            // Pre-fill coach data from API if available and not already saved
+            if (role === 'Coach' && COACHES && COACHES[index - 1] && !saved.name && !saved.image) {
+                const coachData = COACHES[index - 1];
+                prefilledData = {
+                    name: coachData.name,
+                    image: coachData.headshot_url,
+                    role: coachData.role || 'COACH'
                 };
                 staffData[key] = prefilledData;
                 localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData));
