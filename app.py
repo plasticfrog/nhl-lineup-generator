@@ -88,73 +88,89 @@ def extract_players_from_combined_image(image_file, roster_forwards, roster_defe
         print(text)
         print("\n" + "="*70)
         
-        lines = text.split('\n')
+        # Collect ALL individual words that could be player names
+        all_words = []
         
-        # Extract player names in order (OCR reads left-to-right)
-        all_names = []
-        
-        for line in lines:
+        for line in text.split('\n'):
             line = line.strip()
             if not line:
                 continue
             
-            # Skip headers and stats lines
-            if any(keyword in line.upper() for keyword in ['FORWARD', 'DEFENSE', 'GOALTENDER', 'OVERALL', 'HOME', 'ROAD', 'COACH', 'SCRATCH', 'AT ']):
-                print(f"SKIPPING (header): {line}")
+            # Skip headers and stats
+            if any(keyword in line.upper() for keyword in ['FORWARD', 'DEFENSE', 'GOALTENDER', 'OVERALL', 'HOME', 'ROAD', 'COACH', 'SCRATCH', 'AT ', 'LINES ARE', 'PROJECTED', 'SUBJECT']):
                 continue
             
-            # Skip stat lines (contain lots of numbers like "iP: 31 G7 A:1 P:18")
-            if 'iP:' in line or 'G:' in line or 'A:' in line or 'GAA:' in line or 'SVP:' in line:
-                print(f"SKIPPING (stats): {line}")
+            if 'iP:' in line or 'IGP:' in line or 'G:' in line or 'A:' in line or 'GAA:' in line or 'SVP:' in line or 'P:' in line:
                 continue
             
-            # Skip lines with physical stats (height/weight)
             if 'H:' in line or 'W:' in line or 'Ace:' in line:
-                print(f"SKIPPING (physical): {line}")
                 continue
             
-            alpha = sum(1 for c in line if c.isalpha())
-            upper = sum(1 for c in line if c.isupper())
-            
-            print(f"LINE: {line} | Alpha: {alpha}, Upper: {upper}")
-            
-            # Good name line: lots of uppercase letters, few numbers
-            if alpha > 10 and upper > 8:
-                words = []
-                for word in line.split():
-                    clean = ''.join(c for c in word if c.isalpha() or c == '-')
-                    if len(clean) >= 3:  # Min 3 letters
-                        words.append(clean.upper())
-                
-                print(f"  Words found: {words}")
-                
-                # For multi-column layouts (like 3 forwards per row):
-                # If we have 6+ words, assume it's 3 names (2 words each)
-                if len(words) >= 6:
-                    # Split into groups of 2 for each player
-                    for i in range(0, min(len(words), 6), 2):  # Max 3 players per line
-                        if i+1 < len(words):
-                            name = f"{words[i]} {words[i+1]}"
-                            all_names.append(name)
-                            print(f"  *** EXTRACTED NAME: {name}")
-                # Otherwise treat as single or double player line
-                elif len(words) >= 4:
-                    # 2 players
-                    for i in range(0, 4, 2):
-                        if i+1 < len(words):
-                            name = f"{words[i]} {words[i+1]}"
-                            all_names.append(name)
-                            print(f"  *** EXTRACTED NAME: {name}")
-                elif len(words) >= 2:
-                    # 1 player
-                    name = f"{words[0]} {words[1]}"
-                    all_names.append(name)
-                    print(f"  *** EXTRACTED NAME: {name}")
+            # Extract words
+            for word in line.split():
+                clean = ''.join(c for c in word if c.isalpha() or c == '-' or c == "'")
+                if len(clean) >= 3 and clean.isupper():
+                    all_words.append(clean)
         
-        print(f"\n{'='*70}")
-        print(f"TOTAL NAMES EXTRACTED: {len(all_names)}")
-        print(f"ALL NAMES: {all_names}")
-        print(f"{'='*70}\n")
+        print(f"ALL WORDS EXTRACTED: {all_words}")
+        
+        # Now try to match individual words to roster names
+        # Build list of possible full names by trying combinations
+        matched_players = []
+        used_words = set()
+        
+        # Try to match each roster player
+        all_roster = roster_forwards + roster_defense
+        
+        for roster_name in all_roster:
+            roster_parts = roster_name.split()
+            if len(roster_parts) < 2:
+                continue
+            
+            roster_first = roster_parts[0]
+            roster_last = roster_parts[-1]
+            
+            # Look for both first and last name in our word list
+            first_found = None
+            last_found = None
+            
+            for i, word in enumerate(all_words):
+                if i in used_words:
+                    continue
+                
+                # Check if word matches first name
+                if word == roster_first or (len(word) >= 3 and len(roster_first) >= 3 and word[:3] == roster_first[:3]):
+                    first_found = i
+                
+                # Check if word matches last name  
+                if word == roster_last or (len(word) >= 4 and len(roster_last) >= 4 and word[:4] == roster_last[:4]):
+                    last_found = i
+            
+            # If we found both parts, this is a match
+            if first_found is not None and last_found is not None:
+                matched_players.append(roster_name)
+                used_words.add(first_found)
+                used_words.add(last_found)
+                print(f"MATCHED: {roster_name} (words: {all_words[first_found]}, {all_words[last_found]})")
+                
+                if len(matched_players) >= 18:
+                    break
+        
+        print(f"\nTOTAL MATCHED: {len(matched_players)}")
+        print(f"MATCHED PLAYERS: {matched_players}")
+        
+        # Split into forwards (first 12) and defense (next 6)
+        forwards = matched_players[:12]
+        defense = matched_players[12:18]
+        
+        # Pad if needed
+        while len(forwards) < 12:
+            forwards.append(f"PLAYER {len(forwards)+1}")
+        
+        while len(defense) < 6:
+            defense.append(f"PLAYER {len(defense)+1}")
+        
+        return forwards, defense
         
         # Match to roster
         matched_forwards = []
