@@ -6,6 +6,7 @@ import os
 import time
 import re
 from collections import Counter
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -13,15 +14,16 @@ app.config['UPLOAD_FOLDER'] = '/tmp/nhl_uploads'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# ESPN team abbreviation mapping
-ESPN_TEAM_MAP = {
-    'ANA': 'ana', 'BOS': 'bos', 'BUF': 'buf', 'CAR': 'car', 'CBJ': 'cbj',
-    'CGY': 'cgy', 'CHI': 'chi', 'COL': 'col', 'DAL': 'dal', 'DET': 'det',
-    'EDM': 'edm', 'FLA': 'fla', 'LAK': 'la', 'MIN': 'min', 'MTL': 'mtl',
-    'NJD': 'nj', 'NSH': 'nsh', 'NYI': 'nyi', 'NYR': 'nyr', 'OTT': 'ott',
-    'PHI': 'phi', 'PIT': 'pit', 'SEA': 'sea', 'SJS': 'sj', 'STL': 'stl',
-    'TBL': 'tb', 'TOR': 'tor', 'UTA': 'utah', 'VAN': 'van', 'VGK': 'vgk',
-    'WPG': 'wpg', 'WSH': 'wsh'
+# Team name mapping for NHL.com URLs
+TEAM_NAME_MAP = {
+    'ANA': 'ducks', 'BOS': 'bruins', 'BUF': 'sabres', 'CAR': 'hurricanes',
+    'CBJ': 'bluejackets', 'CGY': 'flames', 'CHI': 'blackhawks', 'COL': 'avalanche',
+    'DAL': 'stars', 'DET': 'redwings', 'EDM': 'oilers', 'FLA': 'panthers',
+    'LAK': 'kings', 'MIN': 'wild', 'MTL': 'canadiens', 'NJD': 'devils',
+    'NSH': 'predators', 'NYI': 'islanders', 'NYR': 'rangers', 'OTT': 'senators',
+    'PHI': 'flyers', 'PIT': 'penguins', 'SEA': 'kraken', 'SJS': 'sharks',
+    'STL': 'blues', 'TBL': 'lightning', 'TOR': 'mapleleafs', 'UTA': 'utahhockeyclub',
+    'VAN': 'canucks', 'VGK': 'goldenknights', 'WPG': 'jets', 'WSH': 'capitals'
 }
 
 def match_name_to_roster(ocr_name, roster_list, used_names):
@@ -152,86 +154,66 @@ def search_player(player_name, known_team=None):
     
     return None
 
-def get_coaches_from_espn(team_abbrev):
-    """Fetch coaching staff from ESPN API"""
-    try:
-        espn_team = ESPN_TEAM_MAP.get(team_abbrev, team_abbrev.lower())
-        
-        # Try multiple ESPN endpoints
-        urls = [
-            f"https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/{espn_team}",
-            f"https://site.web.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/{espn_team}",
-            f"http://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/{espn_team}"
-        ]
-        
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        
-        for url in urls:
-            try:
-                print(f"Trying ESPN URL: {url}")
-                response = requests.get(url, headers=headers, timeout=10)
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    coaches_list = []
-                    
-                    # Debug: print available keys
-                    print(f"ESPN response keys: {list(data.keys())}")
-                    
-                    # Try different possible paths for coaches
-                    coaches_data = None
-                    
-                    if 'team' in data:
-                        print(f"Team keys: {list(data['team'].keys())}")
-                        if 'coaches' in data['team']:
-                            coaches_data = data['team']['coaches']
-                        elif 'coach' in data['team']:
-                            coaches_data = [data['team']['coach']]
-                    
-                    if coaches_data:
-                        for coach in coaches_data:
-                            name = coach.get('displayName') or coach.get('fullName') or coach.get('name', '')
-                            
-                            # Try different ways to get role/position
-                            role = 'COACH'
-                            if 'position' in coach:
-                                if isinstance(coach['position'], dict):
-                                    role = coach['position'].get('name', 'COACH')
-                                else:
-                                    role = coach['position']
-                            elif 'title' in coach:
-                                role = coach['title']
-                            
-                            # Try to get headshot
-                            headshot = None
-                            if 'headshot' in coach:
-                                if isinstance(coach['headshot'], dict):
-                                    headshot = coach['headshot'].get('href')
-                                else:
-                                    headshot = coach['headshot']
-                            elif 'photo' in coach:
-                                headshot = coach['photo']
-                            
-                            coaches_list.append({
-                                'name': name.upper(),
-                                'role': role.upper(),
-                                'headshot_url': headshot
-                            })
-                            
-                            print(f"ESPN Coach found: {name} - {role} - Photo: {headshot}")
-                    
-                    if coaches_list:
-                        return coaches_list[:3]  # Return max 3 coaches
-                        
-            except Exception as e:
-                print(f"ESPN URL {url} failed: {str(e)}")
-                continue
-            
-    except Exception as e:
-        print(f"ESPN coaches error: {str(e)}")
+def get_coaches_from_nhl(team_abbrev):
+    """Scrape coaches from NHL.com team coaches page"""
+    coaches_list = []
     
-    return []
+    try:
+        team_slug = TEAM_NAME_MAP.get(team_abbrev, team_abbrev.lower())
+        url = f"https://www.nhl.com/{team_slug}/team/coaches"
+        
+        print(f"Scraping coaches from: {url}")
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Look for coach images with alt text
+            imgs = soup.find_all('img')
+            for img in imgs:
+                alt = img.get('alt', '').lower()
+                src = img.get('src', '')
+                
+                # Check if this is a coach image
+                if any(keyword in alt for keyword in ['coach', 'assistant', 'goaltending']):
+                    # Extract coach name from alt text
+                    name_match = img.get('alt', '').split('-')[0].strip() if '-' in img.get('alt', '') else img.get('alt', '').strip()
+                    
+                    # Determine role
+                    role = 'COACH'
+                    alt_lower = alt.lower()
+                    if 'head coach' in alt_lower:
+                        role = 'HEAD COACH'
+                    elif 'assistant' in alt_lower:
+                        role = 'ASSISTANT COACH'
+                    elif 'goaltending' in alt_lower:
+                        role = 'GOALTENDING COACH'
+                    
+                    headshot_url = src
+                    
+                    coaches_list.append({
+                        'name': name_match.upper(),
+                        'role': role,
+                        'headshot_url': headshot_url
+                    })
+                    
+                    print(f"Found coach: {name_match} - {role} - {headshot_url}")
+                    
+                    if len(coaches_list) >= 3:
+                        break
+        
+        return coaches_list[:3]
+        
+    except Exception as e:
+        print(f"NHL.com scraping error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return []
 
 def extract_roster_from_screenshot(image_file):
     """Extract player roster from stats table screenshot"""
@@ -258,10 +240,8 @@ def extract_roster_from_screenshot(image_file):
             if any(x in line.lower() for x in ['head coach', 'assistant coach', 'coach']):
                 in_coaching_section = True
                 # Try to extract coach name from same line
-                # Example: "Head Coach                Rick Tocchet"
                 parts = line.split()
                 if len(parts) >= 3:
-                    # Last 2 words are likely the name
                     coach_name = ' '.join(parts[-2:])
                     if sum(c.isalpha() for c in coach_name) > 5:
                         coaches.append({
@@ -276,10 +256,8 @@ def extract_roster_from_screenshot(image_file):
             
             # If in coaching section, try to extract coach names
             if in_coaching_section:
-                # Look for names (multiple words with mostly letters)
                 parts = [p for p in line.split() if sum(c.isalpha() for c in p) > 2]
                 if len(parts) >= 2:
-                    # Take last 2-3 words as name
                     coach_name = ' '.join(parts[-2:]) if len(parts) >= 2 else parts[-1]
                     if sum(c.isalpha() for c in coach_name) > 5:
                         coaches.append({
@@ -288,7 +266,7 @@ def extract_roster_from_screenshot(image_file):
                         })
                 continue
             
-            # Player extraction (same as before)
+            # Player extraction
             parts = line.split()
             
             if len(parts) < 3:
@@ -380,18 +358,21 @@ def lineup():
 @app.route('/process', methods=['POST'])
 def process_lineup():
     try:
+        # Check if using combined upload or separate
+        combined_file = request.files.get('combined')
         forwards_file = request.files.get('forwards')
         defense_file = request.files.get('defense')
         
-        if not forwards_file or not defense_file:
-            return jsonify({'error': 'Both screenshots required'}), 400
+        if not combined_file and not (forwards_file and defense_file):
+            return jsonify({'error': 'Screenshots required'}), 400
         
+        # Detect team
         print("Identifying team...")
         temp_names = []
         
-        for img in [forwards_file, defense_file]:
-            img.seek(0)
-            image = Image.open(img)
+        if combined_file:
+            combined_file.seek(0)
+            image = Image.open(combined_file)
             text = pytesseract.image_to_string(image, config='--psm 6')
             
             for line in text.split('\n'):
@@ -403,8 +384,23 @@ def process_lineup():
                         temp_names.append(name)
                         if len(temp_names) >= 3:
                             break
-            if len(temp_names) >= 3:
-                break
+        else:
+            for img in [forwards_file, defense_file]:
+                img.seek(0)
+                image = Image.open(img)
+                text = pytesseract.image_to_string(image, config='--psm 6')
+                
+                for line in text.split('\n'):
+                    alpha = sum(1 for c in line if c.isalpha())
+                    if alpha > 20:
+                        words = [w for w in line.split() if len(''.join(c for c in w if c.isalpha())) >= 3]
+                        if len(words) >= 4:
+                            name = f"{words[0]} {words[1]}"
+                            temp_names.append(name)
+                            if len(temp_names) >= 3:
+                                break
+                if len(temp_names) >= 3:
+                    break
         
         found_teams = []
         for name in temp_names[:5]:
@@ -416,6 +412,7 @@ def process_lineup():
         default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'TOR'
         print(f"Detected team: {default_team}")
         
+        # Get roster
         roster_url = f"https://api-web.nhle.com/v1/roster/{default_team}/current"
         headers = {'User-Agent': 'Mozilla/5.0'}
         roster_response = requests.get(roster_url, headers=headers, timeout=10)
@@ -441,12 +438,9 @@ def process_lineup():
             for player in roster_json.get('goalies', [])[:2]:
                 first = player.get('firstName', {}).get('default', '')
                 last = player.get('lastName', {}).get('default', '')
-                full_name = f"{first} {last}".strip()
                 player_id = player.get('id')
                 number = str(player.get('sweaterNumber', ''))
-                
-                # Format as "#NUMBER LASTNAME"
-                display_name = f"#{number} {last.upper()}" if number and last else full_name.upper()
+                display_name = f"#{number} {last.upper()}" if number and last else f"{first} {last}".upper()
                 
                 goalies_list.append({
                     'name': display_name,
@@ -457,22 +451,30 @@ def process_lineup():
         
         print(f"Got roster data for {len(roster_data)} players and {len(goalies_list)} goalies")
         
-        # Get coaches from ESPN
-        coaches_list = get_coaches_from_espn(default_team)
-        print(f"Got {len(coaches_list)} coaches from ESPN")
+        # Get coaches
+        print(f"Attempting to fetch coaches for team: {default_team}")
+        coaches_list = get_coaches_from_nhl(default_team)
+        print(f"Got {len(coaches_list)} coaches")
         
         roster_forwards = [name for name, data in roster_data.items() if data['is_forward']]
         roster_defense = [name for name, data in roster_data.items() if not data['is_forward']]
         
-        forwards_file.seek(0)
-        defense_file.seek(0)
-        
-        forwards = extract_players_from_image(forwards_file, 12, roster_forwards)
-        defensemen = extract_players_from_image(defense_file, 6, roster_defense)
+        # Extract players
+        if combined_file:
+            combined_file.seek(0)
+            all_matched = extract_players_from_image(combined_file, 18, roster_forwards + roster_defense)
+            forwards = all_matched[:12]
+            defensemen = all_matched[12:18]
+        else:
+            forwards_file.seek(0)
+            defense_file.seek(0)
+            forwards = extract_players_from_image(forwards_file, 12, roster_forwards)
+            defensemen = extract_players_from_image(defense_file, 6, roster_defense)
         
         print(f"Final forwards: {forwards}")
         print(f"Final defense: {defensemen}")
         
+        # Build player data
         all_players = []
         
         for player_name in forwards + defensemen:
@@ -572,12 +574,9 @@ def process_numbers():
             for player in roster_json.get('goalies', [])[:2]:
                 first = player.get('firstName', {}).get('default', '')
                 last = player.get('lastName', {}).get('default', '')
-                full_name = f"{first} {last}".strip()
                 player_id = player.get('id')
                 number = str(player.get('sweaterNumber', ''))
-                
-                # Format as "#NUMBER LASTNAME"
-                display_name = f"#{number} {last.upper()}" if number and last else full_name.upper()
+                display_name = f"#{number} {last.upper()}" if number and last else f"{first} {last}".upper()
                 
                 goalies_list.append({
                     'name': display_name,
@@ -586,11 +585,12 @@ def process_numbers():
                     'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{player_id}.png"
                 })
         
-        # Get coaches from ESPN (more reliable than OCR)
-        coaches_from_espn = get_coaches_from_espn(team)
+        # Get coaches from NHL.com
+        print(f"Attempting to fetch coaches for team: {team}")
+        coaches_from_nhl = get_coaches_from_nhl(team)
         
-        # Use ESPN coaches if available, otherwise use OCR coaches
-        final_coaches = coaches_from_espn if coaches_from_espn else coaches
+        # Use NHL.com coaches if available, otherwise use OCR coaches
+        final_coaches = coaches_from_nhl if coaches_from_nhl else coaches
         print(f"Using {len(final_coaches)} coaches")
         
         all_players = []
@@ -657,7 +657,7 @@ def process_numbers():
                 'headshot_url': None
             })
         
-        print(f"\nFinal: {len(forwards)} forwards, {len(defensemen)} defense, {len(goalies_list)} goalies")
+        print(f"\nFinal: {len(forwards)} forwards, {len(defensemen)} defense, {len(goalies_list)} goalies, {len(final_coaches)} coaches")
         
         return jsonify({
             'forwards': forwards[:12],
