@@ -77,10 +77,14 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
 def extract_players_from_combined_image(image_file, roster_forwards, roster_defense):
     """Extract players from single image with forwards and defense in multi-column layout"""
     try:
+        print("\n" + "="*70)
+        print("STARTING COMBINED IMAGE EXTRACTION")
+        print("="*70)
+        
         image = Image.open(image_file)
         text = pytesseract.image_to_string(image, config='--psm 6')
         
-        print("Combined image OCR:")
+        print("COMBINED IMAGE OCR OUTPUT:")
         print(text)
         print("\n" + "="*70)
         
@@ -96,18 +100,23 @@ def extract_players_from_combined_image(image_file, roster_forwards, roster_defe
             
             # Skip headers and stats lines
             if any(keyword in line.upper() for keyword in ['FORWARD', 'DEFENSE', 'GOALTENDER', 'OVERALL', 'HOME', 'ROAD', 'COACH', 'SCRATCH', 'AT ']):
+                print(f"SKIPPING (header): {line}")
                 continue
             
             # Skip stat lines (contain lots of numbers like "iP: 31 G7 A:1 P:18")
             if 'iP:' in line or 'G:' in line or 'A:' in line or 'GAA:' in line or 'SVP:' in line:
+                print(f"SKIPPING (stats): {line}")
                 continue
             
             # Skip lines with physical stats (height/weight)
             if 'H:' in line or 'W:' in line or 'Ace:' in line:
+                print(f"SKIPPING (physical): {line}")
                 continue
             
             alpha = sum(1 for c in line if c.isalpha())
             upper = sum(1 for c in line if c.isupper())
+            
+            print(f"LINE: {line} | Alpha: {alpha}, Upper: {upper}")
             
             # Good name line: lots of uppercase letters, few numbers
             if alpha > 10 and upper > 8:
@@ -117,15 +126,19 @@ def extract_players_from_combined_image(image_file, roster_forwards, roster_defe
                     if len(clean) >= 3:  # Min 3 letters
                         words.append(clean.upper())
                 
+                print(f"  Words found: {words}")
+                
                 # Process words - each pair is likely a full name
                 for i in range(0, len(words)-1, 2):
                     if i+1 < len(words):
                         name = f"{words[i]} {words[i+1]}"
                         all_names.append(name)
-                        print(f"  Extracted: {name}")
+                        print(f"  *** EXTRACTED NAME: {name}")
         
-        print(f"\nTotal names extracted: {len(all_names)}")
-        print(f"Names: {all_names}")
+        print(f"\n{'='*70}")
+        print(f"TOTAL NAMES EXTRACTED: {len(all_names)}")
+        print(f"ALL NAMES: {all_names}")
+        print(f"{'='*70}\n")
         
         # Match to roster
         matched_forwards = []
