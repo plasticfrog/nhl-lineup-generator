@@ -830,20 +830,22 @@
                 localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData));
             }
             
-            // Pre-fill coach data from API if available and not already saved
-            if (role === 'Coach' && COACHES && COACHES[index - 1] && !saved.name && !saved.image) {
+            // Pre-fill coach data from API - ALWAYS use API data when available
+            if (role === 'Coach' && COACHES && COACHES[index - 1]) {
                 const coachData = COACHES[index - 1];
                 prefilledData = {
                     name: coachData.name,
                     image: coachData.headshot_url,
                     role: coachData.role || 'COACH'
                 };
+                // Always overwrite with fresh API data
                 staffData[key] = prefilledData;
                 localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData));
             }
             
             // Use saved data if exists, otherwise use prefilled
-            const finalData = (saved.name || saved.image) ? saved : prefilledData;
+            // For coaches: always use prefilled (API) data if available
+            const finalData = (role === 'Coach' && prefilledData.name) ? prefilledData : ((saved.name || saved.image) ? saved : prefilledData);
             
             const member = document.createElement('div');
             member.className = 'staff-member';
