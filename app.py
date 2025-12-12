@@ -75,7 +75,7 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
     return None
 
 def extract_players_from_combined_image(image_file, roster_forwards, roster_defense):
-    """Extract players from single image with forwards and defense in multi-column layout"""
+    """Extract players from single image - handles first/last name on separate lines"""
     try:
         print("\n" + "="*70)
         print("STARTING COMBINED IMAGE EXTRACTION")
@@ -84,80 +84,93 @@ def extract_players_from_combined_image(image_file, roster_forwards, roster_defe
         image = Image.open(image_file)
         text = pytesseract.image_to_string(image, config='--psm 6')
         
-        print("COMBINED IMAGE OCR OUTPUT:")
-        print(text)
-        print("\n" + "="*70)
+        print("COMBINED IMAGE OCR OUTPUT (first 1000 chars):")
+        print(text[:1000])
         
-        # Collect ALL individual words that could be player names
-        all_words = []
+        lines = text.split('\n')
         
-        for line in text.split('\n'):
-            line = line.strip()
-            if not line:
+        # Find name line pairs (first names, then last names)
+        player_names = []
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # Skip empty and header lines
+            if not line or any(x in line.upper() for x in ['FORWARD', 'DEFENSE', 'GOALTENDER', 'OVERALL', 'HOME', 'ROAD', 'AT ', 'COACH', 'SCRATCH', 'LINES ARE']):
+                i += 1
                 continue
             
-            # Skip headers and stats
-            if any(keyword in line.upper() for keyword in ['FORWARD', 'DEFENSE', 'GOALTENDER', 'OVERALL', 'HOME', 'ROAD', 'COACH', 'SCRATCH', 'AT ', 'LINES ARE', 'PROJECTED', 'SUBJECT']):
+            # Skip stats lines
+            if 'iP:' in line or 'IGP:' in line or 'G:' in line or 'A:' in line or 'P:' in line or 'GAA:' in line or 'SVP:' in line or 'R:' in line:
+                i += 1
                 continue
             
-            if 'iP:' in line or 'IGP:' in line or 'G:' in line or 'A:' in line or 'GAA:' in line or 'SVP:' in line or 'P:' in line:
+            # Skip physical stats
+            if 'H:' in line or 'IH:' in line or 'W:' in line or 'Ace:' in line or 'Ps ' in line:
+                i += 1
                 continue
             
-            if 'H:' in line or 'W:' in line or 'Ace:' in line:
-                continue
-            
-            # Extract words
+            # Check if this is a name line (multiple uppercase words)
+            words = []
             for word in line.split():
                 clean = ''.join(c for c in word if c.isalpha() or c == '-' or c == "'")
-                if len(clean) >= 3 and clean.isupper():
-                    all_words.append(clean)
-        
-        print(f"ALL WORDS EXTRACTED: {all_words}")
-        
-        # Now try to match individual words to roster names
-        # Build list of possible full names by trying combinations
-        matched_players = []
-        used_words = set()
-        
-        # Try to match each roster player
-        all_roster = roster_forwards + roster_defense
-        
-        for roster_name in all_roster:
-            roster_parts = roster_name.split()
-            if len(roster_parts) < 2:
-                continue
+                if len(clean) >= 3 and sum(c.isupper() for c in clean) >= 3:
+                    words.append(clean.upper())
             
-            roster_first = roster_parts[0]
-            roster_last = roster_parts[-1]
-            
-            # Look for both first and last name in our word list
-            first_found = None
-            last_found = None
-            
-            for i, word in enumerate(all_words):
-                if i in used_words:
+            # If we have 2-3 name words, check next line for corresponding last names
+            if len(words) >= 2 and i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                
+                # Skip next line if it's stats
+                if 'iP:' in next_line or 'G:' in next_line or 'A:' in next_line:
+                    i += 1
                     continue
                 
-                # Check if word matches first name
-                if word == roster_first or (len(word) >= 3 and len(roster_first) >= 3 and word[:3] == roster_first[:3]):
-                    first_found = i
+                # Extract words from next line
+                next_words = []
+                for word in next_line.split():
+                    clean = ''.join(c for c in word if c.isalpha() or c == '-' or c == "'")
+                    if len(clean) >= 3 and sum(c.isupper() for c in clean) >= 3:
+                        next_words.append(clean.upper())
                 
-                # Check if word matches last name  
-                if word == roster_last or (len(word) >= 4 and len(roster_last) >= 4 and word[:4] == roster_last[:4]):
-                    last_found = i
+                # If next line also has 2-3 words, pair them up
+                if len(next_words) >= 2:
+                    print(f"\nFOUND NAME PAIR:")
+                    print(f"  First names: {words}")
+                    print(f"  Last names: {next_words}")
+                    
+                    # Pair up: first[0]+last[0], first[1]+last[1], etc
+                    for j in range(min(len(words), len(next_words))):
+                        full_name = f"{words[j]} {next_words[j]}"
+                        player_names.append(full_name)
+                        print(f"  -> {full_name}")
+                    
+                    i += 2  # Skip both lines
+                    continue
             
-            # If we found both parts, this is a match
-            if first_found is not None and last_found is not None:
-                matched_players.append(roster_name)
-                used_words.add(first_found)
-                used_words.add(last_found)
-                print(f"MATCHED: {roster_name} (words: {all_words[first_found]}, {all_words[last_found]})")
-                
-                if len(matched_players) >= 18:
-                    break
+            i += 1
         
-        print(f"\nTOTAL MATCHED: {len(matched_players)}")
-        print(f"MATCHED PLAYERS: {matched_players}")
+        print(f"\n{'='*70}")
+        print(f"EXTRACTED {len(player_names)} PLAYERS:")
+        for idx, name in enumerate(player_names):
+            print(f"  {idx+1}. {name}")
+        print(f"{'='*70}\n")
+        
+        # Match to roster
+        all_roster = roster_forwards + roster_defense
+        matched_players = []
+        used_roster = set()
+        
+        for name in player_names:
+            match = match_name_to_roster(name, all_roster, used_roster)
+            if match:
+                matched_players.append(match)
+                used_roster.add(match)
+                print(f"'{name}' -> '{match}'")
+            else:
+                matched_players.append(name)
+                print(f"'{name}' (no match, keeping as-is)")
         
         # Split into forwards (first 12) and defense (next 6)
         forwards = matched_players[:12]
@@ -170,49 +183,18 @@ def extract_players_from_combined_image(image_file, roster_forwards, roster_defe
         while len(defense) < 6:
             defense.append(f"PLAYER {len(defense)+1}")
         
+        print(f"\nFINAL LINEUP:")
+        print(f"Forwards ({len(forwards)}): {forwards}")
+        print(f"Defense ({len(defense)}): {defense}")
+        
         return forwards, defense
-        
-        # Match to roster
-        matched_forwards = []
-        matched_defense = []
-        used_roster = set()
-        
-        # First 12 names should be forwards
-        for name in all_names[:12]:
-            match = match_name_to_roster(name, roster_forwards, used_roster)
-            if match:
-                matched_forwards.append(match)
-                used_roster.add(match)
-                print(f"  Forward: '{name}' -> '{match}'")
-            else:
-                matched_forwards.append(name)
-                print(f"  Forward: '{name}' (no match)")
-        
-        # Next 6 names should be defense
-        for name in all_names[12:18]:
-            match = match_name_to_roster(name, roster_defense, used_roster)
-            if match:
-                matched_defense.append(match)
-                used_roster.add(match)
-                print(f"  Defense: '{name}' -> '{match}'")
-            else:
-                matched_defense.append(name)
-                print(f"  Defense: '{name}' (no match)")
-        
-        # Pad if needed
-        while len(matched_forwards) < 12:
-            matched_forwards.append(f"PLAYER {len(matched_forwards)+1}")
-        
-        while len(matched_defense) < 6:
-            matched_defense.append(f"PLAYER {len(matched_defense)+1}")
-        
-        return matched_forwards[:12], matched_defense[:6]
         
     except Exception as e:
         print(f"Combined OCR Error: {str(e)}")
         import traceback
         traceback.print_exc()
         return [f"PLAYER {i+1}" for i in range(12)], [f"PLAYER {i+1}" for i in range(6)]
+
 
 def extract_players_from_image(image_file, expected_count, team_roster):
     """Extract player names from separate forwards or defense image"""
