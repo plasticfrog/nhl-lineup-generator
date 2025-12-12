@@ -226,19 +226,22 @@
             
             <div id="separate-uploads">
                 <div class="upload-grid">
-                <div class="upload-box" id="forwards-box" onclick="document.getElementById('forwards-input').click()">
-                    <div class="upload-icon">📋</div>
-                    <div class="upload-label">Forwards Screenshot</div>
-                    <div class="upload-hint">Click to upload or drag & drop (12 players in 3x4 grid)</div>
-                    <div class="file-name" id="forwards-name"></div>
+                    <div class="upload-box" id="forwards-box" onclick="document.getElementById('forwards-input').click()">
+                        <div class="upload-icon">📋</div>
+                        <div class="upload-label">Forwards Screenshot</div>
+                        <div class="upload-hint">Click to upload or drag & drop (12 players in 3x4 grid)</div>
+                        <div class="file-name" id="forwards-name"></div>
+                    </div>
+                    
+                    <div class="upload-box" id="defense-box" onclick="document.getElementById('defense-input').click()">
+                        <div class="upload-icon">🛡️</div>
+                        <div class="upload-label">Defense Screenshot</div>
+                        <div class="upload-hint">Click to upload or drag & drop (6 players in 2x3 grid)</div>
+                        <div class="file-name" id="defense-name"></div>
+                    </div>
                 </div>
-                
-                <div class="upload-box" id="defense-box" onclick="document.getElementById('defense-input').click()">
-                    <div class="upload-icon">🛡️</div>
-                    <div class="upload-label">Defense Screenshot</div>
-                    <div class="upload-hint">Click to upload or drag & drop (6 players in 2x3 grid)</div>
-                    <div class="file-name" id="defense-name"></div>
-                </div>
+                <input type="file" id="forwards-input" accept="image/*" onchange="handleFileSelect('forwards', this)">
+                <input type="file" id="defense-input" accept="image/*" onchange="handleFileSelect('defense', this)">
             </div>
             
             <div id="combined-upload" style="display: none;">
