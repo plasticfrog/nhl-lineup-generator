@@ -128,12 +128,28 @@ def extract_players_from_combined_image(image_file, roster_forwards, roster_defe
                 
                 print(f"  Words found: {words}")
                 
-                # Process words - each pair is likely a full name
-                for i in range(0, len(words)-1, 2):
-                    if i+1 < len(words):
-                        name = f"{words[i]} {words[i+1]}"
-                        all_names.append(name)
-                        print(f"  *** EXTRACTED NAME: {name}")
+                # For multi-column layouts (like 3 forwards per row):
+                # If we have 6+ words, assume it's 3 names (2 words each)
+                if len(words) >= 6:
+                    # Split into groups of 2 for each player
+                    for i in range(0, min(len(words), 6), 2):  # Max 3 players per line
+                        if i+1 < len(words):
+                            name = f"{words[i]} {words[i+1]}"
+                            all_names.append(name)
+                            print(f"  *** EXTRACTED NAME: {name}")
+                # Otherwise treat as single or double player line
+                elif len(words) >= 4:
+                    # 2 players
+                    for i in range(0, 4, 2):
+                        if i+1 < len(words):
+                            name = f"{words[i]} {words[i+1]}"
+                            all_names.append(name)
+                            print(f"  *** EXTRACTED NAME: {name}")
+                elif len(words) >= 2:
+                    # 1 player
+                    name = f"{words[0]} {words[1]}"
+                    all_names.append(name)
+                    print(f"  *** EXTRACTED NAME: {name}")
         
         print(f"\n{'='*70}")
         print(f"TOTAL NAMES EXTRACTED: {len(all_names)}")
