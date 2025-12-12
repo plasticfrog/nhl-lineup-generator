@@ -216,7 +216,16 @@
         </div>
         
         <div class="upload-section">
-            <div class="upload-grid">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <label style="font-size: 1.1em; font-weight: bold; margin-right: 10px;">Upload Method:</label>
+                <select id="upload-method" onchange="toggleUploadMethod()" style="padding: 10px; font-size: 1em; border-radius: 5px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2);">
+                    <option value="separate">Two Separate Images (Forwards + Defense)</option>
+                    <option value="combined">One Image (Both Forwards & Defense)</option>
+                </select>
+            </div>
+            
+            <div id="separate-uploads">
+                <div class="upload-grid">
                 <div class="upload-box" id="forwards-box" onclick="document.getElementById('forwards-input').click()">
                     <div class="upload-icon">📋</div>
                     <div class="upload-label">Forwards Screenshot</div>
@@ -232,8 +241,15 @@
                 </div>
             </div>
             
-            <input type="file" id="forwards-input" accept="image/*" onchange="handleFileSelect('forwards', this)">
-            <input type="file" id="defense-input" accept="image/*" onchange="handleFileSelect('defense', this)">
+            <div id="combined-upload" style="display: none;">
+                <div class="upload-box" id="combined-box" onclick="document.getElementById('combined-input').click()">
+                    <div class="upload-icon">🏒</div>
+                    <div class="upload-label">Full Lineup Screenshot</div>
+                    <div class="upload-hint">Click to upload or drag & drop (forwards + defense in one image)</div>
+                    <div class="file-name" id="combined-name"></div>
+                </div>
+                <input type="file" id="combined-input" accept="image/*" onchange="handleFileSelect('combined', this)">
+            </div>
             
             <button class="generate-btn" id="generate-btn" onclick="generateLineup()" disabled>
                 Generate Lineup
@@ -274,6 +290,27 @@
     <script>
         let forwardsFile = null;
         let defenseFile = null;
+        let combinedFile = null;
+        
+        function toggleUploadMethod() {
+            const method = document.getElementById('upload-method').value;
+            const separateDiv = document.getElementById('separate-uploads');
+            const combinedDiv = document.getElementById('combined-upload');
+            
+            if (method === 'combined') {
+                separateDiv.style.display = 'none';
+                combinedDiv.style.display = 'block';
+            } else {
+                separateDiv.style.display = 'block';
+                combinedDiv.style.display = 'none';
+            }
+            
+            // Reset files and button
+            forwardsFile = null;
+            defenseFile = null;
+            combinedFile = null;
+            document.getElementById('generate-btn').disabled = true;
+        }
         
         function handleFileSelect(type, input) {
             const file = input.files[0];
@@ -283,19 +320,26 @@
                 forwardsFile = file;
                 document.getElementById('forwards-name').textContent = file.name;
                 document.getElementById('forwards-box').classList.add('has-file');
-            } else {
+            } else if (type === 'defense') {
                 defenseFile = file;
                 document.getElementById('defense-name').textContent = file.name;
                 document.getElementById('defense-box').classList.add('has-file');
+            } else if (type === 'combined') {
+                combinedFile = file;
+                document.getElementById('combined-name').textContent = file.name;
+                document.getElementById('combined-box').classList.add('has-file');
             }
             
-            // Enable button if both files selected
-            if (forwardsFile && defenseFile) {
-                document.getElementById('generate-btn').disabled = false;
+            // Enable button based on method
+            const method = document.getElementById('upload-method').value;
+            if (method === 'combined') {
+                document.getElementById('generate-btn').disabled = !combinedFile;
+            } else {
+                document.getElementById('generate-btn').disabled = !(forwardsFile && defenseFile);
             }
         }
         
-        // Setup drag and drop for both boxes
+        // Setup drag and drop for all boxes
         function setupDragAndDrop(boxId, type) {
             const box = document.getElementById(boxId);
             
@@ -328,11 +372,18 @@
         // Initialize drag and drop
         setupDragAndDrop('forwards-box', 'forwards');
         setupDragAndDrop('defense-box', 'defense');
+        setupDragAndDrop('combined-box', 'combined');
         
         async function generateLineup() {
+            const method = document.getElementById('upload-method').value;
             const formData = new FormData();
-            formData.append('forwards', forwardsFile);
-            formData.append('defense', defenseFile);
+            
+            if (method === 'combined') {
+                formData.append('combined', combinedFile);
+            } else {
+                formData.append('forwards', forwardsFile);
+                formData.append('defense', defenseFile);
+            }
             
             // Show loading
             document.getElementById('loading').style.display = 'block';
