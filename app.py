@@ -13,6 +13,17 @@ app.config['UPLOAD_FOLDER'] = '/tmp/nhl_uploads'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# ESPN team abbreviation mapping
+ESPN_TEAM_MAP = {
+    'ANA': 'ana', 'BOS': 'bos', 'BUF': 'buf', 'CAR': 'car', 'CBJ': 'cbj',
+    'CGY': 'cgy', 'CHI': 'chi', 'COL': 'col', 'DAL': 'dal', 'DET': 'det',
+    'EDM': 'edm', 'FLA': 'fla', 'LAK': 'la', 'MIN': 'min', 'MTL': 'mtl',
+    'NJD': 'nj', 'NSH': 'nsh', 'NYI': 'nyi', 'NYR': 'nyr', 'OTT': 'ott',
+    'PHI': 'phi', 'PIT': 'pit', 'SEA': 'sea', 'SJS': 'sj', 'STL': 'stl',
+    'TBL': 'tb', 'TOR': 'tor', 'UTA': 'utah', 'VAN': 'van', 'VGK': 'vgk',
+    'WPG': 'wpg', 'WSH': 'wsh'
+}
+
 def match_name_to_roster(ocr_name, roster_list, used_names):
     """Find best matching name from roster using fuzzy matching"""
     best_match = None
@@ -141,6 +152,46 @@ def search_player(player_name, known_team=None):
     
     return None
 
+def get_coaches_from_espn(team_abbrev):
+    """Fetch coaching staff from ESPN API"""
+    try:
+        espn_team = ESPN_TEAM_MAP.get(team_abbrev, team_abbrev.lower())
+        url = f"https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/teams/{espn_team}"
+        
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            coaches_list = []
+            
+            # Check for coaches in team data
+            if 'team' in data and 'coaches' in data['team']:
+                for coach in data['team']['coaches']:
+                    name = coach.get('displayName', coach.get('fullName', ''))
+                    role = coach.get('position', {}).get('name', 'COACH')
+                    
+                    # Try to get headshot
+                    headshot = None
+                    if 'headshot' in coach:
+                        headshot = coach['headshot'].get('href')
+                    
+                    coaches_list.append({
+                        'name': name.upper(),
+                        'role': role.upper(),
+                        'headshot_url': headshot
+                    })
+                    
+                    print(f"ESPN Coach: {name} - {role} - Photo: {headshot}")
+            
+            return coaches_list[:3]  # Return max 3 coaches
+            
+    except Exception as e:
+        print(f"ESPN coaches error: {str(e)}")
+    
+    return []
+
 def extract_roster_from_screenshot(image_file):
     """Extract player roster from stats table screenshot"""
     try:
@@ -149,19 +200,54 @@ def extract_roster_from_screenshot(image_file):
         
         lines = text.split('\n')
         roster = {}
+        coaches = []
         
         print("Roster OCR output:")
         print(text)
         print("\n" + "="*70)
+        
+        in_coaching_section = False
         
         for line in lines:
             line = line.strip()
             if not line or len(line) < 5:
                 continue
             
-            if any(x in line.lower() for x in ['goalie', 'skater', 'chairman', 'president', 'coach', 'manager']):
+            # Check if we hit coaching section
+            if any(x in line.lower() for x in ['head coach', 'assistant coach', 'coach']):
+                in_coaching_section = True
+                # Try to extract coach name from same line
+                # Example: "Head Coach                Rick Tocchet"
+                parts = line.split()
+                if len(parts) >= 3:
+                    # Last 2 words are likely the name
+                    coach_name = ' '.join(parts[-2:])
+                    if sum(c.isalpha() for c in coach_name) > 5:
+                        coaches.append({
+                            'role': 'HEAD COACH' if 'head' in line.lower() else 'ASSISTANT COACH',
+                            'name': coach_name.upper()
+                        })
                 continue
             
+            # Skip other headers
+            if any(x in line.lower() for x in ['goalie', 'skater', 'chairman', 'president', 'manager', 'general']):
+                continue
+            
+            # If in coaching section, try to extract coach names
+            if in_coaching_section:
+                # Look for names (multiple words with mostly letters)
+                parts = [p for p in line.split() if sum(c.isalpha() for c in p) > 2]
+                if len(parts) >= 2:
+                    # Take last 2-3 words as name
+                    coach_name = ' '.join(parts[-2:]) if len(parts) >= 2 else parts[-1]
+                    if sum(c.isalpha() for c in coach_name) > 5:
+                        coaches.append({
+                            'role': 'COACH',
+                            'name': coach_name.upper()
+                        })
+                continue
+            
+            # Player extraction (same as before)
             parts = line.split()
             
             if len(parts) < 3:
@@ -196,11 +282,13 @@ def extract_roster_from_screenshot(image_file):
                     }
                     print(f"Found: #{number} - {full_name} ({position})")
         
-        return roster
+        print(f"\nFound {len(coaches)} coaches: {[c['name'] for c in coaches]}")
+        
+        return roster, coaches
         
     except Exception as e:
         print(f"Roster OCR Error: {str(e)}")
-        return {}
+        return {}, []
 
 def extract_line_numbers(text=None, image_file=None):
     """Extract jersey numbers from text or screenshot"""
@@ -325,6 +413,10 @@ def process_lineup():
         
         print(f"Got roster data for {len(roster_data)} players and {len(goalies_list)} goalies")
         
+        # Get coaches from ESPN
+        coaches_list = get_coaches_from_espn(default_team)
+        print(f"Got {len(coaches_list)} coaches from ESPN")
+        
         roster_forwards = [name for name, data in roster_data.items() if data['is_forward']]
         roster_defense = [name for name, data in roster_data.items() if not data['is_forward']]
         
@@ -364,6 +456,7 @@ def process_lineup():
             'forwards': [p for p in all_players if p['is_forward']],
             'defensemen': [p for p in all_players if not p['is_forward']],
             'goalies': goalies_list,
+            'coaches': coaches_list,
             'team': default_team
         })
         
@@ -392,7 +485,7 @@ def process_numbers():
         print('='*70)
         
         roster_screenshot.seek(0)
-        roster = extract_roster_from_screenshot(roster_screenshot)
+        roster, coaches = extract_roster_from_screenshot(roster_screenshot)
         
         if not roster:
             return jsonify({'error': 'Could not extract roster from screenshot'}), 400
@@ -445,6 +538,13 @@ def process_numbers():
                     'number': number,
                     'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{player_id}.png"
                 })
+        
+        # Get coaches from ESPN (more reliable than OCR)
+        coaches_from_espn = get_coaches_from_espn(team)
+        
+        # Use ESPN coaches if available, otherwise use OCR coaches
+        final_coaches = coaches_from_espn if coaches_from_espn else coaches
+        print(f"Using {len(final_coaches)} coaches")
         
         all_players = []
         
@@ -516,6 +616,7 @@ def process_numbers():
             'forwards': forwards[:12],
             'defensemen': defensemen[:6],
             'goalies': goalies_list,
+            'coaches': final_coaches[:3],
             'team': team
         })
         
