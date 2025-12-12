@@ -375,14 +375,21 @@ def process_lineup():
             image = Image.open(combined_file)
             text = pytesseract.image_to_string(image, config='--psm 6')
             
-            for line in text.split('\n'):
+            print("Combined image OCR sample:")
+            print(text[:500])
+            
+            # Skip header lines (first few lines often have opponent team name)
+            lines = text.split('\n')
+            skip_first_lines = 5  # Skip first 5 lines to avoid "at TORONTO" etc
+            
+            for line in lines[skip_first_lines:]:
                 alpha = sum(1 for c in line if c.isalpha())
                 if alpha > 20:
                     words = [w for w in line.split() if len(''.join(c for c in w if c.isalpha())) >= 3]
                     if len(words) >= 4:
                         name = f"{words[0]} {words[1]}"
                         temp_names.append(name)
-                        if len(temp_names) >= 3:
+                        if len(temp_names) >= 5:  # Get more names for better accuracy
                             break
         else:
             for img in [forwards_file, defense_file]:
@@ -390,27 +397,37 @@ def process_lineup():
                 image = Image.open(img)
                 text = pytesseract.image_to_string(image, config='--psm 6')
                 
-                for line in text.split('\n'):
+                lines = text.split('\n')
+                skip_first_lines = 3  # Skip first 3 lines
+                
+                for line in lines[skip_first_lines:]:
                     alpha = sum(1 for c in line if c.isalpha())
                     if alpha > 20:
                         words = [w for w in line.split() if len(''.join(c for c in w if c.isalpha())) >= 3]
                         if len(words) >= 4:
                             name = f"{words[0]} {words[1]}"
                             temp_names.append(name)
-                            if len(temp_names) >= 3:
+                            if len(temp_names) >= 5:
                                 break
-                if len(temp_names) >= 3:
+                if len(temp_names) >= 5:
                     break
         
         found_teams = []
-        for name in temp_names[:5]:
+        for name in temp_names[:8]:  # Check up to 8 names
             result = search_player(name)
             if result and result['team']:
                 found_teams.append(result['team'])
+                print(f"  {name} -> {result['team']}")
                 time.sleep(0.2)
         
-        default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'TOR'
-        print(f"Detected team: {default_team}")
+        # Use most common team (ignore single matches)
+        if found_teams:
+            team_counts = Counter(found_teams)
+            default_team = team_counts.most_common(1)[0][0]
+            print(f"\nDetected team: {default_team} (from {team_counts})")
+        else:
+            default_team = 'SJS'  # Fallback
+            print(f"Could not detect team, using fallback: {default_team}")
         
         # Get roster
         roster_url = f"https://api-web.nhle.com/v1/roster/{default_team}/current"
