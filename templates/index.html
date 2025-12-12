@@ -300,6 +300,8 @@
             if (method === 'combined') {
                 separateDiv.style.display = 'none';
                 combinedDiv.style.display = 'block';
+                // Reinitialize drag and drop for combined box
+                setTimeout(() => setupDragAndDrop('combined-box', 'combined'), 100);
             } else {
                 separateDiv.style.display = 'block';
                 combinedDiv.style.display = 'none';
