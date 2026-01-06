@@ -677,6 +677,32 @@
                 }
             });
             
+            // Add drag and drop for IMAGE uploads on the image container
+            imgContainer.ondragover = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                imgContainer.style.opacity = '0.7';
+                e.dataTransfer.dropEffect = 'copy';
+            };
+            
+            imgContainer.ondragleave = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                imgContainer.style.opacity = '1';
+            };
+            
+            imgContainer.ondrop = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                imgContainer.style.opacity = '1';
+                
+                // Check if it's a file being dropped (not a card reorder)
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0 && files[0].type.startsWith('image/')) {
+                    handleImageUpload(files[0], imgContainer, player.name);
+                }
+            };
+            
             card.appendChild(imgContainer);
             
             // Add player info (editable name and number)
