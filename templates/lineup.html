@@ -64,7 +64,7 @@
             grid-template-columns: repeat(2, 1fr);
             grid-template-rows: repeat(3, 1fr);
             height: 100%;
-            width: 65%;
+            width: 45%;
             gap: 0;
         }
         
@@ -73,7 +73,7 @@
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(2, 1fr);
             height: 100%;
-            width: 35%;
+            width: 55%;
             gap: 0;
         }
         
@@ -482,6 +482,7 @@
 <body>
     <div class="controls">
         <button onclick="window.print()">🖨️ Print</button>
+        <button onclick="downloadPDF()">📥 Download PDF</button>
         <button onclick="clearAllCustomImages()">🗑️ Clear Custom Images</button>
         <button onclick="clearAllBadges()">🗑️ Clear All Badges</button>
     </div>
@@ -531,6 +532,22 @@
         const BADGE_STORAGE_KEY = 'nhl_lineup_badges';
 
         let draggedElement = null;
+        
+        function downloadPDF() {
+            const today = new Date();
+            const dateStr = today.getFullYear() + '-' + 
+                           String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                           String(today.getDate()).padStart(2, '0');
+            
+            const originalTitle = document.title;
+            document.title = `${TEAM_NAME}_Headshots_${dateStr}`;
+            
+            window.print();
+            
+            setTimeout(() => {
+                document.title = originalTitle;
+            }, 1000);
+        }
 
         function loadCustomImages() {
             const stored = localStorage.getItem(STORAGE_KEY);
