@@ -26,6 +26,7 @@
             background: white;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            font-family: Arial, sans-serif;
         }
         
         .container {
@@ -45,6 +46,7 @@
             min-height: 0;
             display: flex;
             gap: 0;
+            border-top: 4px solid black;
         }
         
         .forwards-grid {
@@ -53,10 +55,8 @@
             grid-template-rows: repeat(2, 1fr);
             height: 100%;
             width: 100%;
-            gap: 0;
         }
         
-        /* Line separators */
         .forwards-grid .player:nth-child(3),
         .forwards-grid .player:nth-child(9) {
             border-right: 5px solid #000;
@@ -68,7 +68,6 @@
             grid-template-rows: repeat(3, 1fr);
             height: 100%;
             width: 45%;
-            gap: 0;
         }
         
         .staff-grid {
@@ -76,17 +75,44 @@
             flex-direction: column;
             height: 100%;
             width: 55%;
+            border-left: 2px solid black;
         }
         
+        /* Goalies squished left, Notes box on right */
         .goalie-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            display: flex;
             height: 50%;
+            width: 100%;
+        }
+        
+        .goalie-row .staff-member {
+            width: 30%; /* Squished size */
+        }
+        
+        .notes-area {
+            flex: 1;
+            height: 100%;
+            border-left: 2px solid black;
+            background: #fff;
+            position: relative;
+        }
+        
+        .notes-area textarea {
+            width: 100%;
+            height: 100%;
+            border: none;
+            padding: 10px;
+            font-size: 1.2em;
+            resize: none;
+            outline: none;
+            font-weight: bold;
         }
         
         .coach-row {
             display: flex;
             height: 50%;
+            width: 100%;
+            border-top: 2px solid black;
         }
         
         .coach-row .staff-member {
@@ -118,33 +144,37 @@
             background: #000 !important;
             color: #fff !important;
             text-align: center;
-            padding: 5px 2px;
-            font-size: 1em;
-            font-weight: 900; /* Extra Bold for printing */
+            padding: 4px 2px;
+            font-size: 1.1em;
+            font-weight: 900; /* Extra Bold */
             text-transform: uppercase;
-            white-space: normal;
             flex-shrink: 0;
-            line-height: 1.1;
+            line-height: 1;
             display: flex;
             align-items: center;
             justify-content: center;
+            min-height: 1.5em;
         }
+
+        /* Classes for dynamic wrapping rules */
+        .no-hash { }
+        .font-small { font-size: 0.85em !important; }
         
         .player.dragging { opacity: 0.5; }
         
         .badge {
             position: absolute;
-            top: 10px;
-            left: 10px;
+            top: 5px;
+            left: 5px;
             color: white;
             font-weight: bold;
-            font-size: 2em;
-            padding: 8px 15px;
-            border-radius: 8px;
+            font-size: 1.8em;
+            padding: 4px 10px;
+            border-radius: 6px;
             z-index: 20;
             pointer-events: none;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-            border: 3px solid white;
+            border: 2px solid white;
         }
         
         .badge[data-type="star"] { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
@@ -153,10 +183,9 @@
         
         .badge-selector {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 5px;
+            right: 5px;
             background: white;
-            border: 1px solid #333;
             z-index: 30;
             opacity: 0;
         }
@@ -184,7 +213,7 @@
             background: rgba(0, 0, 0, 0.7);
             color: white;
             padding: 4px;
-            font-size: 0.75em;
+            font-size: 0.7em;
             opacity: 0;
             text-align: center;
             pointer-events: none;
@@ -198,6 +227,7 @@
             position: relative;
             display: flex;
             flex-direction: column;
+            border-right: 1px solid #ccc;
         }
 
         .staff-member.hidden-coach { display: none !important; }
@@ -206,11 +236,12 @@
             background: #000 !important;
             color: #fff !important;
             text-align: center;
-            padding: 4px 5px;
-            font-size: 0.8em;
+            padding: 4px 2px;
+            font-size: 0.85em;
             font-weight: 900;
             border: none;
             width: 100%;
+            text-transform: uppercase;
         }
         
         .staff-role {
@@ -220,14 +251,13 @@
             transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.8) !important;
             color: white !important;
-            padding: 3px 10px;
-            font-size: 0.75em;
+            padding: 2px 8px;
+            font-size: 0.7em;
             font-weight: bold;
             border-radius: 3px;
             z-index: 15;
             white-space: nowrap;
             text-align: center;
-            min-width: 80px;
         }
         
         .controls {
@@ -247,8 +277,8 @@
         }
         
         .controls button {
-            padding: 6px 12px;
-            font-size: 13px;
+            padding: 6px 10px;
+            font-size: 12px;
             cursor: pointer;
             border: 1px solid #333;
             background: white;
@@ -257,6 +287,7 @@
 
         @media print {
             .controls, .upload-hint, .badge-selector { display: none !important; }
+            .player-img-container:hover { outline: none !important; }
         }
     </style>
 </head>
@@ -276,7 +307,12 @@
         <div class="defensemen-section">
             <div class="defensemen-grid" id="defensemen-grid"></div>
             <div class="staff-grid">
-                <div class="goalie-row" id="goalie-row"></div>
+                <div class="goalie-row">
+                    <div id="goalie-container" style="display: contents;"></div>
+                    <div class="notes-area">
+                        <textarea id="notes-input" placeholder="Notes..."></textarea>
+                    </div>
+                </div>
                 <div class="coach-row" id="coach-row"></div>
             </div>
         </div>
@@ -288,17 +324,24 @@
         const BADGE_STORAGE_KEY = 'nhl_lineup_badges';
         const COACH_TOGGLE_KEY = 'nhl_show_fourth_coach';
         const STAFF_STORAGE_KEY = 'nhl_lineup_staff';
+        const CUSTOM_NAMES_KEY = 'nhl_lineup_custom_names';
+        const NOTES_KEY = 'nhl_lineup_notes';
 
-        const FORWARDS = (lineupData.forwards || []).map(p => ({ name: p.name, image: p.headshot_url, number: p.number || '' }));
-        const DEFENSEMEN = (lineupData.defensemen || []).map(p => ({ name: p.name, image: p.headshot_url, number: p.number || '' }));
+        const FORWARDS = (lineupData.forwards || []);
+        const DEFENSEMEN = (lineupData.defensemen || []);
         const GOALIES = lineupData.goalies || [];
         const COACHES = lineupData.coaches || [];
 
         let draggedElement = null;
 
+        // Reset to original state
         function clearAllData() {
-            if(confirm('Clear all images, badges, and custom data?')) {
-                localStorage.clear();
+            if(confirm('Reset lineup to original state? (Clears custom photos, badges, and edits)')) {
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(BADGE_STORAGE_KEY);
+                localStorage.removeItem(CUSTOM_NAMES_KEY);
+                localStorage.removeItem(STAFF_STORAGE_KEY);
+                localStorage.removeItem(NOTES_KEY);
                 location.reload();
             }
         }
@@ -314,7 +357,6 @@
             const team = lineupData.team || "NHL";
             const date = new Date().toISOString().split('T')[0];
             const controls = document.getElementById('draggable-controls');
-            
             controls.style.display = 'none';
             html2pdf().set({
                 margin: 0,
@@ -322,12 +364,9 @@
                 image: { type: 'jpeg', quality: 1 },
                 html2canvas: { scale: 2, useCORS: true },
                 jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            }).from(element).save().then(() => {
-                controls.style.display = 'flex';
-            });
+            }).from(element).save().then(() => controls.style.display = 'flex');
         }
 
-        // Shared Image Upload Handler
         function handleImageUpload(file, playerName, isStaff = false, staffKey = null) {
             if(!file || !file.type.startsWith('image/')) return;
             const reader = new FileReader();
@@ -347,6 +386,33 @@
             reader.readAsDataURL(file);
         }
 
+        // Smart Text Wrapping Rule Implementation
+        function renderPlayerName(el, player) {
+            const customNames = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
+            const storedName = customNames[player.name];
+            
+            const number = player.number || '';
+            const nameParts = player.name.split(' ');
+            const lastName = nameParts[nameParts.length - 1];
+
+            const setText = (useHash, small) => {
+                el.classList.toggle('font-small', small);
+                const prefix = useHash ? `#${number} ` : `${number} `;
+                el.textContent = storedName || (number ? prefix + lastName : lastName);
+            };
+
+            // Attempt 1: Full
+            setText(true, false);
+            if (el.scrollWidth > el.clientWidth) {
+                // Attempt 2: Lose #
+                setText(false, false);
+                if (el.scrollWidth > el.clientWidth) {
+                    // Attempt 3: Small font
+                    setText(false, true);
+                }
+            }
+        }
+
         function createPlayerCard(player) {
             const customImages = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
@@ -357,7 +423,7 @@
             const imgContainer = document.createElement('div');
             imgContainer.className = 'player-img-container';
             
-            const imgUrl = customImages[player.name] || player.image;
+            const imgUrl = customImages[player.name] || player.headshot_url;
             if (imgUrl) {
                 const img = document.createElement('img');
                 img.src = imgUrl; img.className = 'player-img';
@@ -366,7 +432,6 @@
                 imgContainer.innerHTML = '<div class="placeholder">?</div>';
             }
 
-            // Badges
             const b = badges[player.name];
             if (b && b !== 'none') {
                 const bDiv = document.createElement('div');
@@ -377,21 +442,18 @@
                 imgContainer.appendChild(bDiv);
             }
 
-            // Hints
             const hint = document.createElement('div');
             hint.className = 'upload-hint';
-            hint.textContent = 'Click or Drop Image to Upload';
+            hint.textContent = 'Drop Image to Upload';
             imgContainer.appendChild(hint);
 
             addBadgeSelector(imgContainer, player.name);
 
-            // File input (Click)
             const fInp = document.createElement('input');
             fInp.type = 'file'; fInp.style.display = 'none';
             fInp.onchange = (e) => handleImageUpload(e.target.files[0], player.name);
             imgContainer.onclick = (e) => { if(!e.target.closest('.badge-selector')) fInp.click(); };
 
-            // RESTORED: Drag and Drop File Upload
             imgContainer.ondragover = (e) => { e.preventDefault(); imgContainer.style.background = '#e0f7fa'; };
             imgContainer.ondragleave = () => { imgContainer.style.background = ''; };
             imgContainer.ondrop = (e) => {
@@ -406,16 +468,20 @@
             const info = document.createElement('div');
             info.className = 'player-info';
             info.contentEditable = 'true';
-            const nameArr = player.name.split(' ');
-            const lName = nameArr[nameArr.length-1];
-            info.textContent = player.number ? `#${player.number} ${lName}` : lName;
-            card.appendChild(info);
+            
+            // Initial render
+            setTimeout(() => renderPlayerName(info, player), 0);
 
-            // Swapping Logic
+            info.onblur = () => {
+                const customNames = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
+                customNames[player.name] = info.textContent;
+                localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(customNames));
+            };
+
             card.ondragstart = (e) => { if(!e.dataTransfer.files.length) { draggedElement = card; card.classList.add('dragging'); } };
             card.ondragend = () => card.classList.remove('dragging');
             card.ondrop = (e) => {
-                if (e.dataTransfer.files.length) return; // Ignore file drops for card swapping
+                if (e.dataTransfer.files.length) return;
                 if (draggedElement && draggedElement !== card) {
                     const p = card.parentElement;
                     const dIdx = [...p.children].indexOf(draggedElement);
@@ -451,7 +517,6 @@
             if (type === 'Goalie' && GOALIES[index-1]) pre = { name: GOALIES[index-1].name, image: GOALIES[index-1].headshot_url, role: 'GOALIE' };
             else if (type === 'Coach' && COACHES[index-1]) pre = { name: COACHES[index-1].name, image: COACHES[index-1].headshot_url, role: COACHES[index-1].role };
             
-            // Hard fallback for role
             const finalRole = saved.role || pre.role || type.toUpperCase();
             const data = (saved.name || saved.image) ? saved : pre;
 
@@ -462,9 +527,10 @@
             const imgCont = document.createElement('div');
             imgCont.className = 'staff-img-container';
             
-            const rInp = document.createElement('input');
-            rInp.className = 'staff-role'; rInp.value = finalRole;
-            rInp.oninput = () => { staffData[key] = staffData[key] || {}; staffData[key].role = rInp.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData)); };
+            const rInp = document.createElement('div');
+            rInp.className = 'staff-role'; rInp.contentEditable = "true";
+            rInp.textContent = finalRole;
+            rInp.onblur = () => { staffData[key] = staffData[key] || {}; staffData[key].role = rInp.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData)); };
             imgCont.appendChild(rInp);
 
             if (data.image) {
@@ -474,24 +540,22 @@
                 imgCont.innerHTML += '<div class="placeholder">?</div>';
             }
 
-            // File drop for staff
             imgCont.ondragover = (e) => { e.preventDefault(); imgCont.style.background = '#e0f7fa'; };
             imgCont.ondragleave = () => { imgCont.style.background = ''; };
             imgCont.ondrop = (e) => {
                 e.preventDefault();
                 imgCont.style.background = '';
-                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    handleImageUpload(e.dataTransfer.files[0], null, true, key);
-                }
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key);
             };
 
             const fInp = document.createElement('input'); fInp.type = 'file'; fInp.style.display = 'none';
             fInp.onchange = (e) => handleImageUpload(e.target.files[0], null, true, key);
-            imgCont.onclick = () => fInp.click();
+            imgCont.onclick = (e) => { if(e.target === imgCont || e.target.classList.contains('placeholder') || e.target.classList.contains('player-img')) fInp.click(); };
             member.appendChild(imgCont);
 
             const nInp = document.createElement('input');
             nInp.className = 'staff-name-input'; nInp.value = data.name || '';
+            nInp.placeholder = type === 'Coach' ? "COACH" : "NAME";
             nInp.oninput = () => { staffData[key] = staffData[key] || {}; staffData[key].name = nInp.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData)); };
             member.appendChild(nInp);
 
@@ -502,37 +566,41 @@
             const controls = document.getElementById('draggable-controls');
             let isDragging = false;
             let offset = { x: 0, y: 0 };
-            controls.addEventListener('mousedown', (e) => {
+            controls.onmousedown = (e) => {
                 if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
                 isDragging = true;
                 offset.x = e.clientX - controls.offsetLeft;
                 offset.y = e.clientY - controls.offsetTop;
-            });
-            document.addEventListener('mousemove', (e) => {
+            };
+            document.onmousemove = (e) => {
                 if (!isDragging) return;
                 controls.style.left = (e.clientX - offset.x) + 'px';
                 controls.style.top = (e.clientY - offset.y) + 'px';
                 controls.style.right = 'auto';
-            });
-            document.addEventListener('mouseup', () => isDragging = false);
+            };
+            document.onmouseup = () => isDragging = false;
         }
 
         document.addEventListener('DOMContentLoaded', () => {
             const fGrid = document.getElementById('forwards-grid');
             const dGrid = document.getElementById('defensemen-grid');
-            const goalieRow = document.getElementById('goalie-row');
+            const goalieCont = document.getElementById('goalie-container');
             const coachRow = document.getElementById('coach-row');
-            
+            const notesInput = document.getElementById('notes-input');
+
             FORWARDS.forEach(p => fGrid.appendChild(createPlayerCard(p)));
             DEFENSEMEN.forEach(p => dGrid.appendChild(createPlayerCard(p)));
             
-            goalieRow.appendChild(createStaffMember('Goalie', 1));
-            goalieRow.appendChild(createStaffMember('Goalie', 2));
+            goalieCont.appendChild(createStaffMember('Goalie', 1));
+            goalieCont.appendChild(createStaffMember('Goalie', 2));
             
             coachRow.appendChild(createStaffMember('Coach', 1));
             coachRow.appendChild(createStaffMember('Coach', 2));
             coachRow.appendChild(createStaffMember('Coach', 3));
             coachRow.appendChild(createStaffMember('Coach', 4));
+
+            notesInput.value = localStorage.getItem(NOTES_KEY) || "";
+            notesInput.oninput = () => localStorage.setItem(NOTES_KEY, notesInput.value);
 
             initDraggable();
         });
