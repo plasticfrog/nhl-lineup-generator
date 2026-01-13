@@ -13,46 +13,33 @@
             print-color-adjust: exact !important;
         }
         
-        @page {
-            margin: 0;
-            size: letter portrait;
-        }
+        @page { margin: 0; size: letter portrait; }
         
         html, body {
             min-height: 100%;
             width: 100%;
-            background: #1a1a1a;
+            background: #111;
             display: flex;
             justify-content: center;
-            font-family: 'Arial', sans-serif;
+            font-family: 'Arial Narrow', Arial, sans-serif;
+            overflow-x: hidden;
         }
         
-        /* The Actual Paper (8.5x11) */
         .container {
             background: white;
             width: 8.5in;
             height: 11in;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            box-shadow: 0 0 50px rgba(0,0,0,1);
             position: relative;
             flex-shrink: 0;
-            margin: 20px 0;
-            overflow: hidden; /* STOPS 2ND PAGE LEAK */
+            margin: 10px 0;
+            overflow: hidden;
         }
         
-        .forwards-section {
-            height: 55%;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .defensemen-section {
-            height: 45%;
-            display: flex;
-            border-top: 5px solid black;
-        }
+        .forwards-section { height: 55%; width: 100%; display: flex; flex-direction: column; }
+        .defensemen-section { height: 45%; display: flex; border-top: 5px solid black; }
         
         .forwards-grid {
             display: grid;
@@ -61,149 +48,89 @@
             height: 100%;
         }
         
-        .forwards-grid .player:nth-child(3),
-        .forwards-grid .player:nth-child(9) {
-            border-right: 5px solid black;
-        }
+        .forwards-grid .player:nth-child(3), .forwards-grid .player:nth-child(9) { border-right: 5px solid black; }
         
         .defensemen-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             grid-template-rows: repeat(3, 1fr);
-            width: 45%;
-            height: 100%;
+            width: 45%; height: 100%;
         }
         
         .staff-grid {
             display: flex;
             flex-direction: column;
-            width: 55%;
-            height: 100%;
+            width: 55%; height: 100%;
             border-left: 5px solid black;
         }
         
-        .goalie-row {
-            display: flex;
-            height: 50%;
-            width: 100%;
-        }
+        .goalie-row { display: flex; height: 50%; width: 100%; }
+        .coach-row { display: flex; height: 50%; border-top: 5px solid black; }
         
-        .coach-row {
-            display: flex;
-            height: 50%;
-            border-top: 5px solid black;
-        }
-        
-        .staff-member {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            border-right: 1px solid black;
-            overflow: hidden;
+        .staff-member { flex: 1; display: flex; flex-direction: column; border-right: 1px solid black; overflow: hidden; }
+        .staff-member.hidden-coach { display: none !important; }
+
+        /* Goalie Starter Outline */
+        .staff-member.starter-active {
+            outline: 6px solid #FFD700 !important;
+            outline-offset: -6px;
+            z-index: 50;
         }
 
-        .staff-member.hidden-coach {
-            display: none !important;
-        }
-
-        .notes-area {
-            flex: 1.2;
-            height: 100%;
-            border-left: 1px solid black;
-        }
-        
+        .notes-area { flex: 1.2; height: 100%; border-left: 1px solid black; }
         .notes-area textarea {
-            width: 100%;
-            height: 100%;
-            border: none;
-            padding: 8px;
-            font-size: 1.1em;
-            font-weight: 900;
-            resize: none;
-            outline: none;
-            text-transform: uppercase;
+            width: 100%; height: 100%; border: none; padding: 6px;
+            font-size: 1em; font-weight: 900; resize: none; outline: none; text-transform: uppercase;
         }
         
-        .player {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            border: 0.1px solid #ddd;
-            overflow: hidden;
-        }
+        .player { display: flex; flex-direction: column; height: 100%; border: 0.1px solid #eee; overflow: hidden; }
         
         .img-container {
-            flex: 1;
-            position: relative;
-            background: #eee;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
+            flex: 1; position: relative; background: #eee;
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
         }
         
+        /* TINY NAME BARS */
         .info-bar {
-            height: 28px !important;
-            min-height: 28px !important;
+            height: 22px !important;
+            min-height: 22px !important;
             background: #000 !important;
             color: #fff !important;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            font-size: 0.9em;
-            font-weight: 900;
-            text-transform: uppercase;
-            width: 100%;
-            padding: 0 2px;
-            flex-shrink: 0;
-            z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+            text-align: center; font-size: 0.75em; font-weight: 900;
+            text-transform: uppercase; width: 100%; flex-shrink: 0; z-index: 10;
         }
 
-        .font-small { font-size: 0.8em !important; }
-        .font-tiny { font-size: 0.7em !important; }
+        .font-small { font-size: 0.65em !important; }
+        .font-tiny { font-size: 0.55em !important; }
         
         .badge {
             position: absolute;
-            top: 5px; left: 5px;
-            color: white; font-weight: 900; font-size: 1.5em;
-            padding: 3px 8px; border-radius: 5px; z-index: 20;
-            text-shadow: 2px 2px 4px rgba(0,0,0,1);
+            top: 4px; left: 4px;
+            color: white; font-weight: 900; font-size: 1.2em;
+            padding: 2px 6px; border-radius: 4px; z-index: 20;
+            text-shadow: 1px 1px 3px rgba(0,0,0,1);
             border: 2px solid white;
         }
         .badge[data-type="star"] { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
         .badge[data-type="captain"] { background: #000; }
         .badge[data-type="alternate"] { background: #333; }
         
-        .badge-selector {
-            position: absolute;
-            top: 5px; right: 5px;
-            z-index: 30; opacity: 0;
-        }
+        .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         .img-container:hover .badge-selector { opacity: 1; }
         
-        .headshot {
-            width: 100%;
-            height: 110%;
-            object-fit: cover;
-            transform: translateY(-2%);
-        }
-        
-        .defensemen-grid .headshot { transform: translateY(0%); object-position: center 25%; }
+        .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(-2%); }
+        .defensemen-grid .headshot { transform: translateY(0%); object-position: center 20%; }
         
         .staff-role-label {
             position: absolute;
-            top: 5px; left: 50%;
+            top: 4px; left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.85) !important;
+            background: rgba(0, 0, 0, 0.9) !important;
             color: white !important;
-            padding: 2px 10px;
-            font-size: 0.75em;
-            font-weight: 900;
-            border-radius: 3px;
-            z-index: 15;
-            border: 1px solid white;
-            white-space: nowrap;
+            padding: 1px 8px; font-size: 0.6em; font-weight: 900;
+            border-radius: 2px; z-index: 15; border: 1px solid white;
+            white-space: nowrap; cursor: text;
         }
         
         .controls {
@@ -212,32 +139,19 @@
             background: white; padding: 10px;
             border: 2px solid black; border-radius: 8px;
             z-index: 5000; cursor: move;
-            display: flex; flex-direction: column; gap: 5px;
+            display: flex; flex-direction: column; gap: 4px;
         }
         
         .controls button {
-            padding: 8px 12px; font-weight: 900; cursor: pointer;
-            border: 1px solid black; text-transform: uppercase;
+            padding: 6px 10px; font-size: 12px; font-weight: 900;
+            cursor: pointer; border: 1px solid black; background: #fff;
+            text-transform: uppercase;
         }
-        .controls button:hover { background: black; color: white; }
+        .controls button:hover { background: #000; color: #fff; }
 
         @media print {
-            body, html { 
-                background: white !important; 
-                overflow: hidden !important;
-                height: 11in !important;
-                width: 8.5in !important;
-            }
-            .container { 
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-                margin: 0 !important;
-                box-shadow: none !important; 
-                width: 8.5in !important; 
-                height: 11in !important; 
-                overflow: hidden !important;
-            }
+            body, html { background: white !important; overflow: hidden !important; height: 11in !important; }
+            .container { position: absolute !important; top: 0 !important; left: 0 !important; margin: 0 !important; box-shadow: none !important; }
             .controls, .badge-selector { display: none !important; }
         }
     </style>
@@ -270,7 +184,6 @@
         const BADGE_STORAGE_KEY = 'nhl_lineup_badges';
         const STAFF_STORAGE_KEY = 'nhl_lineup_staff';
         const CUSTOM_NAMES_KEY = 'nhl_lineup_custom_names';
-        const COACH_TOGGLE_KEY = 'nhl_show_fourth_coach';
         const LAST_TEAM_KEY = 'nhl_last_team_id';
 
         const currentTeam = lineupData.team || 'Unknown';
@@ -284,7 +197,7 @@
         let draggedElement = null;
 
         function clearAllData() {
-            if(confirm('Reset all changes for this team?')) {
+            if(confirm('Reset all changes?')) {
                 const backup = localStorage.getItem('lineup_data');
                 localStorage.clear();
                 localStorage.setItem('lineup_data', backup);
@@ -294,8 +207,8 @@
         }
 
         function toggleFourthCoach() {
-            const currentStatus = localStorage.getItem(COACH_TOGGLE_KEY) === 'true';
-            localStorage.setItem(COACH_TOGGLE_KEY, !currentStatus);
+            const cur = localStorage.getItem('show_4th') === 'true';
+            localStorage.setItem('show_4th', !cur);
             location.reload();
         }
 
@@ -304,15 +217,25 @@
             const controls = document.getElementById('draggable-controls');
             controls.style.display = 'none';
             window.scrollTo(0,0);
+            
             const opt = {
                 margin: 0,
                 filename: `${currentTeam}_Headshots.pdf`,
                 image: { type: 'jpeg', quality: 1 },
-                html2canvas: { scale: 3, useCORS: true, logging: false },
+                html2canvas: { 
+                    scale: 3, 
+                    useCORS: true, 
+                    logging: false,
+                    scrollY: -window.scrollY 
+                },
                 jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
             };
-            await html2pdf().set(opt).from(element).save();
-            controls.style.display = 'flex';
+            
+            // Short timeout to ensure UI is settled
+            setTimeout(async () => {
+                await html2pdf().set(opt).from(element).save();
+                controls.style.display = 'flex';
+            }, 100);
         }
 
         function handleImageUpload(file, playerName, isStaff, key) {
@@ -356,46 +279,27 @@
             const card = document.createElement('div');
             card.className = 'player';
             card.draggable = true;
-
             const imgCont = document.createElement('div');
             imgCont.className = 'img-container';
-            
             const customImgs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
             const url = customImgs[player.name] || player.headshot_url;
             
             if (url) {
-                const img = document.createElement('img');
-                img.src = url; img.className = 'headshot';
+                const img = document.createElement('img'); img.src = url; img.className = 'headshot';
                 imgCont.appendChild(img);
             } else {
-                imgCont.innerHTML = '<div style="font-size:3em;color:#ccc;font-weight:900">?</div>';
+                imgCont.innerHTML = '<div class="placeholder">?</div>';
             }
 
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
-            const b = badges[player.name];
-            if (b && b !== 'none') {
-                const bDiv = document.createElement('div');
-                bDiv.className = 'badge'; bDiv.textContent = b;
-                if (b === '★') bDiv.dataset.type = 'star';
-                else if (b === 'C') bDiv.dataset.type = 'captain';
-                else if (b === 'A') bDiv.dataset.type = 'alternate';
-                imgCont.appendChild(bDiv);
+            if (badges[player.name]) {
+                const b = document.createElement('div');
+                b.className = 'badge'; b.textContent = badges[player.name];
+                b.dataset.type = badges[player.name] === '★' ? 'star' : (badges[player.name] === 'C' ? 'captain' : 'alternate');
+                imgCont.appendChild(b);
             }
 
-            const bs = document.createElement('div');
-            bs.className = 'badge-selector';
-            const sel = document.createElement('select');
-            sel.innerHTML = '<option value="none">None</option><option value="C">C</option><option value="A">A</option><option value="★">★</option>';
-            sel.value = badges[player.name] || 'none';
-            sel.onclick = e => e.stopPropagation();
-            sel.onchange = () => {
-                const bMap = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
-                if(sel.value === 'none') delete bMap[player.name]; else bMap[player.name] = sel.value;
-                localStorage.setItem(BADGE_STORAGE_KEY, JSON.stringify(bMap));
-                location.reload();
-            };
-            bs.appendChild(sel);
-            imgCont.appendChild(bs);
+            addBadgeSelector(imgCont, player.name);
 
             imgCont.onclick = () => {
                 const f = document.createElement('input'); f.type = 'file';
@@ -406,22 +310,16 @@
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], player.name); };
 
             card.appendChild(imgCont);
-
             const info = document.createElement('div');
-            info.className = 'info-bar';
-            info.contentEditable = 'true';
-            info.spellcheck = false;
-            
+            info.className = 'info-bar'; info.contentEditable = 'true'; info.spellcheck = false;
             renderPlayerName(info, player);
             setTimeout(() => renderPlayerName(info, player), 50);
-            
             info.onblur = () => {
                 const n = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
                 n[player.name] = info.textContent;
                 localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(n));
             };
 
-            // TRUE SWAP LOGIC
             card.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = card; };
             card.ondragover = e => e.preventDefault();
             card.ondrop = e => {
@@ -433,9 +331,30 @@
                 p.insertBefore(card, temp);
                 p.removeChild(temp);
             };
-
             card.appendChild(info);
             return card;
+        }
+
+        function addBadgeSelector(container, playerName, isGoalie = false) {
+            const selector = document.createElement('div');
+            selector.className = 'badge-selector';
+            const sel = document.createElement('select');
+            let options = '<option value="none">None</option><option value="C">C</option><option value="A">A</option><option value="★">★</option>';
+            if (isGoalie) options += '<option value="Starter">Starter</option>';
+            sel.innerHTML = options;
+            
+            const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
+            sel.value = badges[playerName] || 'none';
+            
+            sel.onclick = e => e.stopPropagation();
+            sel.onchange = () => {
+                const b = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
+                if(sel.value === 'none') delete b[playerName]; else b[playerName] = sel.value;
+                localStorage.setItem(BADGE_STORAGE_KEY, JSON.stringify(b));
+                location.reload();
+            };
+            selector.appendChild(sel);
+            container.appendChild(selector);
         }
 
         function createStaffMember(type, index) {
@@ -446,7 +365,14 @@
             
             const member = document.createElement('div');
             member.className = 'staff-member';
-            if (type === 'Coach' && index === 4 && localStorage.getItem(COACH_TOGGLE_KEY) !== 'true') member.classList.add('hidden-coach');
+            
+            // Goalie Starter Outline Logic
+            const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
+            if (type === 'Goalie' && badges[pre.name] === 'Starter') {
+                member.classList.add('starter-active');
+            }
+
+            if (type === 'Coach' && index === 4 && localStorage.getItem('show_4th') !== 'true') member.classList.add('hidden-coach');
 
             const imgCont = document.createElement('div');
             imgCont.className = 'img-container';
@@ -454,6 +380,7 @@
             const role = document.createElement('div');
             role.className = 'staff-role-label'; role.contentEditable = "true";
             role.textContent = saved.role || pre.role || type.toUpperCase();
+            role.onclick = e => e.stopPropagation(); // FIXED: Stops file uploader opening
             role.onblur = () => {
                 const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}');
                 d[key] = d[key] || {}; d[key].role = role.textContent;
@@ -466,16 +393,16 @@
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot'; img.style.transform = 'none';
                 imgCont.appendChild(img);
             } else {
-                imgCont.innerHTML += '<div style="font-size:3em;color:#ccc;font-weight:900">?</div>';
+                imgCont.innerHTML += '<div class="placeholder">?</div>';
             }
+
+            if (type === 'Goalie') addBadgeSelector(imgCont, pre.name, true);
 
             imgCont.onclick = () => {
                 const f = document.createElement('input'); f.type = 'file';
                 f.onchange = e => handleImageUpload(e.target.files[0], null, true, key);
                 f.click();
             };
-            imgCont.ondragover = e => e.preventDefault();
-            imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key); };
 
             member.appendChild(imgCont);
             const name = document.createElement('input');
