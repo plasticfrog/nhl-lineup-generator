@@ -16,33 +16,32 @@
             size: letter portrait;
         }
         
+        /* WEB VIEW: Allow scrolling so nothing is squished */
         html, body {
-            height: 100vh;
+            min-height: 100vh;
             width: 100vw;
-            overflow: hidden;
+            background: #333; /* Dark background to see the "page" */
+            display: flex;
+            justify-content: center;
         }
         
-        body {
-            background: white;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            font-family: Arial, sans-serif;
-        }
-        
+        /* The Actual "Page" */
         .container {
-            height: 100vh;
-            width: 100%;
+            background: white;
+            width: 8.5in; /* Standard Paper Width */
+            height: 11in; /* Standard Paper Height */
             display: flex;
             flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
         
         .forwards-section {
-            flex: 1.7;
+            height: 55%; /* Fixed ratio to prevent squishing */
             min-height: 0;
         }
         
         .defensemen-section {
-            flex: 1.3;
+            height: 45%; /* Fixed ratio to prevent squishing */
             min-height: 0;
             display: flex;
             gap: 0;
@@ -80,7 +79,7 @@
         
         .goalie-row {
             display: flex;
-            flex: 1; /* Takes exactly half height */
+            height: 50%;
             width: 100%;
         }
         
@@ -108,7 +107,7 @@
         
         .coach-row {
             display: flex;
-            flex: 1; /* Takes exactly half height */
+            height: 50%;
             width: 100%;
             border-top: 2px solid black;
         }
@@ -138,23 +137,27 @@
             cursor: move;
         }
         
+        /* RE-FIXED NAMES: Ensure they stay at the bottom and are visible */
         .player-info {
             background: #000 !important;
             color: #fff !important;
             text-align: center;
-            padding: 4px 2px;
+            padding: 5px 2px;
             font-size: 1.1em;
             font-weight: 900;
             text-transform: uppercase;
             flex-shrink: 0;
-            line-height: 1;
+            line-height: 1.2;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 1.6em;
+            height: 35px; /* Forced height to ensure clickability */
+            width: 100%;
         }
 
         .font-small { font-size: 0.85em !important; }
+        
+        .player.dragging { opacity: 0.5; }
         
         .badge {
             position: absolute;
@@ -247,6 +250,8 @@
             border: none;
             width: 100%;
             text-transform: uppercase;
+            height: 35px; /* Forced height */
+            flex-shrink: 0;
         }
         
         .staff-role {
@@ -290,6 +295,12 @@
         }
 
         @media print {
+            body { background: white; padding: 0; margin: 0; }
+            .container { 
+                box-shadow: none; 
+                width: 8.5in !important; 
+                height: 11in !important; 
+            }
             .controls, .upload-hint, .badge-selector { display: none !important; }
             .player-img-container:hover { outline: none !important; }
         }
@@ -332,7 +343,6 @@
         const NOTES_KEY = 'nhl_lineup_notes';
         const LAST_TEAM_KEY = 'nhl_last_team_id';
 
-        // Check for team change to prevent data carry-over
         const currentTeam = lineupData.team || 'Unknown';
         if (localStorage.getItem(LAST_TEAM_KEY) !== currentTeam) {
             localStorage.removeItem(STORAGE_KEY);
@@ -351,7 +361,7 @@
         let draggedElement = null;
 
         function clearAllData() {
-            if(confirm('Reset lineup to original state? This clears all manual changes and photos.')) {
+            if(confirm('Reset lineup to original state?')) {
                 localStorage.removeItem(STORAGE_KEY);
                 localStorage.removeItem(BADGE_STORAGE_KEY);
                 localStorage.removeItem(CUSTOM_NAMES_KEY);
@@ -419,9 +429,9 @@
             };
 
             setText(true, false);
-            if (el.scrollWidth > el.clientWidth) {
+            if (el.scrollWidth > (el.clientWidth + 5)) {
                 setText(false, false);
-                if (el.scrollWidth > el.clientWidth) {
+                if (el.scrollWidth > (el.clientWidth + 5)) {
                     setText(false, true);
                 }
             }
@@ -480,7 +490,7 @@
             const info = document.createElement('div');
             info.className = 'player-info';
             info.contentEditable = 'true';
-            setTimeout(() => renderPlayerName(info, player), 0);
+            setTimeout(() => renderPlayerName(info, player), 10);
 
             info.onblur = () => {
                 const customNames = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
@@ -508,11 +518,8 @@
             selector.className = 'badge-selector';
             const sel = document.createElement('select');
             sel.innerHTML = '<option value="none">None</option><option value="C">C</option><option value="A">A</option><option value="★">★</option>';
-            
-            // Set current value
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             sel.value = badges[playerName] || 'none';
-
             sel.onchange = (e) => {
                 const updatedBadges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
                 if (sel.value === 'none') delete updatedBadges[playerName]; 
