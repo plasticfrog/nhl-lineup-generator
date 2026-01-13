@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>NHL Team Lineup</title>
+    <!-- Library for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -53,18 +55,18 @@
             gap: 0;
         }
         
-        /* Borders between forward lines */
         .forwards-grid .player:nth-child(3),
         .forwards-grid .player:nth-child(9) {
             border-right: 5px solid #000;
         }
         
+        /* Updated Widths: 45% Defense, 55% Staff */
         .defensemen-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             grid-template-rows: repeat(3, 1fr);
             height: 100%;
-            width: 45%;
+            width: 45%; 
             gap: 0;
         }
         
@@ -75,39 +77,6 @@
             height: 100%;
             width: 55%;
             gap: 0;
-        }
-        
-        .staff-member:nth-child(1),
-        .staff-member:nth-child(2) {
-            grid-row: 1;
-        }
-        
-        .staff-member:nth-child(1) {
-            grid-column: 1 / 2;
-            margin-left: 16.66%;
-        }
-        
-        .staff-member:nth-child(2) {
-            grid-column: 2 / 3;
-            margin-right: 16.66%;
-        }
-        
-        .staff-member:nth-child(3),
-        .staff-member:nth-child(4),
-        .staff-member:nth-child(5) {
-            grid-row: 2;
-        }
-        
-        .staff-member:nth-child(3) {
-            grid-column: 1;
-        }
-        
-        .staff-member:nth-child(4) {
-            grid-column: 2;
-        }
-        
-        .staff-member:nth-child(5) {
-            grid-column: 3;
         }
         
         .player {
@@ -149,20 +118,11 @@
             justify-content: center;
         }
         
-        .player.dragging {
-            opacity: 0.5;
-        }
+        .player.dragging { opacity: 0.5; }
         
         .player-img-container:hover {
             outline: 4px solid #0066cc;
             outline-offset: -4px;
-            z-index: 10;
-        }
-        
-        .player-img-container.dragover {
-            outline: 4px solid #00cc66;
-            outline-offset: -4px;
-            background: linear-gradient(135deg, #e0f7e0, #c0f0c0);
             z-index: 10;
         }
         
@@ -181,18 +141,9 @@
             border: 3px solid white;
         }
         
-        .badge[data-type="star"] {
-            background: linear-gradient(135deg, #FFD700, #FFA500);
-            color: #000;
-        }
-        
-        .badge[data-type="captain"] {
-            background: linear-gradient(135deg, #000, #333);
-        }
-        
-        .badge[data-type="alternate"] {
-            background: linear-gradient(135deg, #1a1a1a, #4a4a4a);
-        }
+        .badge[data-type="star"] { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
+        .badge[data-type="captain"] { background: linear-gradient(135deg, #000, #333); }
+        .badge[data-type="alternate"] { background: linear-gradient(135deg, #1a1a1a, #4a4a4a); }
         
         .badge-selector {
             position: absolute;
@@ -205,22 +156,9 @@
             opacity: 0;
             transition: opacity 0.2s;
             z-index: 30;
-            pointer-events: none;
         }
         
-        .player-img-container:hover .badge-selector {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        
-        .badge-selector select {
-            padding: 3px 8px;
-            font-size: 0.9em;
-            border: 1px solid #333;
-            border-radius: 3px;
-            cursor: pointer;
-            background: white;
-        }
+        .player-img-container:hover .badge-selector { opacity: 1; }
         
         .player-img {
             width: 100%;
@@ -231,43 +169,26 @@
             transform: translateY(-5%);
         }
         
-        /* Fix defense headshots to show full face */
         .defensemen-grid .player-img {
             transform: translateY(0%);
             object-position: center 30%;
         }
         
-        .placeholder {
-            font-size: 4em;
-            color: #ccc;
-            font-weight: bold;
-            user-select: none;
-            pointer-events: none;
-        }
-        
+        .placeholder { font-size: 4em; color: #ccc; font-weight: bold; }
         .upload-hint {
             position: absolute;
             bottom: 10px;
-            left: 0;
-            right: 0;
+            left: 0; right: 0;
             background: rgba(0, 0, 0, 0.8);
             color: white;
             padding: 8px;
             font-size: 0.9em;
             opacity: 0;
             transition: opacity 0.2s;
-            pointer-events: none;
             text-align: center;
             z-index: 5;
         }
-        
-        .player-img-container:hover .upload-hint {
-            opacity: 1;
-        }
-        
-        .hidden-input {
-            display: none;
-        }
+        .player-img-container:hover .upload-hint { opacity: 1; }
         
         .staff-member {
             height: 100%;
@@ -275,6 +196,11 @@
             position: relative;
             display: flex;
             flex-direction: column;
+        }
+
+        /* Logic to hide 4th coach */
+        .staff-member.hidden-coach {
+            display: none !important;
         }
         
         .staff-img-container {
@@ -287,28 +213,6 @@
             justify-content: center;
             position: relative;
             cursor: pointer;
-            min-height: 0;
-        }
-        
-        .staff-img-container:hover {
-            outline: 4px solid #0066cc;
-            outline-offset: -4px;
-            z-index: 10;
-        }
-        
-        .staff-img-container.dragover {
-            outline: 4px solid #00cc66;
-            outline-offset: -4px;
-            background: linear-gradient(135deg, #e0f7e0, #c0f0c0);
-            z-index: 10;
-        }
-        
-        .staff-img-container .player-img {
-            pointer-events: none;
-        }
-        
-        .staff-img-container .placeholder {
-            pointer-events: none;
         }
         
         .staff-name-input {
@@ -316,20 +220,11 @@
             color: #fff;
             text-align: center;
             padding: 4px 5px;
-            font-size: 0.7em;
+            font-size: 0.75em;
             font-weight: bold;
             border: none;
-            outline: none;
             width: 100%;
-            flex-shrink: 0;
-            resize: none;
-            overflow: auto;
-            word-wrap: break-word;
             line-height: 1.2;
-        }
-        
-        .staff-name-input::placeholder {
-            color: #888;
         }
         
         .staff-role {
@@ -343,14 +238,6 @@
             font-weight: bold;
             border-radius: 3px;
             z-index: 15;
-            border: none;
-            outline: none;
-            text-align: center;
-            min-width: 60px;
-        }
-        
-        .staff-role::placeholder {
-            color: #aaa;
         }
         
         .controls {
@@ -363,717 +250,260 @@
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             z-index: 1000;
-            cursor: move;
         }
         
         .controls button {
-            padding: 8px 16px;
-            margin: 5px;
-            font-size: 14px;
+            padding: 8px 12px;
+            margin: 2px;
+            font-size: 13px;
             cursor: pointer;
             border: 2px solid #333;
             background: white;
             border-radius: 5px;
-            transition: all 0.2s;
         }
-        
-        .controls button:hover {
-            background: #333;
-            color: white;
-        }
+
+        .controls button:hover { background: #333; color: white; }
+        .controls .btn-pdf { background: #ff4444; color: white; border-color: #cc0000; }
+        .controls .btn-pdf:hover { background: #cc0000; }
         
         @media print {
-            * {
-                margin: 0 !important;
-                padding: 0 !important;
-            }
-            
-            html, body {
-                height: 11in !important;
-                width: 8.5in !important;
-                overflow: hidden !important;
-            }
-            
-            body {
-                display: block !important;
-            }
-            
-            .container {
-                height: 11in !important;
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 0 !important;
-            }
-            
-            .forwards-section {
-                flex: 1.7 !important;
-                min-height: 0 !important;
-                height: auto !important;
-            }
-            
-            .defensemen-section {
-                flex: 1.3 !important;
-                min-height: 0 !important;
-                height: auto !important;
-            }
-            
-            .forwards-grid, .defensemen-grid, .staff-grid {
-                display: grid !important;
-                gap: 0 !important;
-                grid-gap: 0 !important;
-                grid-row-gap: 0 !important;
-                grid-column-gap: 0 !important;
-                height: 100% !important;
-            }
-            
-            .forwards-grid {
-                grid-template-rows: 1fr 1fr !important;
-            }
-            
-            .defensemen-grid {
-                grid-template-rows: 1fr 1fr 1fr !important;
-            }
-            
-            .staff-grid {
-                grid-template-rows: 1fr 1fr !important;
-                grid-template-columns: repeat(3, 1fr) !important;
-            }
-            
-            .player, .staff-member {
-                height: 100% !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                page-break-inside: avoid !important;
-            }
-            
-            .player-img-container, .staff-img-container {
-                height: 100% !important;
-                margin: 0 !important;
-                padding: 0 !important;
-            }
-            
-            .player-info, .staff-name-input {
-                print-color-adjust: exact !important;
-                -webkit-print-color-adjust: exact !important;
-            }
-            
-            .controls {
-                display: none !important;
-            }
-            
-            .upload-hint {
-                display: none !important;
-            }
-            
-            .badge-selector {
-                display: none !important;
-            }
-            
-            .player-img-container:hover {
-                outline: none !important;
-            }
-            
-            .staff-member.print-hide {
-                display: none !important;
-            }
+            .controls, .upload-hint, .badge-selector, .hidden-input { display: none !important; }
+            .staff-member.hidden-coach { display: none !important; }
+            .player-img-container:hover { outline: none !important; }
         }
     </style>
 </head>
 <body>
-    <div class="controls">
+    <div class="controls" id="control-panel">
         <button onclick="window.print()">🖨️ Print</button>
-        <button onclick="downloadPDF()">📥 Download PDF</button>
-        <button onclick="clearAllCustomImages()">🗑️ Clear Custom Images</button>
-        <button onclick="clearAllBadges()">🗑️ Clear All Badges</button>
+        <button class="btn-pdf" onclick="downloadPDF()">📥 Download PDF</button>
+        <button onclick="toggleFourthCoach()">👔 Add/Remove 4th Coach</button>
+        <button onclick="clearAllCustomImages()">🗑️ Clear Images</button>
+        <button onclick="clearAllBadges()">🗑️ Clear Badges</button>
     </div>
 
-    <div class="container">
+    <div class="container" id="lineup-content">
         <div class="forwards-section">
-            <div class="forwards-grid" id="forwards-grid">
-            </div>
+            <div class="forwards-grid" id="forwards-grid"></div>
         </div>
         
         <div class="defensemen-section">
-            <div class="defensemen-grid" id="defensemen-grid">
-            </div>
-            <div class="staff-grid" id="staff-grid">
-            </div>
+            <div class="defensemen-grid" id="defensemen-grid"></div>
+            <div class="staff-grid" id="staff-grid"></div>
         </div>
     </div>
 
     <script>
-        // Load data from localStorage (set by index.html)
-        const lineupData = JSON.parse(localStorage.getItem('lineup_data') || '{"forwards":[],"defensemen":[],"goalies":[],"coaches":[],"team":""}');
+        const lineupData = JSON.parse(localStorage.getItem('lineup_data') || '{"forwards":[],"defensemen":[],"goalies":[],"coaches":[],"team":"NHL"}');
         
-        const FORWARDS = lineupData.forwards.map(p => ({
-            name: p.name,
-            image: p.headshot_url,
-            number: p.number || ''
-        }));
-        
-        const DEFENSEMEN = lineupData.defensemen.map(p => ({
-            name: p.name,
-            image: p.headshot_url,
-            number: p.number || ''
-        }));
-        
-        const GOALIES = lineupData.goalies ? lineupData.goalies.map(g => ({
-            name: g.name,
-            image: g.headshot_url,
-            number: g.number || ''
-        })) : [];
-        
-        const COACHES = lineupData.coaches ? lineupData.coaches.map(c => ({
-            name: c.name,
-            role: c.role
-        })) : [];
+        const FORWARDS = lineupData.forwards.map(p => ({ name: p.name, image: p.headshot_url, number: p.number || '' }));
+        const DEFENSEMEN = lineupData.defensemen.map(p => ({ name: p.name, image: p.headshot_url, number: p.number || '' }));
+        const GOALIES = lineupData.goalies || [];
+        const COACHES = lineupData.coaches || [];
 
         const STORAGE_KEY = 'nhl_lineup_custom_images_nogap';
         const BADGE_STORAGE_KEY = 'nhl_lineup_badges';
+        const COACH_TOGGLE_KEY = 'nhl_show_fourth_coach';
 
         let draggedElement = null;
-        
-        function downloadPDF() {
-            const today = new Date();
-            const dateStr = today.getFullYear() + '-' + 
-                           String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                           String(today.getDate()).padStart(2, '0');
-            
-            const originalTitle = document.title;
-            document.title = `${TEAM_NAME}_Headshots_${dateStr}`;
-            
-            window.print();
-            
-            setTimeout(() => {
-                document.title = originalTitle;
-            }, 1000);
-        }
 
-        function loadCustomImages() {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            return stored ? JSON.parse(stored) : {};
-        }
-
+        function loadCustomImages() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
         function saveCustomImage(playerName, imageData) {
-            const customImages = loadCustomImages();
-            customImages[playerName] = imageData;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(customImages));
+            const images = loadCustomImages();
+            images[playerName] = imageData;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(images));
         }
 
-        function clearAllCustomImages() {
-            if (confirm('Are you sure you want to clear all custom images?')) {
-                localStorage.removeItem(STORAGE_KEY);
-                location.reload();
-            }
-        }
-
-        function loadBadges() {
-            const stored = localStorage.getItem(BADGE_STORAGE_KEY);
-            return stored ? JSON.parse(stored) : {};
-        }
-
+        function clearAllCustomImages() { if (confirm('Clear images?')) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
+        function loadBadges() { return JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}'); }
         function saveBadge(playerName, badge) {
             const badges = loadBadges();
-            if (badge === 'none') {
-                delete badges[playerName];
-            } else {
-                badges[playerName] = badge;
-            }
+            if (badge === 'none') delete badges[playerName]; else badges[playerName] = badge;
             localStorage.setItem(BADGE_STORAGE_KEY, JSON.stringify(badges));
         }
 
-        function clearAllBadges() {
-            if (confirm('Are you sure you want to clear all captain/alternate badges?')) {
-                localStorage.removeItem(BADGE_STORAGE_KEY);
-                location.reload();
-            }
+        function clearAllBadges() { if (confirm('Clear badges?')) { localStorage.removeItem(BADGE_STORAGE_KEY); location.reload(); } }
+
+        function toggleFourthCoach() {
+            const current = localStorage.getItem(COACH_TOGGLE_KEY) === 'true';
+            localStorage.setItem(COACH_TOGGLE_KEY, !current);
+            location.reload();
+        }
+
+        function downloadPDF() {
+            const element = document.getElementById('lineup-content');
+            const team = lineupData.team || "NHL";
+            const date = new Date().toISOString().split('T')[0];
+            const filename = `${team}_Headshots_${date}.pdf`;
+
+            const opt = {
+                margin: 0,
+                filename: filename,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            // Hide controls temporarily for capture
+            document.getElementById('control-panel').style.display = 'none';
+            html2pdf().set(opt).from(element).save().then(() => {
+                document.getElementById('control-panel').style.display = 'block';
+            });
         }
 
         function createPlayerCard(player) {
             const customImages = loadCustomImages();
             const badges = loadBadges();
-            const customImage = customImages[player.name];
-            const badge = badges[player.name];
-            
             const card = document.createElement('div');
             card.className = 'player';
             card.draggable = true;
             
             const imgContainer = document.createElement('div');
             imgContainer.className = 'player-img-container';
-            imgContainer.dataset.playerName = player.name;
-            imgContainer.title = player.name;
             
-            const imageToUse = customImage || player.image;
-            const isPlaceholder = !imageToUse || imageToUse === 'null' || imageToUse === null;
-            
-            if (!isPlaceholder) {
+            const imageToUse = customImages[player.name] || player.image;
+            if (imageToUse) {
                 const img = document.createElement('img');
                 img.src = imageToUse;
                 img.className = 'player-img';
-                img.alt = player.name;
-                
-                img.onerror = function() {
-                    imgContainer.innerHTML = '<div class="placeholder">?</div>';
-                    addUploadHint(imgContainer, player.name);
-                    addBadgeSelector(imgContainer, player.name);
-                };
-                
                 imgContainer.appendChild(img);
             } else {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'placeholder';
-                placeholder.textContent = '?';
-                imgContainer.appendChild(placeholder);
+                imgContainer.innerHTML = '<div class="placeholder">?</div>';
             }
-            
-            // Add badge if exists
+
+            const badge = badges[player.name];
             if (badge && badge !== 'none') {
-                const badgeDiv = document.createElement('div');
-                badgeDiv.className = 'badge';
-                badgeDiv.textContent = badge;
-                
-                if (badge === '★') {
-                    badgeDiv.setAttribute('data-type', 'star');
-                } else if (badge === 'C') {
-                    badgeDiv.setAttribute('data-type', 'captain');
-                } else if (badge === 'A') {
-                    badgeDiv.setAttribute('data-type', 'alternate');
-                }
-                
-                imgContainer.appendChild(badgeDiv);
+                const bDiv = document.createElement('div');
+                bDiv.className = 'badge';
+                bDiv.textContent = badge;
+                if (badge === '★') bDiv.dataset.type = 'star';
+                else if (badge === 'C') bDiv.dataset.type = 'captain';
+                else if (badge === 'A') bDiv.dataset.type = 'alternate';
+                imgContainer.appendChild(bDiv);
             }
-            
-            addUploadHint(imgContainer, player.name);
+
             addBadgeSelector(imgContainer, player.name);
             
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = 'image/*';
-            fileInput.className = 'hidden-input';
-            fileInput.onchange = function(e) {
-                handleImageUpload(e.target.files[0], imgContainer, player.name);
-            };
-            
-            // Drag and drop for swapping positions
-            card.ondragstart = function(e) {
-                draggedElement = card;
-                card.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'move';
-            };
-            
-            card.ondragend = function(e) {
-                card.classList.remove('dragging');
-                draggedElement = null;
-            };
-            
-            card.ondragover = function(e) {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-            };
-            
-            card.ondrop = function(e) {
-                e.preventDefault();
-                
-                if (draggedElement && draggedElement !== card) {
-                    const parent = card.parentElement;
-                    const draggedIndex = Array.from(parent.children).indexOf(draggedElement);
-                    const targetIndex = Array.from(parent.children).indexOf(card);
-                    
-                    if (draggedIndex < targetIndex) {
-                        parent.insertBefore(draggedElement, card.nextSibling);
-                    } else {
-                        parent.insertBefore(draggedElement, card);
-                    }
-                }
-            };
-            
-            imgContainer.addEventListener('click', function(e) {
-                if (!e.target.closest('.badge-selector')) {
-                    fileInput.click();
-                }
-            });
-            
-            // Add drag and drop for IMAGE uploads on the image container
-            imgContainer.ondragover = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                imgContainer.style.opacity = '0.7';
-                e.dataTransfer.dropEffect = 'copy';
-            };
-            
-            imgContainer.ondragleave = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                imgContainer.style.opacity = '1';
-            };
-            
-            imgContainer.ondrop = function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                imgContainer.style.opacity = '1';
-                
-                // Check if it's a file being dropped (not a card reorder)
-                const files = e.dataTransfer.files;
-                if (files && files.length > 0 && files[0].type.startsWith('image/')) {
-                    handleImageUpload(files[0], imgContainer, player.name);
-                }
-            };
+            const input = document.createElement('input');
+            input.type = 'file'; input.className = 'hidden-input';
+            input.onchange = (e) => handleImageUpload(e.target.files[0], imgContainer, player.name);
+            imgContainer.onclick = (e) => { if(!e.target.closest('.badge-selector')) input.click(); };
             
             card.appendChild(imgContainer);
-            
-            // Add player info (editable name and number)
-            const playerInfo = document.createElement('div');
-            playerInfo.className = 'player-info';
-            playerInfo.contentEditable = 'true';
-            playerInfo.spellcheck = false;
-            
+            const info = document.createElement('div');
+            info.className = 'player-info';
+            info.contentEditable = 'true';
             const nameParts = player.name.split(' ');
-            const lastName = nameParts[nameParts.length - 1];
+            info.textContent = player.number ? `#${player.number} ${nameParts[nameParts.length-1]}` : nameParts[nameParts.length-1];
+            card.appendChild(info);
             
-            if (player.number) {
-                playerInfo.textContent = `#${player.number} ${lastName}`;
-            } else {
-                playerInfo.textContent = lastName;
-            }
-            
-            playerInfo.oninput = function() {
-                const customNames = JSON.parse(localStorage.getItem('nhl_lineup_custom_names') || '{}');
-                customNames[player.name] = playerInfo.textContent;
-                localStorage.setItem('nhl_lineup_custom_names', JSON.stringify(customNames));
+            // Drag Logic
+            card.ondragstart = (e) => { draggedElement = card; card.classList.add('dragging'); };
+            card.ondragend = () => card.classList.remove('dragging');
+            card.ondragover = (e) => e.preventDefault();
+            card.ondrop = (e) => {
+                if (draggedElement && draggedElement !== card) {
+                    const p = card.parentElement;
+                    const dIdx = [...p.children].indexOf(draggedElement);
+                    const tIdx = [...p.children].indexOf(card);
+                    if (dIdx < tIdx) p.insertBefore(draggedElement, card.nextSibling);
+                    else p.insertBefore(draggedElement, card);
+                }
             };
-            
-            const customNames = JSON.parse(localStorage.getItem('nhl_lineup_custom_names') || '{}');
-            if (customNames[player.name]) {
-                playerInfo.textContent = customNames[player.name];
-            }
-            
-            card.appendChild(playerInfo);
-            card.appendChild(fileInput);
-            
             return card;
         }
 
-        function addUploadHint(container, playerName) {
-            const hint = document.createElement('div');
-            hint.className = 'upload-hint';
-            hint.textContent = playerName + ' - Click to upload | Drag card to reorder';
-            container.appendChild(hint);
-        }
-
         function addBadgeSelector(container, playerName) {
-            const badges = loadBadges();
-            const currentBadge = badges[playerName] || 'none';
-            
             const selector = document.createElement('div');
             selector.className = 'badge-selector';
-            
-            const select = document.createElement('select');
-            select.innerHTML = `
-                <option value="none" ${currentBadge === 'none' ? 'selected' : ''}>No Badge</option>
-                <option value="C" ${currentBadge === 'C' ? 'selected' : ''}>C (Captain)</option>
-                <option value="A" ${currentBadge === 'A' ? 'selected' : ''}>A (Alternate)</option>
-                <option value="★" ${currentBadge === '★' ? 'selected' : ''}>★ (Star)</option>
-            `;
-            
-            select.onchange = function(e) {
-                e.stopPropagation();
-                saveBadge(playerName, select.value);
-                
-                const existingBadge = container.querySelector('.badge');
-                if (existingBadge) {
-                    existingBadge.remove();
-                }
-                
-                if (select.value !== 'none') {
-                    const badgeDiv = document.createElement('div');
-                    badgeDiv.className = 'badge';
-                    badgeDiv.textContent = select.value;
-                    
-                    if (select.value === '★') {
-                        badgeDiv.setAttribute('data-type', 'star');
-                    } else if (select.value === 'C') {
-                        badgeDiv.setAttribute('data-type', 'captain');
-                    } else if (select.value === 'A') {
-                        badgeDiv.setAttribute('data-type', 'alternate');
-                    }
-                    
-                    container.insertBefore(badgeDiv, container.firstChild);
-                }
-            };
-            
-            select.onclick = function(e) {
-                e.stopPropagation();
-            };
-            
-            selector.appendChild(select);
+            const sel = document.createElement('select');
+            sel.innerHTML = '<option value="none">No Badge</option><option value="C">C</option><option value="A">A</option><option value="★">★</option>';
+            sel.onchange = (e) => { saveBadge(playerName, sel.value); location.reload(); };
+            selector.appendChild(sel);
             container.appendChild(selector);
         }
 
         function handleImageUpload(file, container, playerName) {
-            if (!file || !file.type.startsWith('image/')) {
-                alert('Please select a valid image file');
-                return;
-            }
-            
+            if (!file) return;
             const reader = new FileReader();
-            reader.onload = function(e) {
-                const imageData = e.target.result;
-                
-                const existingBadge = container.querySelector('.badge');
-                const badgeValue = existingBadge ? existingBadge.textContent : null;
-                
-                container.innerHTML = '';
-                const img = document.createElement('img');
-                img.src = imageData;
-                img.className = 'player-img';
-                img.alt = playerName;
-                container.appendChild(img);
-                
-                if (badgeValue) {
-                    const badgeDiv = document.createElement('div');
-                    badgeDiv.className = 'badge';
-                    badgeDiv.textContent = badgeValue;
-                    
-                    if (badgeValue === '★') {
-                        badgeDiv.setAttribute('data-type', 'star');
-                    } else if (badgeValue === 'C') {
-                        badgeDiv.setAttribute('data-type', 'captain');
-                    } else if (badgeValue === 'A') {
-                        badgeDiv.setAttribute('data-type', 'alternate');
-                    }
-                    
-                    container.appendChild(badgeDiv);
-                }
-                
-                addUploadHint(container, playerName);
-                addBadgeSelector(container, playerName);
-                
-                saveCustomImage(playerName, imageData);
-            };
+            reader.onload = (e) => { saveCustomImage(playerName, e.target.result); location.reload(); };
             reader.readAsDataURL(file);
         }
 
-        function createStaffMember(role, index) {
-            const STAFF_STORAGE_KEY = 'nhl_lineup_staff';
-            const staffData = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}');
-            const key = `${role}_${index}`;
+        function createStaffMember(type, index) {
+            const key = `staff_${type}_${index}`;
+            const staffData = JSON.parse(localStorage.getItem('nhl_lineup_staff') || '{}');
             const saved = staffData[key] || {};
-            
-            // Pre-fill goalie data from API if available and not already saved
-            let prefilledData = {};
-            if (role === 'Goalie' && GOALIES && GOALIES[index - 1] && !saved.name && !saved.image) {
-                const goalieData = GOALIES[index - 1];
-                prefilledData = {
-                    name: goalieData.name,
-                    image: goalieData.image,
-                    role: 'GOALIE'
-                };
-                staffData[key] = prefilledData;
-                localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData));
+
+            // Prefill logic
+            let prefilled = {};
+            if (type === 'Goalie' && GOALIES[index-1]) {
+                prefilled = { name: GOALIES[index-1].name, image: GOALIES[index-1].headshot_url, role: 'GOALIE' };
+            } else if (type === 'Coach' && COACHES[index-1]) {
+                prefilled = { name: COACHES[index-1].name, image: COACHES[index-1].headshot_url, role: COACHES[index-1].role };
             }
-            
-            // Pre-fill coach data from API - ALWAYS use API data when available
-            if (role === 'Coach' && COACHES && COACHES[index - 1]) {
-                const coachData = COACHES[index - 1];
-                prefilledData = {
-                    name: coachData.name,
-                    image: coachData.headshot_url,
-                    role: coachData.role || 'COACH'
-                };
-                // Always overwrite with fresh API data
-                staffData[key] = prefilledData;
-                localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData));
-            }
-            
-            // Use saved data if exists, otherwise use prefilled
-            // For coaches: always use prefilled (API) data if available
-            const finalData = (role === 'Coach' && prefilledData.name) ? prefilledData : ((saved.name || saved.image) ? saved : prefilledData);
-            
+
+            const data = (saved.name || saved.image) ? saved : prefilled;
+
             const member = document.createElement('div');
             member.className = 'staff-member';
+            if (type === 'Coach' && index === 4) {
+                const show = localStorage.getItem(COACH_TOGGLE_KEY) === 'true';
+                if (!show) member.classList.add('hidden-coach');
+            }
+
+            const imgCont = document.createElement('div');
+            imgCont.className = 'staff-img-container';
             
-            const imgContainer = document.createElement('div');
-            imgContainer.className = 'staff-img-container';
-            
-            const roleInput = document.createElement('input');
-            roleInput.type = 'text';
-            roleInput.className = 'staff-role';
-            roleInput.placeholder = 'Role';
-            roleInput.value = finalData.role || saved.role || role.toUpperCase();
-            roleInput.oninput = function() {
-                staffData[key] = staffData[key] || {};
-                staffData[key].role = roleInput.value;
-                localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData));
-                updatePrintVisibility();
-            };
-            roleInput.onclick = function(e) {
-                e.stopPropagation();
-            };
-            imgContainer.appendChild(roleInput);
-            
-            if (finalData.image) {
-                const img = document.createElement('img');
-                img.src = finalData.image;
-                img.className = 'player-img';
-                img.style.transform = 'none';
-                img.onerror = function() {
-                    img.remove();
-                    const placeholder = document.createElement('div');
-                    placeholder.className = 'placeholder';
-                    placeholder.textContent = '?';
-                    imgContainer.appendChild(placeholder);
-                };
-                imgContainer.appendChild(img);
+            const roleInp = document.createElement('input');
+            roleInp.className = 'staff-role';
+            roleInp.value = data.role || type.toUpperCase();
+            roleInp.oninput = () => { staffData[key] = staffData[key] || {}; staffData[key].role = roleInp.value; localStorage.setItem('nhl_lineup_staff', JSON.stringify(staffData)); };
+            imgCont.appendChild(roleInp);
+
+            if (data.image) {
+                const img = document.createElement('img'); img.src = data.image; img.className = 'player-img'; img.style.transform = 'none';
+                imgCont.appendChild(img);
             } else {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'placeholder';
-                placeholder.textContent = '?';
-                imgContainer.appendChild(placeholder);
+                imgCont.innerHTML += '<div class="placeholder">?</div>';
             }
-            
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = 'image/*';
-            fileInput.className = 'hidden-input';
-            fileInput.onchange = function(e) {
-                const file = e.target.files[0];
-                if (file && file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const imageData = event.target.result;
-                        staffData[key] = staffData[key] || {};
-                        staffData[key].image = imageData;
-                        localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData));
-                        
-                        const existingImg = imgContainer.querySelector('.player-img');
-                        const existingPlaceholder = imgContainer.querySelector('.placeholder');
-                        if (existingImg) existingImg.remove();
-                        if (existingPlaceholder) existingPlaceholder.remove();
-                        
-                        const img = document.createElement('img');
-                        img.src = imageData;
-                        img.className = 'player-img';
-                        img.style.transform = 'none';
-                        imgContainer.insertBefore(img, imgContainer.firstChild);
-                        
-                        updatePrintVisibility();
-                    };
-                    reader.readAsDataURL(file);
-                }
+
+            const fileInp = document.createElement('input'); fileInp.type = 'file'; fileInp.className = 'hidden-input';
+            fileInp.onchange = (e) => {
+                const reader = new FileReader();
+                reader.onload = (ev) => { 
+                    staffData[key] = staffData[key] || {}; staffData[key].image = ev.target.result; 
+                    localStorage.setItem('nhl_lineup_staff', JSON.stringify(staffData)); location.reload(); 
+                };
+                reader.readAsDataURL(e.target.files[0]);
             };
-            
-            imgContainer.onclick = function(e) {
-                fileInput.click();
-            };
-            
-            imgContainer.ondragover = function(e) {
-                e.preventDefault();
-                imgContainer.classList.add('dragover');
-            };
-            
-            imgContainer.ondragleave = function(e) {
-                e.preventDefault();
-                imgContainer.classList.remove('dragover');
-            };
-            
-            imgContainer.ondrop = function(e) {
-                e.preventDefault();
-                imgContainer.classList.remove('dragover');
-                
-                const file = e.dataTransfer.files[0];
-                if (file && file.type.startsWith('image/')) {
-                    fileInput.files = e.dataTransfer.files;
-                    fileInput.onchange({ target: fileInput });
-                }
-            };
-            
-            member.appendChild(imgContainer);
-            member.appendChild(fileInput);
-            
-            const nameInput = document.createElement('input');
-            nameInput.type = 'text';
-            nameInput.className = 'staff-name-input';
-            nameInput.placeholder = `Enter ${role} name`;
-            nameInput.value = finalData.name || saved.name || '';
-            nameInput.oninput = function() {
-                staffData[key] = staffData[key] || {};
-                staffData[key].name = nameInput.value;
-                localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffData));
-                updatePrintVisibility();
-            };
-            
-            member.appendChild(nameInput);
-            
-            function updatePrintVisibility() {
-                const hasRole = roleInput.value.trim() !== '';
-                const hasName = nameInput.value.trim() !== '';
-                const hasImage = saved.image;
-                
-                if (!hasRole && !hasName && !hasImage) {
-                    member.classList.add('print-hide');
-                } else {
-                    member.classList.remove('print-hide');
-                }
-            }
-            
-            updatePrintVisibility();
+            imgCont.onclick = () => fileInp.click();
+
+            member.appendChild(imgCont);
+            const nameInp = document.createElement('input');
+            nameInp.className = 'staff-name-input';
+            nameInp.value = data.name || '';
+            nameInp.oninput = () => { staffData[key] = staffData[key] || {}; staffData[key].name = nameInp.value; localStorage.setItem('nhl_lineup_staff', JSON.stringify(staffData)); };
+            member.appendChild(nameInp);
             
             return member;
         }
 
-        function initializeLineup() {
-            const forwardsGrid = document.getElementById('forwards-grid');
-            const defensemenGrid = document.getElementById('defensemen-grid');
-            const staffGrid = document.getElementById('staff-grid');
+        document.addEventListener('DOMContentLoaded', () => {
+            const fGrid = document.getElementById('forwards-grid');
+            const dGrid = document.getElementById('defensemen-grid');
+            const sGrid = document.getElementById('staff-grid');
             
-            FORWARDS.forEach(player => {
-                forwardsGrid.appendChild(createPlayerCard(player));
-            });
+            FORWARDS.forEach(p => fGrid.appendChild(createPlayerCard(p)));
+            DEFENSEMEN.forEach(p => dGrid.appendChild(createPlayerCard(p)));
             
-            DEFENSEMEN.forEach(player => {
-                defensemenGrid.appendChild(createPlayerCard(player));
-            });
-            
-            staffGrid.appendChild(createStaffMember('Goalie', 1));
-            staffGrid.appendChild(createStaffMember('Goalie', 2));
-            staffGrid.appendChild(createStaffMember('Coach', 1));
-            staffGrid.appendChild(createStaffMember('Coach', 2));
-            staffGrid.appendChild(createStaffMember('Coach', 3));
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeLineup();
-            
-            // Make controls box draggable
-            const controls = document.querySelector('.controls');
-            let isDragging = false;
-            let currentX;
-            let currentY;
-            let initialX;
-            let initialY;
-            
-            controls.addEventListener('mousedown', function(e) {
-                if (e.target.tagName === 'BUTTON') return;
-                isDragging = true;
-                initialX = e.clientX - controls.offsetLeft;
-                initialY = e.clientY - controls.offsetTop;
-            });
-            
-            document.addEventListener('mousemove', function(e) {
-                if (isDragging) {
-                    e.preventDefault();
-                    currentX = e.clientX - initialX;
-                    currentY = e.clientY - initialY;
-                    controls.style.left = currentX + 'px';
-                    controls.style.top = currentY + 'px';
-                    controls.style.right = 'auto';
-                }
-            });
-            
-            document.addEventListener('mouseup', function() {
-                isDragging = false;
-            });
+            // Staff layout: G1, G2, C1 (Top) | C2, C3, C4 (Bottom)
+            sGrid.appendChild(createStaffMember('Goalie', 1));
+            sGrid.appendChild(createStaffMember('Goalie', 2));
+            sGrid.appendChild(createStaffMember('Coach', 1));
+            sGrid.appendChild(createStaffMember('Coach', 2));
+            sGrid.appendChild(createStaffMember('Coach', 3));
+            sGrid.appendChild(createStaffMember('Coach', 4));
         });
     </script>
 </body>
