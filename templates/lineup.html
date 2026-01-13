@@ -16,26 +16,24 @@
         @page { margin: 0; size: letter portrait; }
         
         html, body {
-            min-height: 100%;
-            width: 100%;
+            height: 100%; width: 100%;
             background: #111;
             display: flex;
             justify-content: center;
             font-family: 'Arial Narrow', Arial, sans-serif;
         }
         
+        /* Fixed 8.5x11 Container */
         .container {
             background: white;
             width: 8.5in;
             height: 11in;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 0 50px rgba(0,0,0,1);
             position: relative;
             flex-shrink: 0;
-            margin: 10px 0;
-            overflow: hidden;
-            padding-bottom: 3mm;
+            overflow: hidden; /* Prevents 2nd page */
+            padding-bottom: 3mm; /* Bottom margin */
         }
         
         .forwards-section { height: 55%; width: 100%; display: flex; flex-direction: column; }
@@ -47,7 +45,6 @@
             grid-template-rows: repeat(2, 1fr);
             height: 100%;
         }
-        
         .forwards-grid .player:nth-child(3), .forwards-grid .player:nth-child(9) { border-right: 5px solid black; }
         
         .defensemen-grid {
@@ -64,20 +61,17 @@
             border-left: 5px solid black;
         }
         
-        .goalie-row { display: flex; height: 50%; width: 100%; }
-        .coach-row { display: flex; height: 50%; border-top: 5px solid black; }
+        /* Staff Rows */
+        .staff-row { display: flex; height: 50%; width: 100%; }
+        .coach-row { border-top: 5px solid black; }
         
         .staff-member { flex: 1; display: flex; flex-direction: column; border-right: 1px solid black; overflow: hidden; position: relative; }
         .staff-member.hidden-coach { display: none !important; }
+        .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
-        .staff-member.starter-active {
-            box-shadow: inset 0 0 0 8px #FFD700 !important;
-            z-index: 50;
-        }
-
-        .notes-area { flex: 1.2; height: 100%; border-left: 1px solid black; }
+        .notes-area { flex: 1.2; height: 100%; background: white; }
         .notes-area textarea {
-            width: 100%; height: 100%; border: none; padding: 6px;
+            width: 100%; height: 100%; border: none; padding: 8px;
             font-size: 0.9em; font-weight: 900; resize: none; outline: none; text-transform: uppercase;
         }
         
@@ -88,7 +82,6 @@
             display: flex; align-items: center; justify-content: center; overflow: hidden;
         }
         
-        /* ULTRA-SLIM NAME BARS */
         .info-bar {
             height: 18px !important;
             min-height: 18px !important;
@@ -107,8 +100,7 @@
             top: 4px; left: 4px;
             color: white; font-weight: 900; font-size: 1.2em;
             padding: 2px 6px; border-radius: 4px; z-index: 20;
-            text-shadow: 1px 1px 3px rgba(0,0,0,1);
-            border: 2px solid white;
+            text-shadow: 1px 1px 3px rgba(0,0,0,1); border: 2px solid white;
         }
         .badge[data-type="star"] { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
         .badge[data-type="captain"] { background: #000; }
@@ -142,10 +134,8 @@
         
         .controls button {
             padding: 6px 10px; font-size: 12px; font-weight: 900;
-            cursor: pointer; border: 1px solid black; background: #fff;
-            text-transform: uppercase;
+            cursor: pointer; border: 1px solid black; background: #fff; text-transform: uppercase;
         }
-        .controls button:hover { background: #000; color: #fff; }
 
         @media print {
             body, html { background: white !important; overflow: hidden !important; height: 11in !important; width: 8.5in !important; }
@@ -170,10 +160,16 @@
         <div class="defensemen-section">
             <div class="defensemen-grid" id="defensemen-grid"></div>
             <div class="staff-grid">
-                <div class="goalie-row" id="goalie-row-inner">
-                    <div id="goalie-container" style="display: contents;"></div>
+                <!-- TOP STAFF ROW: GOALIES + NOTES -->
+                <div class="staff-row">
+                    <div id="goalie-1-slot" style="display:contents"></div>
+                    <div id="goalie-2-slot" style="display:contents"></div>
+                    <div class="notes-area">
+                        <textarea id="notes-input" placeholder="NOTES..."></textarea>
+                    </div>
                 </div>
-                <div class="coach-row" id="coach-row"></div>
+                <!-- BOTTOM STAFF ROW: COACHES -->
+                <div class="staff-row coach-row" id="coach-container"></div>
             </div>
         </div>
     </div>
@@ -184,6 +180,7 @@
         const BADGE_STORAGE_KEY = 'nhl_lineup_badges';
         const STAFF_STORAGE_KEY = 'nhl_lineup_staff';
         const CUSTOM_NAMES_KEY = 'nhl_lineup_custom_names';
+        const COACH_TOGGLE_KEY = 'nhl_show_fourth_coach';
         const LAST_TEAM_KEY = 'nhl_last_team_id';
         const NOTES_KEY = 'notes';
 
@@ -208,8 +205,8 @@
         }
 
         function toggleFourthCoach() {
-            const cur = localStorage.getItem('show_4th') === 'true';
-            localStorage.setItem('show_4th', !cur);
+            const cur = localStorage.getItem(COACH_TOGGLE_KEY) === 'true';
+            localStorage.setItem(COACH_TOGGLE_KEY, !cur);
             location.reload();
         }
 
@@ -223,21 +220,12 @@
                 margin: 0,
                 filename: `${currentTeam}_Headshots.pdf`,
                 image: { type: 'jpeg', quality: 1 },
-                html2canvas: { 
-                    scale: 3, 
-                    useCORS: true, 
-                    logging: false,
-                    scrollY: 0,
-                    windowWidth: 816,
-                    windowHeight: 1056 
-                },
+                html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
                 jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
             };
             
-            setTimeout(async () => {
-                await html2pdf().set(opt).from(element).save();
-                controls.style.display = 'flex';
-            }, 200);
+            await html2pdf().set(opt).from(element).save();
+            controls.style.display = 'flex';
         }
 
         function handleImageUpload(file, playerName, isStaff, key) {
@@ -249,9 +237,9 @@
                     data[key] = data[key] || {}; data[key].image = e.target.result;
                     localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(data));
                 } else {
-                    const imgs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-                    imgs[playerName] = e.target.result;
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(imgs));
+                    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+                    data[playerName] = e.target.result;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
                 }
                 location.reload();
             };
@@ -260,10 +248,7 @@
 
         function renderPlayerName(el, player) {
             const customNames = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
-            if (customNames[player.name]) {
-                el.textContent = customNames[player.name];
-                return;
-            }
+            if (customNames[player.name]) { el.textContent = customNames[player.name]; return; }
             const num = player.number || '';
             const lastName = player.name.split(' ').pop();
             const tryFit = (hash, cls) => {
@@ -285,14 +270,12 @@
             imgCont.className = 'img-container';
             const customImgs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
             const url = customImgs[player.name] || player.headshot_url;
-            
             if (url) {
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot';
                 imgCont.appendChild(img);
             } else {
                 imgCont.innerHTML = '<div style="font-size:3em;color:#ccc;font-weight:900">?</div>';
             }
-
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             if (badges[player.name]) {
                 const b = document.createElement('div');
@@ -300,28 +283,16 @@
                 b.dataset.type = badges[player.name] === '★' ? 'star' : (badges[player.name] === 'C' ? 'captain' : 'alternate');
                 imgCont.appendChild(b);
             }
-
             addBadgeSelector(imgCont, player.name);
-
-            imgCont.onclick = () => {
-                const f = document.createElement('input'); f.type = 'file';
-                f.onchange = e => handleImageUpload(e.target.files[0], player.name);
-                f.click();
-            };
+            imgCont.onclick = () => { const f = document.createElement('input'); f.type = 'file'; f.onchange = e => handleImageUpload(e.target.files[0], player.name); f.click(); };
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], player.name); };
-
             card.appendChild(imgCont);
             const info = document.createElement('div');
             info.className = 'info-bar'; info.contentEditable = 'true'; info.spellcheck = false;
             renderPlayerName(info, player);
             setTimeout(() => renderPlayerName(info, player), 50);
-            info.onblur = () => {
-                const n = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
-                n[player.name] = info.textContent;
-                localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(n));
-            };
-
+            info.onblur = () => { const n = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}'); n[player.name] = info.textContent; localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(n)); };
             card.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = card; };
             card.ondragover = e => e.preventDefault();
             card.ondrop = e => {
@@ -368,7 +339,7 @@
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             let isStarter = type === 'Goalie' && badges[pre.name] === 'Starter';
             if (isStarter) member.classList.add('starter-active');
-            if (type === 'Coach' && index === 4 && localStorage.getItem('show_4th') !== 'true') member.classList.add('hidden-coach');
+            if (type === 'Coach' && index === 4 && localStorage.getItem(COACH_TOGGLE_KEY) !== 'true') member.classList.add('hidden-coach');
 
             const imgCont = document.createElement('div');
             imgCont.className = 'img-container';
@@ -376,11 +347,7 @@
             role.className = 'staff-role-label'; role.contentEditable = "true";
             role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || pre.role || type.toUpperCase());
             role.onclick = e => e.stopPropagation();
-            role.onblur = () => {
-                const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}');
-                d[key] = d[key] || {}; d[key].role = role.textContent;
-                localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d));
-            };
+            role.onblur = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].role = role.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
             imgCont.appendChild(role);
 
             const url = saved.image || (pre.headshot_url || pre.image);
@@ -388,15 +355,11 @@
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot'; img.style.transform = 'none';
                 imgCont.appendChild(img);
             } else {
-                imgCont.innerHTML += '<div class="placeholder">?</div>';
+                imgCont.innerHTML += '<div style="font-size:3em;color:#ccc;font-weight:900">?</div>';
             }
 
             if (type === 'Goalie') addBadgeSelector(imgCont, pre.name, true);
-            imgCont.onclick = () => {
-                const f = document.createElement('input'); f.type = 'file';
-                f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key);
-                f.click();
-            };
+            imgCont.onclick = () => { const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key); f.click(); };
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key); };
 
@@ -404,11 +367,7 @@
             const name = document.createElement('input');
             name.className = 'info-bar'; name.value = saved.name || (pre.name || "");
             name.placeholder = type === 'Coach' ? "COACH" : "NAME";
-            name.oninput = () => {
-                const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}');
-                d[key] = d[key] || {}; d[key].name = name.value;
-                localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d));
-            };
+            name.oninput = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = name.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
             member.appendChild(name);
             return member;
         }
@@ -433,28 +392,24 @@
         document.addEventListener('DOMContentLoaded', () => {
             const fGrid = document.getElementById('forwards-grid');
             const dGrid = document.getElementById('defensemen-grid');
-            const goalieInner = document.getElementById('goalie-row-inner');
-            const cRow = document.getElementById('coach-row');
+            const g1 = document.getElementById('goalie-1-slot');
+            const g2 = document.getElementById('goalie-2-slot');
+            const cCont = document.getElementById('coach-container');
             
             (lineupData.forwards || []).forEach(p => fGrid.appendChild(createPlayerCard(p)));
             (lineupData.defensemen || []).forEach(p => dGrid.appendChild(createPlayerCard(p)));
             
-            goalieInner.appendChild(createStaffMember('Goalie', 1));
-            goalieInner.appendChild(createStaffMember('Goalie', 2));
-            
-            const notes = document.createElement('div');
-            notes.className = 'notes-area';
-            notes.innerHTML = `<textarea id="notes-input" placeholder="NOTES..."></textarea>`;
-            goalieInner.parentElement.appendChild(notes);
+            g1.appendChild(createStaffMember('Goalie', 1));
+            g2.appendChild(createStaffMember('Goalie', 2));
             
             const nInp = document.getElementById('notes-input');
             nInp.value = localStorage.getItem(NOTES_KEY) || "";
             nInp.oninput = () => localStorage.setItem(NOTES_KEY, nInp.value);
 
-            cRow.appendChild(createStaffMember('Coach', 1));
-            cRow.appendChild(createStaffMember('Coach', 2));
-            cRow.appendChild(createStaffMember('Coach', 3));
-            cRow.appendChild(createStaffMember('Coach', 4));
+            cCont.appendChild(createStaffMember('Coach', 1));
+            cCont.appendChild(createStaffMember('Coach', 2));
+            cCont.appendChild(createStaffMember('Coach', 3));
+            cCont.appendChild(createStaffMember('Coach', 4));
 
             initDraggable();
         });
