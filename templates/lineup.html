@@ -25,7 +25,6 @@
             display: flex;
             justify-content: center;
             font-family: 'Arial', sans-serif;
-            overflow-x: hidden;
         }
         
         /* The Actual Paper (8.5x11) */
@@ -39,6 +38,7 @@
             position: relative;
             flex-shrink: 0;
             margin: 20px 0;
+            overflow: hidden; /* STOPS 2ND PAGE LEAK */
         }
         
         .forwards-section {
@@ -51,7 +51,7 @@
         .defensemen-section {
             height: 45%;
             display: flex;
-            border-top: 4px solid black;
+            border-top: 5px solid black;
         }
         
         .forwards-grid {
@@ -102,6 +102,10 @@
             overflow: hidden;
         }
 
+        .staff-member.hidden-coach {
+            display: none !important;
+        }
+
         .notes-area {
             flex: 1.2;
             height: 100%;
@@ -125,6 +129,7 @@
             flex-direction: column;
             height: 100%;
             border: 0.1px solid #ddd;
+            overflow: hidden;
         }
         
         .img-container {
@@ -137,7 +142,6 @@
             overflow: hidden;
         }
         
-        /* REDUCED NAME BAR HEIGHT */
         .info-bar {
             height: 28px !important;
             min-height: 28px !important;
@@ -147,7 +151,7 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-            font-size: 0.9em; /* Smaller font */
+            font-size: 0.9em;
             font-weight: 900;
             text-transform: uppercase;
             width: 100%;
@@ -182,7 +186,7 @@
             width: 100%;
             height: 110%;
             object-fit: cover;
-            transform: translateY(-2%); /* Adjusted to show more of head with smaller bar */
+            transform: translateY(-2%);
         }
         
         .defensemen-grid .headshot { transform: translateY(0%); object-position: center 25%; }
@@ -194,7 +198,7 @@
             background: rgba(0, 0, 0, 0.85) !important;
             color: white !important;
             padding: 2px 10px;
-            font-size: 0.7em;
+            font-size: 0.75em;
             font-weight: 900;
             border-radius: 3px;
             z-index: 15;
@@ -217,7 +221,6 @@
         }
         .controls button:hover { background: black; color: white; }
 
-        /* PRINT CUTOFF FIX */
         @media print {
             body, html { 
                 background: white !important; 
@@ -233,6 +236,7 @@
                 box-shadow: none !important; 
                 width: 8.5in !important; 
                 height: 11in !important; 
+                overflow: hidden !important;
             }
             .controls, .badge-selector { display: none !important; }
         }
@@ -240,7 +244,7 @@
 </head>
 <body>
     <div class="controls" id="draggable-controls">
-        <button onclick="handlePrint()">Print</button>
+        <button onclick="window.scrollTo(0,0); window.print();">Print</button>
         <button onclick="downloadPDF()">Download PDF</button>
         <button onclick="toggleFourthCoach()">Add/Remove 4th Coach</button>
         <button onclick="clearAllData()">Reset to Original</button>
@@ -266,6 +270,7 @@
         const BADGE_STORAGE_KEY = 'nhl_lineup_badges';
         const STAFF_STORAGE_KEY = 'nhl_lineup_staff';
         const CUSTOM_NAMES_KEY = 'nhl_lineup_custom_names';
+        const COACH_TOGGLE_KEY = 'nhl_show_fourth_coach';
         const LAST_TEAM_KEY = 'nhl_last_team_id';
 
         const currentTeam = lineupData.team || 'Unknown';
@@ -278,12 +283,6 @@
 
         let draggedElement = null;
 
-        // Custom print handler to ensure top alignment
-        function handlePrint() {
-            window.scrollTo(0, 0);
-            window.print();
-        }
-
         function clearAllData() {
             if(confirm('Reset all changes for this team?')) {
                 const backup = localStorage.getItem('lineup_data');
@@ -295,8 +294,8 @@
         }
 
         function toggleFourthCoach() {
-            const cur = localStorage.getItem('show_4th') === 'true';
-            localStorage.setItem('show_4th', !cur);
+            const currentStatus = localStorage.getItem(COACH_TOGGLE_KEY) === 'true';
+            localStorage.setItem(COACH_TOGGLE_KEY, !currentStatus);
             location.reload();
         }
 
@@ -340,16 +339,13 @@
                 el.textContent = customNames[player.name];
                 return;
             }
-            
             const num = player.number || '';
             const lastName = player.name.split(' ').pop();
-
             const tryFit = (hash, cls) => {
                 el.className = 'info-bar ' + cls;
                 el.textContent = num ? (hash ? `#${num} ${lastName}` : `${num} ${lastName}`) : lastName;
                 return el.scrollWidth <= el.clientWidth;
             };
-
             if (tryFit(true, '')) return;
             if (tryFit(false, '')) return;
             if (tryFit(false, 'font-small')) return;
@@ -376,11 +372,14 @@
             }
 
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
-            if (badges[player.name]) {
-                const b = document.createElement('div');
-                b.className = 'badge'; b.textContent = badges[player.name];
-                b.dataset.type = badges[player.name] === '★' ? 'star' : (badges[player.name] === 'C' ? 'captain' : 'alternate');
-                imgCont.appendChild(b);
+            const b = badges[player.name];
+            if (b && b !== 'none') {
+                const bDiv = document.createElement('div');
+                bDiv.className = 'badge'; bDiv.textContent = b;
+                if (b === '★') bDiv.dataset.type = 'star';
+                else if (b === 'C') bDiv.dataset.type = 'captain';
+                else if (b === 'A') bDiv.dataset.type = 'alternate';
+                imgCont.appendChild(bDiv);
             }
 
             const bs = document.createElement('div');
@@ -390,9 +389,9 @@
             sel.value = badges[player.name] || 'none';
             sel.onclick = e => e.stopPropagation();
             sel.onchange = () => {
-                const b = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
-                if(sel.value === 'none') delete b[player.name]; else b[player.name] = sel.value;
-                localStorage.setItem(BADGE_STORAGE_KEY, JSON.stringify(b));
+                const bMap = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
+                if(sel.value === 'none') delete bMap[player.name]; else bMap[player.name] = sel.value;
+                localStorage.setItem(BADGE_STORAGE_KEY, JSON.stringify(bMap));
                 location.reload();
             };
             bs.appendChild(sel);
@@ -422,6 +421,7 @@
                 localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(n));
             };
 
+            // TRUE SWAP LOGIC
             card.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = card; };
             card.ondragover = e => e.preventDefault();
             card.ondrop = e => {
@@ -446,7 +446,7 @@
             
             const member = document.createElement('div');
             member.className = 'staff-member';
-            if (type === 'Coach' && index === 4 && localStorage.getItem('show_4th') !== 'true') member.classList.add('hidden-coach');
+            if (type === 'Coach' && index === 4 && localStorage.getItem(COACH_TOGGLE_KEY) !== 'true') member.classList.add('hidden-coach');
 
             const imgCont = document.createElement('div');
             imgCont.className = 'img-container';
@@ -474,6 +474,8 @@
                 f.onchange = e => handleImageUpload(e.target.files[0], null, true, key);
                 f.click();
             };
+            imgCont.ondragover = e => e.preventDefault();
+            imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key); };
 
             member.appendChild(imgCont);
             const name = document.createElement('input');
