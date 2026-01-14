@@ -43,18 +43,16 @@
         .staff-row { display: flex; height: 50%; width: 100%; }
         .coach-row { border-top: 5px solid black; flex-grow: 1; }
         
-        /* Fixed widths for Goalie slots */
         .staff-member { 
-            width: 25%; display: flex; flex-direction: column; 
+            flex: 1; display: flex; flex-direction: column; 
             border-right: 1px solid black; overflow: hidden; position: relative; 
         }
-        .coach-row .staff-member { flex: 1; }
         .staff-member.hidden-coach { display: none !important; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
         .notes-area { flex: 1.5; height: 100%; position: relative; overflow: hidden; background: #fff; }
         .notes-area textarea { 
-            width: 100%; height: 100%; border: none; padding: 10px; 
+            width: 100%; height: 100%; border: none; padding: 8px; 
             font-size: 0.95em; font-weight: 900; resize: none; outline: none; 
             text-transform: uppercase; background: transparent; position: relative; z-index: 1; 
         }
@@ -68,12 +66,15 @@
         .player { display: flex; flex-direction: column; height: 100%; border: 0.1px solid #eee; overflow: hidden; }
         .img-container { flex: 1; position: relative; background: #eee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
+        /* UPDATED INFO BAR: Flex for wrap, increased height for 2 lines */
         .info-bar {
-            height: 18px !important; min-height: 18px !important;
+            height: 24px !important; min-height: 24px !important;
             background: #000 !important; color: #fff !important;
             display: flex; align-items: center; justify-content: center;
-            text-align: center; font-size: 0.85em; font-weight: 900;
-            text-transform: uppercase; width: 100%; flex-shrink: 0; z-index: 10; border: none; outline: none;
+            text-align: center; font-size: 1.0em; font-weight: 900;
+            text-transform: uppercase; width: 100%; flex-shrink: 0; z-index: 10; 
+            border: none; outline: none; line-height: 0.95; overflow: hidden;
+            word-wrap: break-word;
         }
 
         .badge {
@@ -103,12 +104,8 @@
         .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         
-        /* FORWARDS: ZOOMED AND LOWERED */
-        .forwards-grid .headshot { 
-            width: 100%; height: 110%; object-fit: cover; 
-            transform: scale(1.1) translateY(-4%); 
-        }
-        
+        /* Adjusted Forwards: Lowered and slight zoom */
+        .forwards-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.15) translateY(2%); }
         .defensemen-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.4) translateY(2%); }
         .staff-member .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(0); }
 
@@ -151,14 +148,8 @@
         <div class="defensemen-section">
             <div class="defensemen-grid" id="defensemen-grid"></div>
             <div class="staff-grid">
-                <div class="staff-row" id="goalie-row-container">
-                    <div id="g1-slot" class="staff-member"></div>
-                    <div id="g2-slot" class="staff-member"></div>
-                    <div class="notes-area" id="notes-area">
-                        <textarea id="notes-input" placeholder="NOTES..."></textarea>
-                    </div>
-                </div>
-                <div class="staff-row coach-row" id="coach-container"></div>
+                <div class="staff-row" id="goalie-row"></div>
+                <div class="staff-row coach-row" id="coach-row"></div>
             </div>
         </div>
     </div>
@@ -177,13 +168,13 @@
 
         const currentTeam = lineupData.team || 'Unknown';
 
-        // --- STABLE SHARKS DEFAULTS ---
+        // --- FIXED SHARKS COACHING DATABASE ---
         const STAFF_REGISTRY = {
             'SJS': {
                 'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/ryan.warsofsky.png' },
-                'staff_Coach_2': { name: 'BRIAN WISEMAN', role: 'PP COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/brian.wiseman.png' },
-                'staff_Coach_3': { name: 'DOUG HOUDA', role: 'D/PK COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/doug.houda.png' },
-                'staff_Coach_4': { name: 'JEFF ULMER', role: 'ASST COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/jeff.ulmer.png' }
+                'staff_Coach_2': { name: 'BRIAN WISEMAN', role: 'PP COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/8458951.png' },
+                'staff_Coach_3': { name: 'DOUG HOUDA', role: 'D/PK COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/8447971.png' },
+                'staff_Coach_4': { name: 'JEFF ULMER', role: 'ASST COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/8467931.png' }
             }
         };
 
@@ -195,6 +186,28 @@
         }
 
         let draggedElement = null;
+
+        // --- SMART TEXT FITTING LOGIC ---
+        function fitText(el) {
+            let fontSize = 1.0; 
+            el.style.fontSize = fontSize + 'em';
+            el.style.whiteSpace = 'nowrap';
+
+            // Shrink font to fit width
+            while (el.scrollWidth > el.clientWidth && fontSize > 0.7) {
+                fontSize -= 0.05;
+                el.style.fontSize = fontSize + 'em';
+            }
+
+            // If still too big, allow wrap and shrink further
+            if (el.scrollWidth > el.clientWidth) {
+                el.style.whiteSpace = 'normal';
+                while (el.scrollHeight > el.clientHeight && fontSize > 0.55) {
+                    fontSize -= 0.05;
+                    el.style.fontSize = fontSize + 'em';
+                }
+            }
+        }
 
         function clearAllData() {
             if(confirm('Reset all changes?')) {
@@ -268,18 +281,21 @@
                 }
             }
 
-            const info = document.createElement('input'); info.className = 'info-bar';
+            const info = document.createElement('div'); 
+            info.className = 'info-bar'; info.contentEditable = 'true';
             const customNames = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
-            if (customNames[player.name]) { info.value = customNames[player.name]; } 
-            else { const n = player.number || ''; const l = player.name.split(' ').pop(); info.value = n ? `#${n} ${l}` : l; }
+            if (customNames[player.name]) { info.textContent = customNames[player.name]; } 
+            else { const n = player.number || ''; const l = player.name.split(' ').pop(); info.textContent = n ? `#${n} ${l}` : l; }
+            
             info.oninput = () => {
                 const n = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
-                n[player.name] = info.value;
+                n[player.name] = info.textContent;
                 localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(n));
+                fitText(info);
             };
 
             const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
-            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(info.value); };
+            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(info.textContent); };
             imgCont.appendChild(fBtn);
 
             addBadgeSelector(imgCont, player.name);
@@ -288,6 +304,8 @@
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], player.name); };
             
             card.appendChild(imgCont); card.appendChild(info);
+            setTimeout(() => fitText(info), 10);
+
             card.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = card; };
             card.ondragover = e => e.preventDefault();
             card.ondrop = e => {
@@ -325,8 +343,8 @@
             const saved = staffData[key] || {};
             const pre = type === 'Goalie' ? (lineupData.goalies[index-1] || {}) : (lineupData.coaches[index-1] || {});
             
-            const registry = STAFF_REGISTRY[currentTeam] || {};
-            const regDefault = registry[key];
+            const isSharks = currentTeam === 'SJS';
+            const sharksDefault = (isSharks && type === 'Coach') ? STAFF_REGISTRY['SJS'][key] : null;
 
             const member = document.createElement('div'); member.className = 'staff-member';
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
@@ -337,24 +355,27 @@
             const imgCont = document.createElement('div'); imgCont.className = 'img-container';
             const role = document.createElement('div');
             role.className = 'role-label'; role.contentEditable = "true";
-            role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || (regDefault ? regDefault.role : pre.role) || type.toUpperCase());
+            role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || (sharksDefault ? sharksDefault.role : pre.role) || type.toUpperCase());
             role.addEventListener('mousedown', e => e.stopPropagation());
             role.addEventListener('click', e => e.stopPropagation());
             role.onblur = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].role = role.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
             imgCont.appendChild(role);
 
-            const url = saved.image || (regDefault ? regDefault.image : (pre.headshot_url || pre.image));
+            const url = saved.image || (sharksDefault ? sharksDefault.image : (pre.headshot_url || pre.image));
             if (url) {
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot'; img.style.transform = 'none';
                 imgCont.appendChild(img);
             } else { imgCont.innerHTML += '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
-            const nameInput = document.createElement('input'); nameInput.className = 'info-bar'; 
-            nameInput.value = saved.name || (regDefault ? regDefault.name : (pre.name || ""));
-            nameInput.oninput = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInput.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
+            const nameInfo = document.createElement('div'); nameInfo.className = 'info-bar'; nameInfo.contentEditable = 'true';
+            nameInfo.textContent = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
+            nameInfo.oninput = () => { 
+                const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInfo.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); 
+                fitText(nameInfo);
+            };
 
             const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
-            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(nameInput.value || type); };
+            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(nameInfo.textContent || type); };
             imgCont.appendChild(fBtn);
 
             if (type === 'Goalie') addBadgeSelector(imgCont, pre.name, true);
@@ -362,7 +383,8 @@
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key); };
 
-            member.appendChild(imgCont); member.appendChild(nameInput);
+            member.appendChild(imgCont); member.appendChild(nameInfo);
+            setTimeout(() => fitText(nameInfo), 10);
             return member;
         }
 
@@ -439,24 +461,27 @@
         document.addEventListener('DOMContentLoaded', () => {
             const fGrid = document.getElementById('forwards-grid');
             const dGrid = document.getElementById('defensemen-grid');
-            const g1Slot = document.getElementById('g1-slot');
-            const g2Slot = document.getElementById('g2-slot');
-            const cCont = document.getElementById('coach-container');
+            const gRow = document.getElementById('goalie-row');
+            const cRow = document.getElementById('coach-row');
             
             (lineupData.forwards || []).forEach(p => fGrid.appendChild(createPlayerCard(p)));
             (lineupData.defensemen || []).forEach(p => dGrid.appendChild(createPlayerCard(p)));
             
-            g1Slot.appendChild(createStaffMember('Goalie', 1));
-            g2Slot.appendChild(createStaffMember('Goalie', 2));
+            gRow.appendChild(createStaffMember('Goalie', 1));
+            gRow.appendChild(createStaffMember('Goalie', 2));
+            const notes = document.createElement('div');
+            notes.className = 'notes-area'; notes.id = 'notes-area';
+            notes.innerHTML = `<textarea id="notes-input" placeholder="NOTES..."></textarea>`;
+            gRow.appendChild(notes);
             
             const nInp = document.getElementById('notes-input');
             nInp.value = localStorage.getItem(NOTES_KEY) || "";
             nInp.oninput = () => localStorage.setItem(NOTES_KEY, nInp.value);
 
-            cCont.appendChild(createStaffMember('Coach', 1));
-            cCont.appendChild(createStaffMember('Coach', 2));
-            cCont.appendChild(createStaffMember('Coach', 3));
-            cCont.appendChild(createStaffMember('Coach', 4));
+            cRow.appendChild(createStaffMember('Coach', 1));
+            cRow.appendChild(createStaffMember('Coach', 2));
+            cRow.appendChild(createStaffMember('Coach', 3));
+            cRow.appendChild(createStaffMember('Coach', 4));
 
             initDraggable();
             initNotesObjects();
