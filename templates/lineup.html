@@ -30,40 +30,40 @@
         .forwards-grid { display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(2, 1fr); height: 100%; }
         .forwards-grid .player:nth-child(3), .forwards-grid .player:nth-child(9) { border-right: 5px solid black; }
         
-        /* Updated Width: 40% */
         .defensemen-grid {
             display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr);
             width: 40%; height: 100%;
         }
         
-        /* Updated Width: 60% */
         .staff-grid {
             display: flex; flex-direction: column;
             width: 60%; height: 100%; border-left: 5px solid black;
         }
+        
         .staff-row { display: flex; height: 50%; width: 100%; }
         .coach-row { border-top: 5px solid black; flex-grow: 1; }
         
-        /* Updated widths for Goalie slots */
-        .staff-member { width: 25%; display: flex; flex-direction: column; border-right: 1px solid black; overflow: hidden; position: relative; }
-        .coach-row .staff-member { flex: 1; }
+        .staff-member { 
+            flex: 1; display: flex; flex-direction: column; 
+            border-right: 1px solid black; overflow: hidden; position: relative; 
+            min-width: 0;
+        }
         .staff-member.hidden-coach { display: none !important; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
-        /* Notes Tab expanded */
-        .notes-area { flex: 1; height: 100%; border-left: 1px solid black; position: relative; overflow: hidden; background: #fff; }
-        .notes-area textarea { width: 100%; height: 100%; border: none; padding: 8px; font-size: 0.9em; font-weight: 900; resize: none; outline: none; text-transform: uppercase; background: transparent; position: relative; z-index: 1; }
+        .notes-area { flex: 1.5; height: 100%; position: relative; overflow: hidden; background: #fff; }
+        .notes-area textarea { 
+            width: 100%; height: 100%; border: none; padding: 8px; 
+            font-size: 0.9em; font-weight: 900; resize: none; outline: none; 
+            text-transform: uppercase; background: transparent; position: relative; z-index: 1; 
+        }
         
         /* Floating Note Image Styles */
         .note-image-wrapper { position: absolute; cursor: move; z-index: 10; border: 1px dashed transparent; }
         .note-image-wrapper:hover, .note-image-wrapper.selected { border-color: #FFD700; }
         .note-image-wrapper img { width: 100%; height: 100%; pointer-events: none; display: block; object-fit: cover; }
-        .note-image-wrapper.cropping img { object-fit: none; }
-        
-        /* Resize Handles */
         .handle { position: absolute; width: 10px; height: 10px; background: #FFD700; border: 1px solid #000; display: none; }
         .note-image-wrapper.selected .handle { display: block; }
-        .note-image-wrapper.cropping .handle { background: #007bff; }
         .handle-nw { top: -5px; left: -5px; cursor: nw-resize; }
         .handle-ne { top: -5px; right: -5px; cursor: ne-resize; }
         .handle-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
@@ -149,8 +149,8 @@
             <div class="defensemen-grid" id="defensemen-grid"></div>
             <div class="staff-grid">
                 <div class="staff-row">
-                    <div id="g1-slot" style="width:25%; display:flex;"></div>
-                    <div id="g2-slot" style="width:25%; display:flex;"></div>
+                    <div id="g1-slot" class="staff-member"></div>
+                    <div id="g2-slot" class="staff-member"></div>
                     <div class="notes-area" id="notes-area">
                         <textarea id="notes-input" placeholder="NOTES..."></textarea>
                     </div>
@@ -173,6 +173,22 @@
         const NOTE_IMGS_KEY = 'nhl_note_images';
 
         const currentTeam = lineupData.team || 'Unknown';
+
+        // --- SHARKS DEFAULTS ---
+        const SJS_COACH_DEFAULTS = {
+            'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/ryan.warsofsky.png' },
+            'staff_Coach_2': { name: 'BRIAN WISEMAN', role: 'PP COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/brian.wiseman.png' },
+            'staff_Coach_3': { name: 'DOUG HOUDA', role: 'D/PK COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/doug.houda.png' },
+            'staff_Coach_4': { name: 'JEFF ULMER', role: 'ASST COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/jeff.ulmer.png' }
+        };
+
+        if (localStorage.getItem(LAST_TEAM_KEY) !== currentTeam) {
+            const backup = localStorage.getItem('lineup_data');
+            localStorage.clear();
+            localStorage.setItem('lineup_data', backup);
+            localStorage.setItem(LAST_TEAM_KEY, currentTeam);
+        }
+
         let draggedElement = null;
 
         function clearAllData() {
@@ -249,13 +265,8 @@
 
             const info = document.createElement('input'); info.className = 'info-bar';
             const customNames = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
-            if (customNames[player.name]) {
-                info.value = customNames[player.name];
-            } else {
-                const n = player.number || '';
-                const l = player.name.split(' ').pop();
-                info.value = n ? `#${n} ${l}` : l;
-            }
+            if (customNames[player.name]) { info.value = customNames[player.name]; } 
+            else { const n = player.number || ''; const l = player.name.split(' ').pop(); info.value = n ? `#${n} ${l}` : l; }
             info.oninput = () => {
                 const n = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
                 n[player.name] = info.value;
@@ -271,8 +282,7 @@
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], player.name); };
             
-            card.appendChild(imgCont);
-            card.appendChild(info);
+            card.appendChild(imgCont); card.appendChild(info);
             
             card.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = card; };
             card.ondragover = e => e.preventDefault();
@@ -310,6 +320,11 @@
             const key = `staff_${type}_${index}`;
             const saved = staffData[key] || {};
             const pre = type === 'Goalie' ? (lineupData.goalies[index-1] || {}) : (lineupData.coaches[index-1] || {});
+            
+            // Sharks logic
+            const isSharks = currentTeam === 'SJS';
+            const sharksDefault = (isSharks && type === 'Coach') ? SJS_COACH_DEFAULTS[key] : null;
+
             const member = document.createElement('div'); member.className = 'staff-member';
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             let isStarter = type === 'Goalie' && badges[pre.name] === 'Starter';
@@ -319,19 +334,20 @@
             const imgCont = document.createElement('div'); imgCont.className = 'img-container';
             const role = document.createElement('div');
             role.className = 'role-label'; role.contentEditable = "true";
-            role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || pre.role || type.toUpperCase());
+            role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || (sharksDefault ? sharksDefault.role : pre.role) || type.toUpperCase());
             role.addEventListener('mousedown', e => e.stopPropagation());
             role.addEventListener('click', e => e.stopPropagation());
             role.onblur = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].role = role.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
             imgCont.appendChild(role);
 
-            const url = saved.image || (pre.headshot_url || pre.image);
+            const url = saved.image || (sharksDefault ? sharksDefault.image : (pre.headshot_url || pre.image));
             if (url) {
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot'; img.style.transform = 'none';
                 imgCont.appendChild(img);
             } else { imgCont.innerHTML += '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
-            const nameInput = document.createElement('input'); nameInput.className = 'info-bar'; nameInput.value = saved.name || (pre.name || "");
+            const nameInput = document.createElement('input'); nameInput.className = 'info-bar'; 
+            nameInput.value = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
             nameInput.placeholder = type === 'Coach' ? "COACH" : "NAME";
             nameInput.oninput = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInput.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
 
@@ -341,18 +357,17 @@
 
             if (type === 'Goalie') addBadgeSelector(imgCont, pre.name, true);
             imgCont.onclick = (e) => { if(e.target.tagName==='SELECT' || e.target.classList.contains('role-label') || e.target.classList.contains('find-btn')) return; const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key); f.click(); };
+            
+            // Drag and Drop for Staff
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key); };
 
-            member.appendChild(imgCont);
-            member.appendChild(nameInput);
+            member.appendChild(imgCont); member.appendChild(nameInput);
             return member;
         }
 
-        // --- NOTES AREA POWERPOINT LOGIC ---
         function initNotesObjects() {
             const area = document.getElementById('notes-area');
-            
             area.ondragover = e => e.preventDefault();
             area.ondrop = e => {
                 e.preventDefault();
@@ -363,8 +378,6 @@
                     reader.readAsDataURL(file);
                 }
             };
-
-            // Load existing images
             const saved = JSON.parse(localStorage.getItem(NOTE_IMGS_KEY) || '[]');
             saved.forEach(data => createNoteImage(data.src, data.x, data.y, data.w, data.h, true));
         }
@@ -374,18 +387,8 @@
             wrapper.className = 'note-image-wrapper';
             wrapper.style.left = x + 'px'; wrapper.style.top = y + 'px';
             wrapper.style.width = w + 'px'; wrapper.style.height = h + 'px';
-            
-            const img = document.createElement('img');
-            img.src = src;
-            wrapper.appendChild(img);
-
-            // Handles
-            ['nw', 'ne', 'sw', 'se'].forEach(pos => {
-                const h = document.createElement('div');
-                h.className = `handle handle-${pos}`;
-                wrapper.appendChild(h);
-            });
-
+            const img = document.createElement('img'); img.src = src; wrapper.appendChild(img);
+            ['nw', 'ne', 'sw', 'se'].forEach(pos => { const h = document.createElement('div'); h.className = `handle handle-${pos}`; wrapper.appendChild(h); });
             document.getElementById('notes-area').appendChild(wrapper);
             makeElementPowerPoint(wrapper);
             if (!isLoading) saveNoteImages();
@@ -394,77 +397,40 @@
         function makeElementPowerPoint(el) {
             let isDown = false, isResizing = false, currentHandle = null;
             let startX, startY, startW, startH, startL, startT;
-
             el.onmousedown = e => {
                 isDown = true;
                 document.querySelectorAll('.note-image-wrapper').forEach(w => w.classList.remove('selected'));
                 el.classList.add('selected');
-                
-                if (e.target.classList.contains('handle')) {
-                    isResizing = true;
-                    currentHandle = e.target;
-                }
-                
+                if (e.target.classList.contains('handle')) { isResizing = true; currentHandle = e.target; }
                 startX = e.clientX; startY = e.clientY;
                 startW = el.offsetWidth; startH = el.offsetHeight;
                 startL = el.offsetLeft; startT = el.offsetTop;
                 e.preventDefault();
             };
-
-            el.ondblclick = () => {
-                el.classList.toggle('cropping');
-            };
-
             window.addEventListener('mousemove', e => {
                 if (!isDown) return;
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-
+                const dx = e.clientX - startX, dy = e.clientY - startY;
                 if (isResizing) {
-                    if (currentHandle.classList.contains('handle-se')) {
-                        el.style.width = startW + dx + 'px';
-                        el.style.height = startH + dy + 'px';
-                    } else if (currentHandle.classList.contains('handle-sw')) {
-                        el.style.width = startW - dx + 'px';
-                        el.style.height = startH + dy + 'px';
-                        el.style.left = startL + dx + 'px';
-                    } else if (currentHandle.classList.contains('handle-nw')) {
-                        el.style.width = startW - dx + 'px';
-                        el.style.height = startH - dy + 'px';
-                        el.style.left = startL + dx + 'px';
-                        el.style.top = startT + dy + 'px';
-                    } else if (currentHandle.classList.contains('handle-ne')) {
-                        el.style.width = startW + dx + 'px';
-                        el.style.height = startH - dy + 'px';
-                        el.style.top = startT + dy + 'px';
-                    }
-                } else {
-                    el.style.left = startL + dx + 'px';
-                    el.style.top = startT + dy + 'px';
-                }
+                    if (currentHandle.classList.contains('handle-se')) { el.style.width = startW + dx + 'px'; el.style.height = startH + dy + 'px'; }
+                    else if (currentHandle.classList.contains('handle-sw')) { el.style.width = startW - dx + 'px'; el.style.height = startH + dy + 'px'; el.style.left = startL + dx + 'px'; }
+                    else if (currentHandle.classList.contains('handle-nw')) { el.style.width = startW - dx + 'px'; el.style.height = startH - dy + 'px'; el.style.left = startL + dx + 'px'; el.style.top = startT + dy + 'px'; }
+                    else if (currentHandle.classList.contains('handle-ne')) { el.style.width = startW + dx + 'px'; el.style.height = startH - dy + 'px'; el.style.top = startT + dy + 'px'; }
+                } else { el.style.left = startL + dx + 'px'; el.style.top = startT + dy + 'px'; }
             });
-
-            window.addEventListener('mouseup', () => {
-                if (isDown) saveNoteImages();
-                isDown = false; isResizing = false;
-            });
+            window.addEventListener('mouseup', () => { if (isDown) saveNoteImages(); isDown = false; isResizing = false; });
         }
 
         function saveNoteImages() {
             const imgs = [];
             document.querySelectorAll('.note-image-wrapper').forEach(w => {
-                imgs.push({
-                    src: w.querySelector('img').src,
-                    x: parseInt(w.style.left), y: parseInt(w.style.top),
-                    w: parseInt(w.style.width), h: parseInt(w.style.height)
-                });
+                imgs.push({ src: w.querySelector('img').src, x: parseInt(w.style.left), y: parseInt(w.style.top), w: parseInt(w.style.width), h: parseInt(w.style.height) });
             });
             localStorage.setItem(NOTE_IMGS_KEY, JSON.stringify(imgs));
         }
 
         function initDraggable() {
             const controls = document.getElementById('draggable-controls');
-            let isDragging = false; let off = { x: 0, y: 0 };
+            let isDragging = false, off = { x: 0, y: 0 };
             controls.onmousedown = (e) => { if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return; isDragging = true; off.x = e.clientX - controls.offsetLeft; off.y = e.clientY - controls.offsetTop; };
             document.onmousemove = (e) => { if (!isDragging) return; controls.style.left = (e.clientX - off.x) + 'px'; controls.style.top = (e.clientY - off.y) + 'px'; controls.style.right = 'auto'; };
             document.onmouseup = () => isDragging = false;
@@ -473,14 +439,15 @@
         document.addEventListener('DOMContentLoaded', () => {
             const fGrid = document.getElementById('forwards-grid');
             const dGrid = document.getElementById('defensemen-grid');
-            const g1 = document.getElementById('g1-slot'); const g2 = document.getElementById('g2-slot');
+            const g1Slot = document.getElementById('g1-slot');
+            const g2Slot = document.getElementById('g2-slot');
             const cCont = document.getElementById('coach-container');
             
             (lineupData.forwards || []).forEach(p => fGrid.appendChild(createPlayerCard(p)));
             (lineupData.defensemen || []).forEach(p => dGrid.appendChild(createPlayerCard(p)));
             
-            g1.appendChild(createStaffMember('Goalie', 1));
-            g2.appendChild(createStaffMember('Goalie', 2));
+            g1Slot.appendChild(createStaffMember('Goalie', 1));
+            g2Slot.appendChild(createStaffMember('Goalie', 2));
             
             const nInp = document.getElementById('notes-input');
             nInp.value = localStorage.getItem(NOTES_KEY) || "";
