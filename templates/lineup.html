@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>NHL Team Lineup</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         * {
             margin: 0; padding: 0; box-sizing: border-box;
@@ -45,41 +44,33 @@
         .coach-row { border-top: 5px solid black; flex-grow: 1; }
         
         .staff-member { 
-            width: 25%; display: flex; flex-direction: column; 
+            flex: 1; display: flex; flex-direction: column; 
             border-right: 1px solid black; overflow: hidden; position: relative; 
-            min-width: 0;
         }
-        .coach-row .staff-member { flex: 1; }
         .staff-member.hidden-coach { display: none !important; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
         .notes-area { flex: 1.5; height: 100%; position: relative; overflow: hidden; background: #fff; }
         .notes-area textarea { 
             width: 100%; height: 100%; border: none; padding: 10px; 
-            font-size: 1.1em; font-weight: 900; resize: none; outline: none; 
+            font-size: 0.95em; font-weight: 900; resize: none; outline: none; 
             text-transform: uppercase; background: transparent; position: relative; z-index: 1; 
         }
         
-        /* Floating Note Image Styles */
         .note-image-wrapper { position: absolute; cursor: move; z-index: 10; border: 1px dashed transparent; }
         .note-image-wrapper:hover, .note-image-wrapper.selected { border-color: #FFD700; }
         .note-image-wrapper img { width: 100%; height: 100%; pointer-events: none; display: block; object-fit: cover; }
         .handle { position: absolute; width: 12px; height: 12px; background: #FFD700; border: 1px solid #000; display: none; }
         .note-image-wrapper.selected .handle { display: block; }
-        .handle-nw { top: -6px; left: -6px; cursor: nw-resize; }
-        .handle-ne { top: -6px; right: -6px; cursor: ne-resize; }
-        .handle-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
-        .handle-se { bottom: -6px; right: -6px; cursor: se-resize; }
 
         .player { display: flex; flex-direction: column; height: 100%; border: 0.1px solid #eee; overflow: hidden; }
         .img-container { flex: 1; position: relative; background: #eee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
-        /* BIGGER PLAYER NAME FONTS */
         .info-bar {
-            height: 22px !important; min-height: 22px !important;
+            height: 18px !important; min-height: 18px !important;
             background: #000 !important; color: #fff !important;
             display: flex; align-items: center; justify-content: center;
-            text-align: center; font-size: 1.0em; font-weight: 900;
+            text-align: center; font-size: 0.85em; font-weight: 900;
             text-transform: uppercase; width: 100%; flex-shrink: 0; z-index: 10; border: none; outline: none;
         }
 
@@ -110,9 +101,11 @@
         .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         
-        .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(-1%); }
-        .defensemen-grid .headshot { transform: scale(1.4); object-position: center 25%; }
-        
+        /* MOVED FORWARDS UP IN BOX */
+        .forwards-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(-12%); }
+        .defensemen-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.4) translateY(2%); }
+        .staff-member .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(0); }
+
         .role-label {
             position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.9) !important; color: white !important;
@@ -134,7 +127,6 @@
             .container { position: absolute !important; top: 0 !important; left: 0 !important; margin: 0 !important; box-shadow: none !important; }
             .controls, .badge-selector, .find-btn, .handle { display: none !important; }
             .note-image-wrapper { border: none !important; }
-            /* HIDE PLACEHOLDER ON PRINT */
             textarea::placeholder { color: transparent !important; }
         }
     </style>
@@ -153,14 +145,8 @@
         <div class="defensemen-section">
             <div class="defensemen-grid" id="defensemen-grid"></div>
             <div class="staff-grid">
-                <div class="staff-row">
-                    <div id="g1-slot" class="staff-member"></div>
-                    <div id="g2-slot" class="staff-member"></div>
-                    <div class="notes-area" id="notes-area">
-                        <textarea id="notes-input" placeholder="NOTES..."></textarea>
-                    </div>
-                </div>
-                <div class="staff-row coach-row" id="coach-container"></div>
+                <div class="staff-row" id="goalie-row"></div>
+                <div class="staff-row coach-row" id="coach-row"></div>
             </div>
         </div>
     </div>
@@ -179,12 +165,15 @@
 
         const currentTeam = lineupData.team || 'Unknown';
 
-        // --- UPDATED SHARKS DEFAULTS ---
-        const SJS_COACH_DEFAULTS = {
-            'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://i.imgur.com/vHqBEnA.png' },
-            'staff_Coach_2': { name: 'BRIAN WISEMAN', role: 'PP COACH', image: 'https://i.imgur.com/K6V8YyN.png' },
-            'staff_Coach_3': { name: 'DOUG HOUDA', role: 'D/PK COACH', image: 'https://i.imgur.com/6U8i7V7.png' },
-            'staff_Coach_4': { name: 'JEFF ULMER', role: 'ASST COACH', image: 'https://i.imgur.com/4bBwX2U.png' }
+        // --- COACH DATABASE REGISTRY ---
+        // You can add more teams here by adding their abbreviation (e.g., 'WSH')
+        const STAFF_REGISTRY = {
+            'SJS': {
+                'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/coach.png' },
+                'staff_Coach_2': { name: 'BRIAN WISEMAN', role: 'PP COACH', image: 'https://www.eliteprospects.com/layout/staff/brian-wiseman.jpg' },
+                'staff_Coach_3': { name: 'DOUG HOUDA', role: 'D/PK COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/houda.png' },
+                'staff_Coach_4': { name: 'JEFF ULMER', role: 'ASST COACH', image: 'https://www.eliteprospects.com/layout/staff/jeff-ulmer.jpg' }
+            }
         };
 
         if (localStorage.getItem(LAST_TEAM_KEY) !== currentTeam) {
@@ -288,7 +277,6 @@
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], player.name); };
             
             card.appendChild(imgCont); card.appendChild(info);
-            
             card.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = card; };
             card.ondragover = e => e.preventDefault();
             card.ondrop = e => {
@@ -326,8 +314,8 @@
             const saved = staffData[key] || {};
             const pre = type === 'Goalie' ? (lineupData.goalies[index-1] || {}) : (lineupData.coaches[index-1] || {});
             
-            const isSharks = currentTeam === 'SJS';
-            const sharksDefault = (isSharks && type === 'Coach') ? SJS_COACH_DEFAULTS[key] : null;
+            const registry = STAFF_REGISTRY[currentTeam] || {};
+            const regDefault = registry[key];
 
             const member = document.createElement('div'); member.className = 'staff-member';
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
@@ -338,20 +326,20 @@
             const imgCont = document.createElement('div'); imgCont.className = 'img-container';
             const role = document.createElement('div');
             role.className = 'role-label'; role.contentEditable = "true";
-            role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || (sharksDefault ? sharksDefault.role : pre.role) || type.toUpperCase());
+            role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || (regDefault ? regDefault.role : pre.role) || type.toUpperCase());
             role.addEventListener('mousedown', e => e.stopPropagation());
             role.addEventListener('click', e => e.stopPropagation());
             role.onblur = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].role = role.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
             imgCont.appendChild(role);
 
-            const url = saved.image || (sharksDefault ? sharksDefault.image : (pre.headshot_url || pre.image));
+            const url = saved.image || (regDefault ? regDefault.image : (pre.headshot_url || pre.image));
             if (url) {
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot'; img.style.transform = 'none';
                 imgCont.appendChild(img);
             } else { imgCont.innerHTML += '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
             const nameInput = document.createElement('input'); nameInput.className = 'info-bar'; 
-            nameInput.value = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
+            nameInput.value = saved.name || (regDefault ? regDefault.name : (pre.name || ""));
             nameInput.placeholder = type === 'Coach' ? "COACH" : "NAME";
             nameInput.oninput = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInput.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
 
@@ -441,24 +429,28 @@
         document.addEventListener('DOMContentLoaded', () => {
             const fGrid = document.getElementById('forwards-grid');
             const dGrid = document.getElementById('defensemen-grid');
-            const g1Slot = document.getElementById('g1-slot');
-            const g2Slot = document.getElementById('g2-slot');
-            const cCont = document.getElementById('coach-container');
+            const gRow = document.getElementById('goalie-row');
+            const cRow = document.getElementById('coach-row');
             
             (lineupData.forwards || []).forEach(p => fGrid.appendChild(createPlayerCard(p)));
             (lineupData.defensemen || []).forEach(p => dGrid.appendChild(createPlayerCard(p)));
             
-            g1Slot.appendChild(createStaffMember('Goalie', 1));
-            g2Slot.appendChild(createStaffMember('Goalie', 2));
+            gRow.appendChild(createStaffMember('Goalie', 1));
+            gRow.appendChild(createStaffMember('Goalie', 2));
+            const notes = document.createElement('div');
+            notes.className = 'notes-area';
+            notes.id = 'notes-area';
+            notes.innerHTML = `<textarea id="notes-input" placeholder="NOTES..."></textarea>`;
+            gRow.appendChild(notes);
             
             const nInp = document.getElementById('notes-input');
             nInp.value = localStorage.getItem(NOTES_KEY) || "";
             nInp.oninput = () => localStorage.setItem(NOTES_KEY, nInp.value);
 
-            cCont.appendChild(createStaffMember('Coach', 1));
-            cCont.appendChild(createStaffMember('Coach', 2));
-            cCont.appendChild(createStaffMember('Coach', 3));
-            cCont.appendChild(createStaffMember('Coach', 4));
+            cRow.appendChild(createStaffMember('Coach', 1));
+            cRow.appendChild(createStaffMember('Coach', 2));
+            cRow.appendChild(createStaffMember('Coach', 3));
+            cRow.appendChild(createStaffMember('Coach', 4));
 
             initDraggable();
             initNotesObjects();
