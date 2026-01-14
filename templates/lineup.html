@@ -43,10 +43,12 @@
         .staff-row { display: flex; height: 50%; width: 100%; }
         .coach-row { border-top: 5px solid black; flex-grow: 1; }
         
+        /* Fixed widths for Goalie slots */
         .staff-member { 
-            flex: 1; display: flex; flex-direction: column; 
+            width: 25%; display: flex; flex-direction: column; 
             border-right: 1px solid black; overflow: hidden; position: relative; 
         }
+        .coach-row .staff-member { flex: 1; }
         .staff-member.hidden-coach { display: none !important; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
@@ -101,8 +103,12 @@
         .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         
-        /* MOVED FORWARDS UP IN BOX */
-        .forwards-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(-12%); }
+        /* FORWARDS: ZOOMED AND LOWERED */
+        .forwards-grid .headshot { 
+            width: 100%; height: 110%; object-fit: cover; 
+            transform: scale(1.1) translateY(-4%); 
+        }
+        
         .defensemen-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.4) translateY(2%); }
         .staff-member .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(0); }
 
@@ -145,8 +151,14 @@
         <div class="defensemen-section">
             <div class="defensemen-grid" id="defensemen-grid"></div>
             <div class="staff-grid">
-                <div class="staff-row" id="goalie-row"></div>
-                <div class="staff-row coach-row" id="coach-row"></div>
+                <div class="staff-row" id="goalie-row-container">
+                    <div id="g1-slot" class="staff-member"></div>
+                    <div id="g2-slot" class="staff-member"></div>
+                    <div class="notes-area" id="notes-area">
+                        <textarea id="notes-input" placeholder="NOTES..."></textarea>
+                    </div>
+                </div>
+                <div class="staff-row coach-row" id="coach-container"></div>
             </div>
         </div>
     </div>
@@ -165,14 +177,13 @@
 
         const currentTeam = lineupData.team || 'Unknown';
 
-        // --- COACH DATABASE REGISTRY ---
-        // You can add more teams here by adding their abbreviation (e.g., 'WSH')
+        // --- STABLE SHARKS DEFAULTS ---
         const STAFF_REGISTRY = {
             'SJS': {
-                'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/coach.png' },
-                'staff_Coach_2': { name: 'BRIAN WISEMAN', role: 'PP COACH', image: 'https://www.eliteprospects.com/layout/staff/brian-wiseman.jpg' },
-                'staff_Coach_3': { name: 'DOUG HOUDA', role: 'D/PK COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/houda.png' },
-                'staff_Coach_4': { name: 'JEFF ULMER', role: 'ASST COACH', image: 'https://www.eliteprospects.com/layout/staff/jeff-ulmer.jpg' }
+                'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/ryan.warsofsky.png' },
+                'staff_Coach_2': { name: 'BRIAN WISEMAN', role: 'PP COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/brian.wiseman.png' },
+                'staff_Coach_3': { name: 'DOUG HOUDA', role: 'D/PK COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/doug.houda.png' },
+                'staff_Coach_4': { name: 'JEFF ULMER', role: 'ASST COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/jeff.ulmer.png' }
             }
         };
 
@@ -340,7 +351,6 @@
 
             const nameInput = document.createElement('input'); nameInput.className = 'info-bar'; 
             nameInput.value = saved.name || (regDefault ? regDefault.name : (pre.name || ""));
-            nameInput.placeholder = type === 'Coach' ? "COACH" : "NAME";
             nameInput.oninput = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInput.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
 
             const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
@@ -429,28 +439,24 @@
         document.addEventListener('DOMContentLoaded', () => {
             const fGrid = document.getElementById('forwards-grid');
             const dGrid = document.getElementById('defensemen-grid');
-            const gRow = document.getElementById('goalie-row');
-            const cRow = document.getElementById('coach-row');
+            const g1Slot = document.getElementById('g1-slot');
+            const g2Slot = document.getElementById('g2-slot');
+            const cCont = document.getElementById('coach-container');
             
             (lineupData.forwards || []).forEach(p => fGrid.appendChild(createPlayerCard(p)));
             (lineupData.defensemen || []).forEach(p => dGrid.appendChild(createPlayerCard(p)));
             
-            gRow.appendChild(createStaffMember('Goalie', 1));
-            gRow.appendChild(createStaffMember('Goalie', 2));
-            const notes = document.createElement('div');
-            notes.className = 'notes-area';
-            notes.id = 'notes-area';
-            notes.innerHTML = `<textarea id="notes-input" placeholder="NOTES..."></textarea>`;
-            gRow.appendChild(notes);
+            g1Slot.appendChild(createStaffMember('Goalie', 1));
+            g2Slot.appendChild(createStaffMember('Goalie', 2));
             
             const nInp = document.getElementById('notes-input');
             nInp.value = localStorage.getItem(NOTES_KEY) || "";
             nInp.oninput = () => localStorage.setItem(NOTES_KEY, nInp.value);
 
-            cRow.appendChild(createStaffMember('Coach', 1));
-            cRow.appendChild(createStaffMember('Coach', 2));
-            cRow.appendChild(createStaffMember('Coach', 3));
-            cRow.appendChild(createStaffMember('Coach', 4));
+            cCont.appendChild(createStaffMember('Coach', 1));
+            cCont.appendChild(createStaffMember('Coach', 2));
+            cCont.appendChild(createStaffMember('Coach', 3));
+            cCont.appendChild(createStaffMember('Coach', 4));
 
             initDraggable();
             initNotesObjects();
