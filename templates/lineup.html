@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>NHL Team Lineup</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * {
             margin: 0; padding: 0; box-sizing: border-box;
@@ -74,8 +75,15 @@
             white-space: nowrap; text-transform: uppercase;
         }
 
+        .find-btn {
+            position: absolute; bottom: 4px; right: 4px;
+            background: rgba(255,255,255,0.8); border: 1px solid black;
+            font-size: 10px; padding: 2px 5px; font-weight: 900;
+            cursor: pointer; z-index: 40; opacity: 0;
+        }
+        .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
+
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
-        .img-container:hover .badge-selector { opacity: 1; }
         
         .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(-1%); }
         .defensemen-grid .headshot { transform: scale(1.4); object-position: center 25%; }
@@ -97,9 +105,9 @@
         .controls button:hover { background: #000; color: #fff; }
 
         @media print {
-            body, html { background: white !important; overflow: hidden !important; height: 11in !important; width: 8.5in !important; }
+            body, html { background: white !important; overflow: hidden !important; height: 11in !important; }
             .container { position: absolute !important; top: 0 !important; left: 0 !important; margin: 0 !important; box-shadow: none !important; }
-            .controls, .badge-selector { display: none !important; }
+            .controls, .badge-selector, .find-btn { display: none !important; }
         }
     </style>
 </head>
@@ -171,34 +179,27 @@
             controls.style.display = 'none';
             window.scrollTo(0,0);
             
-            // 100% FIXED PDF CAPTURE LOGIC
-            const opt = {
-                margin: 0,
-                filename: `${currentTeam}_Headshots.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { 
-                    scale: 2.5, 
-                    useCORS: true, 
-                    logging: false, 
-                    width: 816, // 8.5 inches at 96 DPI
-                    height: 1056, // 11 inches at 96 DPI
-                    windowWidth: 816,
-                    windowHeight: 1056,
-                    x: 0,
-                    y: 0,
-                    scrollX: 0,
-                    scrollY: 0
-                },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-            
-            try {
-                await html2pdf().set(opt).from(element).save();
-            } catch (e) {
-                alert("Error generating PDF. Try using the Print button and 'Save as PDF' instead.");
-            } finally {
-                controls.style.display = 'flex';
-            }
+            // Wait for any UI jitter to settle
+            setTimeout(() => {
+                html2canvas(element, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    logging: false,
+                    width: 816,
+                    height: 1056
+                }).then(canvas => {
+                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                    const { jsPDF } = window.jspdf;
+                    const pdf = new jsPDF('p', 'in', 'letter');
+                    pdf.addImage(imgData, 'JPEG', 0, 0, 8.5, 11);
+                    pdf.save(`${currentTeam}_Headshots.pdf`);
+                    controls.style.display = 'flex';
+                }).catch(err => {
+                    alert("Capture failed. Use Print button.");
+                    controls.style.display = 'flex';
+                });
+            }, 300);
         }
 
         function handleImageUpload(file, playerName, isStaff, key) {
@@ -217,6 +218,11 @@
                 location.reload();
             };
             reader.readAsDataURL(file);
+        }
+
+        function triggerMagicSearch(name) {
+            const query = encodeURIComponent(name + " hockey headshot");
+            window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
         }
 
         function renderPlayerName(el, player) {
@@ -245,7 +251,7 @@
             if (url) {
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot';
                 imgCont.appendChild(img);
-            } else { imgCont.innerHTML = '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
+            } else { imgCont.innerHTML = '<div style="font-size:3em;color:#ccc;font-weight:900">?</div>'; }
 
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             const bType = badges[player.name];
@@ -268,8 +274,12 @@
                 }
             }
 
+            const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
+            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(player.name); };
+            imgCont.appendChild(fBtn);
+
             addBadgeSelector(imgCont, player.name);
-            imgCont.onclick = () => { const f = document.createElement('input'); f.type = 'file'; f.onchange = e => handleImageUpload(e.target.files[0], player.name); f.click(); };
+            imgCont.onclick = (e) => { if(e.target.tagName==='SELECT' || e.target.classList.contains('find-btn')) return; const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], player.name); f.click(); };
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], player.name); };
             card.appendChild(imgCont);
@@ -326,11 +336,8 @@
             const role = document.createElement('div');
             role.className = 'role-label'; role.contentEditable = "true";
             role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || pre.role || type.toUpperCase());
-            
-            // HARD FIX: Filter clicks manually to prevent bubbling to parent imgCont
             role.addEventListener('mousedown', e => e.stopPropagation());
             role.addEventListener('click', e => e.stopPropagation());
-            
             role.onblur = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].role = role.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
             imgCont.appendChild(role);
 
@@ -340,23 +347,20 @@
                 imgCont.appendChild(img);
             } else { imgCont.innerHTML += '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
+            const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
+            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(saved.name || pre.name || type); };
+            imgCont.appendChild(fBtn);
+
             if (type === 'Goalie') addBadgeSelector(imgCont, pre.name, true);
-            
-            // Parent Click Handler with filter
-            imgCont.onclick = (e) => { 
-                if (e.target.classList.contains('role-label') || e.target.tagName === 'SELECT') return;
-                const f = document.createElement('input'); f.type = 'file'; 
-                f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key); 
-                f.click(); 
-            };
+            imgCont.onclick = (e) => { if(e.target.tagName==='SELECT' || e.target.classList.contains('role-label') || e.target.classList.contains('find-btn')) return; const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key); f.click(); };
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key); };
 
             member.appendChild(imgCont);
-            const name = document.createElement('input'); name.className = 'info-bar'; name.value = saved.name || (pre.name || "");
-            name.placeholder = type === 'Coach' ? "COACH" : "NAME";
-            name.oninput = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = name.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
-            member.appendChild(name);
+            const nameInput = document.createElement('input'); nameInput.className = 'info-bar'; nameInput.value = saved.name || (pre.name || "");
+            nameInput.placeholder = type === 'Coach' ? "COACH" : "NAME";
+            nameInput.oninput = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInput.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
+            member.appendChild(nameInput);
             return member;
         }
 
