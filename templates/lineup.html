@@ -70,7 +70,7 @@
             height: 18px !important; min-height: 18px !important;
             background: #000 !important; color: #fff !important;
             display: flex; align-items: center; justify-content: center;
-            text-align: center; font-size: 0.9em; font-weight: 900;
+            text-align: center; font-size: 1.0em; font-weight: 900;
             text-transform: uppercase; width: 100%; flex-shrink: 0; z-index: 10; border: none; outline: none;
             line-height: 0.9;
         }
@@ -102,8 +102,8 @@
         .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         
-        /* UPDATED FORWARD ZOOM - 1% Zoom out */
-        .forwards-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.14) translateY(1%); }
+        /* UPDATED FORWARD ZOOM - 1.09x */
+        .forwards-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.09) translateY(1%); }
         .defensemen-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.4) translateY(2%); }
         .staff-member .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(0); }
 
@@ -166,6 +166,7 @@
 
         const currentTeam = lineupData.team || 'Unknown';
 
+        // --- FIXED SHARKS COACHING DATABASE ---
         const STAFF_REGISTRY = {
             'SJS': {
                 'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/ryan.warsofsky.png' },
@@ -309,12 +310,12 @@
             return card;
         }
 
-        function addBadgeSelector(container, playerName, isGoalie = false) {
+        function addBadgeSelector(container, playerName, isStaffSlot = false) {
             const selector = document.createElement('div');
             selector.className = 'badge-selector';
             const sel = document.createElement('select');
             let options = '<option value="none">None</option><option value="C">C</option><option value="A">A</option><option value="★">★</option><option value="Text">Text</option>';
-            if (isGoalie) options += '<option value="Starter">Starter</option>';
+            if (isStaffSlot) options += '<option value="Starter">Starter</option>';
             sel.innerHTML = options;
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             sel.value = badges[playerName] || 'none';
@@ -341,24 +342,24 @@
             const member = document.createElement('div'); member.className = 'staff-member';
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             
-            // Starter logic
             let isStarter = type === 'Goalie' && badges[pre.name] === 'Starter';
             if (isStarter) member.classList.add('starter-active');
             if (type === 'Coach' && index === 4 && localStorage.getItem(COACH_TOGGLE_KEY) !== 'true') member.classList.add('hidden-coach');
 
             const imgCont = document.createElement('div'); imgCont.className = 'img-container';
             
-            // --- ADD BADGES FOR STAFF (STAR, etc) ---
-            const bType = badges[pre.name] || (saved.name ? badges[saved.name] : null);
+            // Apply badges for Goalies/Coaches
+            const staffName = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
+            const bType = badges[staffName];
             if (bType && bType !== 'none' && bType !== 'Starter') {
                 if (bType === 'Text') {
                     const tb = document.createElement('div'); tb.className = 'text-badge'; tb.contentEditable = "true";
                     const customTexts = JSON.parse(localStorage.getItem(CUSTOM_BADGE_TEXT_KEY) || '{}');
-                    tb.textContent = customTexts[pre.name] || 'TEXT';
+                    tb.textContent = customTexts[staffName] || 'TEXT';
                     tb.onclick = e => e.stopPropagation();
                     tb.onblur = () => {
                         const t = JSON.parse(localStorage.getItem(CUSTOM_BADGE_TEXT_KEY) || '{}');
-                        t[pre.name] = tb.textContent; localStorage.setItem(CUSTOM_BADGE_TEXT_KEY, JSON.stringify(t));
+                        t[staffName] = tb.textContent; localStorage.setItem(CUSTOM_BADGE_TEXT_KEY, JSON.stringify(t));
                     };
                     imgCont.appendChild(tb);
                 } else {
@@ -376,7 +377,6 @@
             role.onblur = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].role = role.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
             imgCont.appendChild(role);
 
-            // PRIORITY: Saved (Manual Upload) > Sharks Default > API result
             const url = saved.image || (sharksDefault ? sharksDefault.image : (pre.headshot_url || pre.image));
             if (url) {
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot'; img.style.transform = 'none';
@@ -384,7 +384,7 @@
             } else { imgCont.innerHTML += '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
             const nameInfo = document.createElement('div'); nameInfo.className = 'info-bar'; nameInfo.contentEditable = 'true';
-            nameInfo.textContent = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
+            nameInfo.textContent = staffName;
             nameInfo.oninput = () => { 
                 const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInfo.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); 
                 fitText(nameInfo);
@@ -394,7 +394,7 @@
             fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(nameInfo.textContent || type); };
             imgCont.appendChild(fBtn);
 
-            addBadgeSelector(imgCont, pre.name || saved.name, type === 'Goalie');
+            addBadgeSelector(imgCont, staffName, type === 'Goalie');
             
             imgCont.onclick = (e) => { if(e.target.tagName==='SELECT' || e.target.classList.contains('role-label') || e.target.classList.contains('find-btn')) return; const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key); f.click(); };
             imgCont.ondragover = e => e.preventDefault();
