@@ -24,6 +24,7 @@
             flex-shrink: 0; overflow: hidden; padding-bottom: 3mm;
         }
         
+        /* Layout Sections */
         .forwards-section { height: 55%; width: 100%; display: flex; flex-direction: column; }
         .defensemen-section { height: 45%; display: flex; border-top: 5px solid black; }
         
@@ -43,6 +44,7 @@
         .notes-area { flex: 1.2; height: 100%; border-left: 1px solid black; }
         .notes-area textarea { width: 100%; height: 100%; border: none; padding: 8px; font-size: 0.9em; font-weight: 900; resize: none; outline: none; text-transform: uppercase; }
         
+        /* Player Card Styles */
         .player { display: flex; flex-direction: column; height: 100%; border: 0.1px solid #eee; overflow: hidden; }
         .img-container { flex: 1; position: relative; background: #eee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
@@ -64,11 +66,10 @@
         .badge[data-type="captain"] { background: #000; }
         .badge[data-type="alternate"] { background: #333; }
         
-        /* Text Badge Styles - Looks like Goalie label */
         .text-badge {
             position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.9) !important; color: white !important;
-            padding: 1px 8px; font-size: 0.6em; font-weight: 900;
+            padding: 1px 8px; font-size: 0.55em; font-weight: 900;
             border-radius: 2px; z-index: 25; border: 1px solid white;
             white-space: nowrap; text-transform: uppercase;
         }
@@ -170,19 +171,31 @@
             controls.style.display = 'none';
             window.scrollTo(0,0);
             
+            // 100% FIXED PDF CAPTURE LOGIC
             const opt = {
                 margin: 0,
                 filename: `${currentTeam}_Headshots.pdf`,
-                image: { type: 'jpeg', quality: 1 },
+                image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { 
-                    scale: 2.5, useCORS: true, logging: false, scrollY: 0,
-                    windowWidth: 816, windowHeight: 1056
+                    scale: 2.5, 
+                    useCORS: true, 
+                    logging: false, 
+                    width: 816, // 8.5 inches at 96 DPI
+                    height: 1056, // 11 inches at 96 DPI
+                    windowWidth: 816,
+                    windowHeight: 1056,
+                    x: 0,
+                    y: 0,
+                    scrollX: 0,
+                    scrollY: 0
                 },
                 jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
             };
             
             try {
                 await html2pdf().set(opt).from(element).save();
+            } catch (e) {
+                alert("Error generating PDF. Try using the Print button and 'Save as PDF' instead.");
             } finally {
                 controls.style.display = 'flex';
             }
@@ -232,7 +245,7 @@
             if (url) {
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot';
                 imgCont.appendChild(img);
-            } else { imgCont.innerHTML = '<div style="font-size:3em;color:#ccc;font-weight:900">?</div>'; }
+            } else { imgCont.innerHTML = '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             const bType = badges[player.name];
@@ -314,9 +327,9 @@
             role.className = 'role-label'; role.contentEditable = "true";
             role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || pre.role || type.toUpperCase());
             
-            // Hard Fix: Stop clicks on role text from opening file window
-            role.addEventListener('click', e => e.stopPropagation());
+            // HARD FIX: Filter clicks manually to prevent bubbling to parent imgCont
             role.addEventListener('mousedown', e => e.stopPropagation());
+            role.addEventListener('click', e => e.stopPropagation());
             
             role.onblur = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].role = role.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
             imgCont.appendChild(role);
@@ -325,10 +338,17 @@
             if (url) {
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot'; img.style.transform = 'none';
                 imgCont.appendChild(img);
-            } else { imgCont.innerHTML += '<div style="font-size:3em;color:#ccc;font-weight:900">?</div>'; }
+            } else { imgCont.innerHTML += '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
             if (type === 'Goalie') addBadgeSelector(imgCont, pre.name, true);
-            imgCont.onclick = () => { const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key); f.click(); };
+            
+            // Parent Click Handler with filter
+            imgCont.onclick = (e) => { 
+                if (e.target.classList.contains('role-label') || e.target.tagName === 'SELECT') return;
+                const f = document.createElement('input'); f.type = 'file'; 
+                f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key); 
+                f.click(); 
+            };
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key); };
 
