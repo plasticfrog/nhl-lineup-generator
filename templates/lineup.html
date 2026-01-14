@@ -3,8 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>NHL Team Lineup</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * {
             margin: 0; padding: 0; box-sizing: border-box;
@@ -17,6 +15,7 @@
             height: 100%; width: 100%;
             background: #111; display: flex; justify-content: center;
             font-family: 'Arial Narrow', Arial, sans-serif;
+            overflow-x: hidden;
         }
         
         .container {
@@ -25,27 +24,51 @@
             flex-shrink: 0; overflow: hidden; padding-bottom: 3mm;
         }
         
-        /* Layout Sections */
         .forwards-section { height: 55%; width: 100%; display: flex; flex-direction: column; }
         .defensemen-section { height: 45%; display: flex; border-top: 5px solid black; }
         
         .forwards-grid { display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(2, 1fr); height: 100%; }
         .forwards-grid .player:nth-child(3), .forwards-grid .player:nth-child(9) { border-right: 5px solid black; }
         
-        .defensemen-grid { display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); width: 45%; height: 100%; }
+        /* Updated Width: 40% */
+        .defensemen-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr);
+            width: 40%; height: 100%;
+        }
         
-        .staff-grid { display: flex; flex-direction: column; width: 55%; height: 100%; border-left: 5px solid black; }
+        /* Updated Width: 60% */
+        .staff-grid {
+            display: flex; flex-direction: column;
+            width: 60%; height: 100%; border-left: 5px solid black;
+        }
         .staff-row { display: flex; height: 50%; width: 100%; }
         .coach-row { border-top: 5px solid black; flex-grow: 1; }
         
-        .staff-member { flex: 1; display: flex; flex-direction: column; border-right: 1px solid black; overflow: hidden; position: relative; }
+        /* Updated widths for Goalie slots */
+        .staff-member { width: 25%; display: flex; flex-direction: column; border-right: 1px solid black; overflow: hidden; position: relative; }
+        .coach-row .staff-member { flex: 1; }
         .staff-member.hidden-coach { display: none !important; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
-        .notes-area { flex: 1.2; height: 100%; border-left: 1px solid black; }
-        .notes-area textarea { width: 100%; height: 100%; border: none; padding: 8px; font-size: 0.9em; font-weight: 900; resize: none; outline: none; text-transform: uppercase; }
+        /* Notes Tab expanded */
+        .notes-area { flex: 1; height: 100%; border-left: 1px solid black; position: relative; overflow: hidden; background: #fff; }
+        .notes-area textarea { width: 100%; height: 100%; border: none; padding: 8px; font-size: 0.9em; font-weight: 900; resize: none; outline: none; text-transform: uppercase; background: transparent; position: relative; z-index: 1; }
         
-        /* Player Card Styles */
+        /* Floating Note Image Styles */
+        .note-image-wrapper { position: absolute; cursor: move; z-index: 10; border: 1px dashed transparent; }
+        .note-image-wrapper:hover, .note-image-wrapper.selected { border-color: #FFD700; }
+        .note-image-wrapper img { width: 100%; height: 100%; pointer-events: none; display: block; object-fit: cover; }
+        .note-image-wrapper.cropping img { object-fit: none; }
+        
+        /* Resize Handles */
+        .handle { position: absolute; width: 10px; height: 10px; background: #FFD700; border: 1px solid #000; display: none; }
+        .note-image-wrapper.selected .handle { display: block; }
+        .note-image-wrapper.cropping .handle { background: #007bff; }
+        .handle-nw { top: -5px; left: -5px; cursor: nw-resize; }
+        .handle-ne { top: -5px; right: -5px; cursor: ne-resize; }
+        .handle-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+        .handle-se { bottom: -5px; right: -5px; cursor: se-resize; }
+
         .player { display: flex; flex-direction: column; height: 100%; border: 0.1px solid #eee; overflow: hidden; }
         .img-container { flex: 1; position: relative; background: #eee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
@@ -54,7 +77,7 @@
             background: #000 !important; color: #fff !important;
             display: flex; align-items: center; justify-content: center;
             text-align: center; font-size: 0.7em; font-weight: 900;
-            text-transform: uppercase; width: 100%; flex-shrink: 0; z-index: 10;
+            text-transform: uppercase; width: 100%; flex-shrink: 0; z-index: 10; border: none; outline: none;
         }
 
         .badge {
@@ -82,7 +105,6 @@
             cursor: pointer; z-index: 40; opacity: 0;
         }
         .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
-
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         
         .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(-1%); }
@@ -107,14 +129,14 @@
         @media print {
             body, html { background: white !important; overflow: hidden !important; height: 11in !important; }
             .container { position: absolute !important; top: 0 !important; left: 0 !important; margin: 0 !important; box-shadow: none !important; }
-            .controls, .badge-selector, .find-btn { display: none !important; }
+            .controls, .badge-selector, .find-btn, .handle { display: none !important; }
+            .note-image-wrapper { border: none !important; }
         }
     </style>
 </head>
 <body>
     <div class="controls" id="draggable-controls">
         <button onclick="window.scrollTo(0,0); window.print();">Print</button>
-        <button onclick="downloadPDF()">Download PDF</button>
         <button onclick="toggleFourthCoach()">Add/Remove 4th Coach</button>
         <button onclick="clearAllData()">Reset to Original</button>
     </div>
@@ -127,9 +149,11 @@
             <div class="defensemen-grid" id="defensemen-grid"></div>
             <div class="staff-grid">
                 <div class="staff-row">
-                    <div id="g1-slot" style="flex:1; display:flex;"></div>
-                    <div id="g2-slot" style="flex:1; display:flex;"></div>
-                    <div class="notes-area"><textarea id="notes-input" placeholder="NOTES..."></textarea></div>
+                    <div id="g1-slot" style="width:25%; display:flex;"></div>
+                    <div id="g2-slot" style="width:25%; display:flex;"></div>
+                    <div class="notes-area" id="notes-area">
+                        <textarea id="notes-input" placeholder="NOTES..."></textarea>
+                    </div>
                 </div>
                 <div class="staff-row coach-row" id="coach-container"></div>
             </div>
@@ -146,15 +170,9 @@
         const COACH_TOGGLE_KEY = 'nhl_show_fourth_coach';
         const LAST_TEAM_KEY = 'nhl_last_team_id';
         const NOTES_KEY = 'notes';
+        const NOTE_IMGS_KEY = 'nhl_note_images';
 
         const currentTeam = lineupData.team || 'Unknown';
-        if (localStorage.getItem(LAST_TEAM_KEY) !== currentTeam) {
-            const backup = localStorage.getItem('lineup_data');
-            localStorage.clear();
-            localStorage.setItem('lineup_data', backup);
-            localStorage.setItem(LAST_TEAM_KEY, currentTeam);
-        }
-
         let draggedElement = null;
 
         function clearAllData() {
@@ -171,35 +189,6 @@
             const cur = localStorage.getItem(COACH_TOGGLE_KEY) === 'true';
             localStorage.setItem(COACH_TOGGLE_KEY, !cur);
             location.reload();
-        }
-
-        async function downloadPDF() {
-            const element = document.getElementById('lineup-content');
-            const controls = document.getElementById('draggable-controls');
-            controls.style.display = 'none';
-            window.scrollTo(0,0);
-            
-            // Wait for any UI jitter to settle
-            setTimeout(() => {
-                html2canvas(element, {
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: true,
-                    logging: false,
-                    width: 816,
-                    height: 1056
-                }).then(canvas => {
-                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                    const { jsPDF } = window.jspdf;
-                    const pdf = new jsPDF('p', 'in', 'letter');
-                    pdf.addImage(imgData, 'JPEG', 0, 0, 8.5, 11);
-                    pdf.save(`${currentTeam}_Headshots.pdf`);
-                    controls.style.display = 'flex';
-                }).catch(err => {
-                    alert("Capture failed. Use Print button.");
-                    controls.style.display = 'flex';
-                });
-            }, 300);
         }
 
         function handleImageUpload(file, playerName, isStaff, key) {
@@ -223,22 +212,6 @@
         function triggerMagicSearch(name) {
             const query = encodeURIComponent(name + " hockey headshot");
             window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
-        }
-
-        function renderPlayerName(el, player) {
-            const customNames = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
-            if (customNames[player.name]) { el.textContent = customNames[player.name]; return; }
-            const num = player.number || '';
-            const lastName = player.name.split(' ').pop();
-            const tryFit = (hash, cls) => {
-                el.className = 'info-bar ' + cls;
-                el.textContent = num ? (hash ? `#${num} ${lastName}` : `${num} ${lastName}`) : lastName;
-                return el.scrollWidth <= el.clientWidth;
-            };
-            if (tryFit(true, '')) return;
-            if (tryFit(false, '')) return;
-            if (tryFit(false, 'font-small')) return;
-            tryFit(false, 'font-tiny');
         }
 
         function createPlayerCard(player) {
@@ -274,20 +247,32 @@
                 }
             }
 
+            const info = document.createElement('input'); info.className = 'info-bar';
+            const customNames = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
+            if (customNames[player.name]) {
+                info.value = customNames[player.name];
+            } else {
+                const n = player.number || '';
+                const l = player.name.split(' ').pop();
+                info.value = n ? `#${n} ${l}` : l;
+            }
+            info.oninput = () => {
+                const n = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
+                n[player.name] = info.value;
+                localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(n));
+            };
+
             const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
-            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(player.name); };
+            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(info.value); };
             imgCont.appendChild(fBtn);
 
             addBadgeSelector(imgCont, player.name);
             imgCont.onclick = (e) => { if(e.target.tagName==='SELECT' || e.target.classList.contains('find-btn')) return; const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], player.name); f.click(); };
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], player.name); };
-            card.appendChild(imgCont);
             
-            const info = document.createElement('div'); info.className = 'info-bar'; info.contentEditable = 'true';
-            renderPlayerName(info, player);
-            setTimeout(() => renderPlayerName(info, player), 50);
-            info.onblur = () => { const n = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}'); n[player.name] = info.textContent; localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(n)); };
+            card.appendChild(imgCont);
+            card.appendChild(info);
             
             card.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = card; };
             card.ondragover = e => e.preventDefault();
@@ -297,7 +282,6 @@
                 const temp = document.createElement('div');
                 p.insertBefore(temp, draggedElement); p.insertBefore(draggedElement, card); p.insertBefore(card, temp); p.removeChild(temp);
             };
-            card.appendChild(info);
             return card;
         }
 
@@ -347,8 +331,12 @@
                 imgCont.appendChild(img);
             } else { imgCont.innerHTML += '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
+            const nameInput = document.createElement('input'); nameInput.className = 'info-bar'; nameInput.value = saved.name || (pre.name || "");
+            nameInput.placeholder = type === 'Coach' ? "COACH" : "NAME";
+            nameInput.oninput = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInput.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
+
             const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
-            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(saved.name || pre.name || type); };
+            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(nameInput.value || type); };
             imgCont.appendChild(fBtn);
 
             if (type === 'Goalie') addBadgeSelector(imgCont, pre.name, true);
@@ -357,11 +345,121 @@
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key); };
 
             member.appendChild(imgCont);
-            const nameInput = document.createElement('input'); nameInput.className = 'info-bar'; nameInput.value = saved.name || (pre.name || "");
-            nameInput.placeholder = type === 'Coach' ? "COACH" : "NAME";
-            nameInput.oninput = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInput.value; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
             member.appendChild(nameInput);
             return member;
+        }
+
+        // --- NOTES AREA POWERPOINT LOGIC ---
+        function initNotesObjects() {
+            const area = document.getElementById('notes-area');
+            
+            area.ondragover = e => e.preventDefault();
+            area.ondrop = e => {
+                e.preventDefault();
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = ev => createNoteImage(ev.target.result, e.offsetX, e.offsetY);
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            // Load existing images
+            const saved = JSON.parse(localStorage.getItem(NOTE_IMGS_KEY) || '[]');
+            saved.forEach(data => createNoteImage(data.src, data.x, data.y, data.w, data.h, true));
+        }
+
+        function createNoteImage(src, x, y, w = 100, h = 100, isLoading = false) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'note-image-wrapper';
+            wrapper.style.left = x + 'px'; wrapper.style.top = y + 'px';
+            wrapper.style.width = w + 'px'; wrapper.style.height = h + 'px';
+            
+            const img = document.createElement('img');
+            img.src = src;
+            wrapper.appendChild(img);
+
+            // Handles
+            ['nw', 'ne', 'sw', 'se'].forEach(pos => {
+                const h = document.createElement('div');
+                h.className = `handle handle-${pos}`;
+                wrapper.appendChild(h);
+            });
+
+            document.getElementById('notes-area').appendChild(wrapper);
+            makeElementPowerPoint(wrapper);
+            if (!isLoading) saveNoteImages();
+        }
+
+        function makeElementPowerPoint(el) {
+            let isDown = false, isResizing = false, currentHandle = null;
+            let startX, startY, startW, startH, startL, startT;
+
+            el.onmousedown = e => {
+                isDown = true;
+                document.querySelectorAll('.note-image-wrapper').forEach(w => w.classList.remove('selected'));
+                el.classList.add('selected');
+                
+                if (e.target.classList.contains('handle')) {
+                    isResizing = true;
+                    currentHandle = e.target;
+                }
+                
+                startX = e.clientX; startY = e.clientY;
+                startW = el.offsetWidth; startH = el.offsetHeight;
+                startL = el.offsetLeft; startT = el.offsetTop;
+                e.preventDefault();
+            };
+
+            el.ondblclick = () => {
+                el.classList.toggle('cropping');
+            };
+
+            window.addEventListener('mousemove', e => {
+                if (!isDown) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+
+                if (isResizing) {
+                    if (currentHandle.classList.contains('handle-se')) {
+                        el.style.width = startW + dx + 'px';
+                        el.style.height = startH + dy + 'px';
+                    } else if (currentHandle.classList.contains('handle-sw')) {
+                        el.style.width = startW - dx + 'px';
+                        el.style.height = startH + dy + 'px';
+                        el.style.left = startL + dx + 'px';
+                    } else if (currentHandle.classList.contains('handle-nw')) {
+                        el.style.width = startW - dx + 'px';
+                        el.style.height = startH - dy + 'px';
+                        el.style.left = startL + dx + 'px';
+                        el.style.top = startT + dy + 'px';
+                    } else if (currentHandle.classList.contains('handle-ne')) {
+                        el.style.width = startW + dx + 'px';
+                        el.style.height = startH - dy + 'px';
+                        el.style.top = startT + dy + 'px';
+                    }
+                } else {
+                    el.style.left = startL + dx + 'px';
+                    el.style.top = startT + dy + 'px';
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isDown) saveNoteImages();
+                isDown = false; isResizing = false;
+            });
+        }
+
+        function saveNoteImages() {
+            const imgs = [];
+            document.querySelectorAll('.note-image-wrapper').forEach(w => {
+                imgs.push({
+                    src: w.querySelector('img').src,
+                    x: parseInt(w.style.left), y: parseInt(w.style.top),
+                    w: parseInt(w.style.width), h: parseInt(w.style.height)
+                });
+            });
+            localStorage.setItem(NOTE_IMGS_KEY, JSON.stringify(imgs));
         }
 
         function initDraggable() {
@@ -377,12 +475,24 @@
             const dGrid = document.getElementById('defensemen-grid');
             const g1 = document.getElementById('g1-slot'); const g2 = document.getElementById('g2-slot');
             const cCont = document.getElementById('coach-container');
+            
             (lineupData.forwards || []).forEach(p => fGrid.appendChild(createPlayerCard(p)));
             (lineupData.defensemen || []).forEach(p => dGrid.appendChild(createPlayerCard(p)));
-            g1.appendChild(createStaffMember('Goalie', 1)); g2.appendChild(createStaffMember('Goalie', 2));
-            const nInp = document.getElementById('notes-input'); nInp.value = localStorage.getItem(NOTES_KEY) || ""; nInp.oninput = () => localStorage.setItem(NOTES_KEY, nInp.value);
-            cCont.appendChild(createStaffMember('Coach', 1)); cCont.appendChild(createStaffMember('Coach', 2)); cCont.appendChild(createStaffMember('Coach', 3)); cCont.appendChild(createStaffMember('Coach', 4));
+            
+            g1.appendChild(createStaffMember('Goalie', 1));
+            g2.appendChild(createStaffMember('Goalie', 2));
+            
+            const nInp = document.getElementById('notes-input');
+            nInp.value = localStorage.getItem(NOTES_KEY) || "";
+            nInp.oninput = () => localStorage.setItem(NOTES_KEY, nInp.value);
+
+            cCont.appendChild(createStaffMember('Coach', 1));
+            cCont.appendChild(createStaffMember('Coach', 2));
+            cCont.appendChild(createStaffMember('Coach', 3));
+            cCont.appendChild(createStaffMember('Coach', 4));
+
             initDraggable();
+            initNotesObjects();
         });
     </script>
 </body>
