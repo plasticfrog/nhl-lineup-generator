@@ -48,13 +48,10 @@
             border-right: 1px solid black; overflow: hidden; position: relative; 
             min-width: 0; height: 100%;
         }
-        /* Specific Goalie width to prevent squishing */
-        #goalie-row .staff-member { flex: 0 0 25%; }
-
         .staff-member.hidden-coach { display: none !important; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
-        .notes-area { flex: 1; height: 100%; position: relative; overflow: hidden; background: #fff; border-right: 1px solid black;}
+        .notes-area { flex: 1.5; height: 100%; position: relative; overflow: hidden; background: #fff; }
         .notes-area textarea { 
             width: 100%; height: 100%; border: none; padding: 10px; 
             font-size: 0.95em; font-weight: 900; resize: none; outline: none; 
@@ -108,7 +105,6 @@
         .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         
-        /* HEADSHOT SCALING */
         .forwards-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.09) translateY(1%); }
         .defensemen-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.4) translateY(2%); }
         .staff-member .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(0); }
@@ -152,7 +148,7 @@
         <div class="defensemen-section">
             <div class="defensemen-grid" id="defensemen-grid"></div>
             <div class="staff-grid">
-                <div class="staff-row" id="goalie-row">
+                <div class="staff-row">
                     <div id="g1-slot" class="staff-member"></div>
                     <div id="g2-slot" class="staff-member"></div>
                     <div class="notes-area" id="notes-area">
@@ -178,7 +174,6 @@
 
         const currentTeam = lineupData.team || 'Unknown';
 
-        // --- FIXED SHARKS COACHING DATABASE ---
         const STAFF_REGISTRY = {
             'SJS': {
                 'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/ryan.warsofsky.png' },
@@ -201,13 +196,13 @@
             let fontSize = 1.0; 
             el.style.fontSize = fontSize + 'em';
             el.style.whiteSpace = 'nowrap';
-            while (el.scrollWidth > el.clientWidth && fontSize > 0.6) {
+            while (el.scrollWidth > el.clientWidth && fontSize > 0.7) {
                 fontSize -= 0.05;
                 el.style.fontSize = fontSize + 'em';
             }
             if (el.scrollWidth > el.clientWidth) {
                 el.style.whiteSpace = 'normal';
-                while (el.scrollHeight > el.clientHeight && fontSize > 0.5) {
+                while (el.scrollHeight > el.clientHeight && fontSize > 0.55) {
                     fontSize -= 0.05;
                     el.style.fontSize = fontSize + 'em';
                 }
@@ -352,9 +347,8 @@
             const isSharks = currentTeam === 'SJS';
             const sharksDefault = (isSharks && type === 'Coach') ? STAFF_REGISTRY['SJS'][key] : null;
 
-            const member = document.createElement('div'); 
-            member.className = 'staff-member';
-            member.draggable = true; // DRAG ENABLED
+            const member = document.createElement('div'); member.className = 'staff-member';
+            member.draggable = true; // COACH DRAGGING ENABLED
 
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             const staffName = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
@@ -419,7 +413,7 @@
             member.appendChild(imgCont); member.appendChild(nameInfo);
             setTimeout(() => fitText(nameInfo), 10);
 
-            // DRAG EVENTS
+            // STAFF DRAG SWAP LOGIC
             member.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = member; };
             member.ondragover = e => e.preventDefault();
             member.ondrop = e => {
@@ -505,23 +499,24 @@
         document.addEventListener('DOMContentLoaded', () => {
             const fGrid = document.getElementById('forwards-grid');
             const dGrid = document.getElementById('defensemen-grid');
-            const gRow = document.getElementById('goalie-row');
-            const cRow = document.getElementById('coach-container');
+            const g1Slot = document.getElementById('g1-slot');
+            const g2Slot = document.getElementById('g2-slot');
+            const cCont = document.getElementById('coach-container');
             
             (lineupData.forwards || []).forEach(p => fGrid.appendChild(createPlayerCard(p)));
             (lineupData.defensemen || []).forEach(p => dGrid.appendChild(createPlayerCard(p)));
             
-            gRow.insertBefore(createStaffMember('Goalie', 1), document.getElementById('g2-slot'));
-            gRow.insertBefore(createStaffMember('Goalie', 2), document.getElementById('notes-area'));
+            g1Slot.appendChild(createStaffMember('Goalie', 1));
+            g2Slot.appendChild(createStaffMember('Goalie', 2));
             
             const nInp = document.getElementById('notes-input');
             nInp.value = localStorage.getItem(NOTES_KEY) || "";
             nInp.oninput = () => localStorage.setItem(NOTES_KEY, nInp.value);
 
-            cRow.appendChild(createStaffMember('Coach', 1));
-            cRow.appendChild(createStaffMember('Coach', 2));
-            cRow.appendChild(createStaffMember('Coach', 3));
-            cRow.appendChild(createStaffMember('Coach', 4));
+            cCont.appendChild(createStaffMember('Coach', 1));
+            cCont.appendChild(createStaffMember('Coach', 2));
+            cCont.appendChild(createStaffMember('Coach', 3));
+            cCont.appendChild(createStaffMember('Coach', 4));
 
             initDraggable();
             initNotesObjects();
