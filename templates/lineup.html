@@ -9,7 +9,11 @@
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
-        @page { margin: 0; size: letter portrait; }
+        
+        @page { 
+            margin: 0; 
+            size: letter portrait;
+        }
         
         html, body {
             height: 100%; width: 100%;
@@ -18,10 +22,12 @@
             overflow-x: hidden;
         }
         
+        /* The Actual Paper (8.5x11) */
         .container {
             background: white; width: 8.5in; height: 11in;
             display: flex; flex-direction: column; position: relative;
             flex-shrink: 0; overflow: hidden; padding-bottom: 3mm;
+            box-shadow: 0 0 50px rgba(0,0,0,1);
         }
         
         .forwards-section { height: 55%; width: 100%; display: flex; flex-direction: column; }
@@ -44,13 +50,15 @@
         .coach-row { border-top: 5px solid black; flex-grow: 1; }
         
         .staff-member { 
-            flex: 1; display: flex; flex-direction: column; 
+            flex: 0 0 25%; /* LOCKED WIDTH TO PREVENT SQUISHING */
+            display: flex; flex-direction: column; 
             border-right: 1px solid black; overflow: hidden; position: relative; 
         }
+        .coach-row .staff-member { flex: 1; }
         .staff-member.hidden-coach { display: none !important; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
-        .notes-area { flex: 1.5; height: 100%; position: relative; overflow: hidden; background: #fff; }
+        .notes-area { flex: 1; height: 100%; position: relative; overflow: hidden; background: #fff; }
         .notes-area textarea { 
             width: 100%; height: 100%; border: none; padding: 10px; 
             font-size: 0.95em; font-weight: 900; resize: none; outline: none; 
@@ -75,13 +83,16 @@
             line-height: 0.9;
         }
 
+        /* SVG STAR BADGE FIX */
         .badge {
             position: absolute; top: 4px; left: 4px;
-            color: white; font-weight: 900; font-size: 1.2em;
-            padding: 2px 6px; border-radius: 4px; z-index: 20;
-            text-shadow: 1px 1px 3px rgba(0,0,0,1); border: 2px solid white;
+            color: white; z-index: 20; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 2px 6px; border: 2px solid white;
         }
-        .badge[data-type="star"] { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
+        .badge svg { width: 18px; height: 18px; fill: white; }
+        .badge[data-type="star"] { background: linear-gradient(135deg, #FFD700, #FFA500); }
+        .badge[data-type="star"] svg { fill: #000; }
         .badge[data-type="captain"] { background: #000; }
         .badge[data-type="alternate"] { background: #333; }
         
@@ -102,7 +113,6 @@
         .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         
-        /* UPDATED FORWARD ZOOM - 1.09x */
         .forwards-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.09) translateY(1%); }
         .defensemen-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.4) translateY(2%); }
         .staff-member .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(0); }
@@ -123,9 +133,22 @@
         .controls button { padding: 6px 10px; font-size: 12px; font-weight: 900; cursor: pointer; border: 1px solid black; background: #fff; text-transform: uppercase; }
         .controls button:hover { background: #000; color: #fff; }
 
+        /* STRICT ONE-PAGE PRINT FIXES */
         @media print {
-            body, html { background: white !important; overflow: hidden !important; height: 11in !important; }
-            .container { position: absolute !important; top: 0 !important; left: 0 !important; margin: 0 !important; box-shadow: none !important; }
+            body, html { 
+                background: white !important; 
+                overflow: hidden !important; 
+                height: 11in !important; 
+                width: 8.5in !important; 
+                padding: 0 !important; margin: 0 !important;
+            }
+            .container { 
+                position: fixed !important; 
+                top: 0 !important; left: 0 !important; 
+                margin: 0 !important; box-shadow: none !important; 
+                width: 8.5in !important; height: 11in !important; 
+                transform: scale(1) !important; /* Ensure no browser scaling interferes */
+            }
             .controls, .badge-selector, .find-btn, .handle { display: none !important; }
             .note-image-wrapper { border: none !important; }
             textarea::placeholder { color: transparent !important; }
@@ -134,7 +157,7 @@
 </head>
 <body>
     <div class="controls" id="draggable-controls">
-        <button onclick="window.scrollTo(0,0); window.print();">Print</button>
+        <button onclick="window.scrollTo(0,0); window.print();">Print / Save PDF</button>
         <button onclick="toggleFourthCoach()">Add/Remove 4th Coach</button>
         <button onclick="clearAllData()">Reset to Original</button>
     </div>
@@ -146,7 +169,13 @@
         <div class="defensemen-section">
             <div class="defensemen-grid" id="defensemen-grid"></div>
             <div class="staff-grid">
-                <div class="staff-row" id="goalie-row"></div>
+                <div class="staff-row">
+                    <div id="g1-slot" class="staff-member"></div>
+                    <div id="g2-slot" class="staff-member"></div>
+                    <div class="notes-area" id="notes-area">
+                        <textarea id="notes-input" placeholder="NOTES..."></textarea>
+                    </div>
+                </div>
                 <div class="staff-row coach-row" id="coach-row"></div>
             </div>
         </div>
@@ -166,7 +195,6 @@
 
         const currentTeam = lineupData.team || 'Unknown';
 
-        // --- FIXED SHARKS COACHING DATABASE ---
         const STAFF_REGISTRY = {
             'SJS': {
                 'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/ryan.warsofsky.png' },
@@ -189,13 +217,13 @@
             let fontSize = 1.0; 
             el.style.fontSize = fontSize + 'em';
             el.style.whiteSpace = 'nowrap';
-            while (el.scrollWidth > el.clientWidth && fontSize > 0.7) {
+            while (el.scrollWidth > el.clientWidth && fontSize > 0.6) {
                 fontSize -= 0.05;
                 el.style.fontSize = fontSize + 'em';
             }
             if (el.scrollWidth > el.clientWidth) {
                 el.style.whiteSpace = 'normal';
-                while (el.scrollHeight > el.clientHeight && fontSize > 0.55) {
+                while (el.scrollHeight > el.clientHeight && fontSize > 0.5) {
                     fontSize -= 0.05;
                     el.style.fontSize = fontSize + 'em';
                 }
@@ -241,6 +269,8 @@
             window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
         }
 
+        const STAR_SVG = `<svg viewBox="0 0 24 24"><path d="M12 .587l3.668 7.568 8.332 1.151-6.064 5.828 1.48 8.279-7.416-3.967-7.417 3.967 1.481-8.279-6.064-5.828 8.332-1.151z"/></svg>`;
+
         function createPlayerCard(player) {
             const card = document.createElement('div');
             card.className = 'player'; card.draggable = true;
@@ -263,13 +293,12 @@
                     tb.onclick = e => e.stopPropagation();
                     tb.onblur = () => {
                         const texts = JSON.parse(localStorage.getItem(CUSTOM_BADGE_TEXT_KEY) || '{}');
-                        texts[player.name] = tb.textContent;
-                        localStorage.setItem(CUSTOM_BADGE_TEXT_KEY, JSON.stringify(texts));
+                        texts[player.name] = tb.textContent; localStorage.setItem(CUSTOM_BADGE_TEXT_KEY, JSON.stringify(texts));
                     };
                     imgCont.appendChild(tb);
                 } else {
-                    const b = document.createElement('div'); b.className = 'badge'; b.textContent = bType;
-                    b.dataset.type = bType === '★' ? 'star' : (bType === 'C' ? 'captain' : 'alternate');
+                    const b = document.createElement('div'); b.className = 'badge'; b.dataset.type = bType === '★' ? 'star' : (bType === 'C' ? 'captain' : 'alternate');
+                    b.innerHTML = (bType === '★') ? STAR_SVG : bType;
                     imgCont.appendChild(b);
                 }
             }
@@ -282,8 +311,7 @@
             
             info.oninput = () => {
                 const n = JSON.parse(localStorage.getItem(CUSTOM_NAMES_KEY) || '{}');
-                n[player.name] = info.textContent;
-                localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(n));
+                n[player.name] = info.textContent; localStorage.setItem(CUSTOM_NAMES_KEY, JSON.stringify(n));
                 fitText(info);
             };
 
@@ -342,14 +370,14 @@
             const member = document.createElement('div'); member.className = 'staff-member';
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
             
-            let isStarter = type === 'Goalie' && badges[pre.name] === 'Starter';
+            const staffName = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
+            let isStarter = type === 'Goalie' && badges[staffName] === 'Starter';
             if (isStarter) member.classList.add('starter-active');
             if (type === 'Coach' && index === 4 && localStorage.getItem(COACH_TOGGLE_KEY) !== 'true') member.classList.add('hidden-coach');
 
             const imgCont = document.createElement('div'); imgCont.className = 'img-container';
             
-            // Apply badges for Goalies/Coaches
-            const staffName = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
+            // Fix badges for staff
             const bType = badges[staffName];
             if (bType && bType !== 'none' && bType !== 'Starter') {
                 if (bType === 'Text') {
@@ -363,8 +391,8 @@
                     };
                     imgCont.appendChild(tb);
                 } else {
-                    const b = document.createElement('div'); b.className = 'badge'; b.textContent = bType;
-                    b.dataset.type = bType === '★' ? 'star' : (bType === 'C' ? 'captain' : 'alternate');
+                    const b = document.createElement('div'); b.className = 'badge'; b.dataset.type = bType === '★' ? 'star' : (bType === 'C' ? 'captain' : 'alternate');
+                    b.innerHTML = (bType === '★') ? STAR_SVG : bType;
                     imgCont.appendChild(b);
                 }
             }
@@ -478,27 +506,24 @@
         document.addEventListener('DOMContentLoaded', () => {
             const fGrid = document.getElementById('forwards-grid');
             const dGrid = document.getElementById('defensemen-grid');
-            const gRow = document.getElementById('goalie-row');
-            const cRow = document.getElementById('coach-row');
+            const g1Slot = document.getElementById('g1-slot');
+            const g2Slot = document.getElementById('g2-slot');
+            const cCont = document.getElementById('coach-container');
             
             (lineupData.forwards || []).forEach(p => fGrid.appendChild(createPlayerCard(p)));
             (lineupData.defensemen || []).forEach(p => dGrid.appendChild(createPlayerCard(p)));
             
-            gRow.appendChild(createStaffMember('Goalie', 1));
-            gRow.appendChild(createStaffMember('Goalie', 2));
-            const notes = document.createElement('div');
-            notes.className = 'notes-area'; notes.id = 'notes-area';
-            notes.innerHTML = `<textarea id="notes-input" placeholder="NOTES..."></textarea>`;
-            gRow.appendChild(notes);
+            g1Slot.appendChild(createStaffMember('Goalie', 1));
+            g2Slot.appendChild(createStaffMember('Goalie', 2));
             
             const nInp = document.getElementById('notes-input');
             nInp.value = localStorage.getItem(NOTES_KEY) || "";
             nInp.oninput = () => localStorage.setItem(NOTES_KEY, nInp.value);
 
-            cRow.appendChild(createStaffMember('Coach', 1));
-            cRow.appendChild(createStaffMember('Coach', 2));
-            cRow.appendChild(createStaffMember('Coach', 3));
-            cRow.appendChild(createStaffMember('Coach', 4));
+            cCont.appendChild(createStaffMember('Coach', 1));
+            cCont.appendChild(createStaffMember('Coach', 2));
+            cCont.appendChild(createStaffMember('Coach', 3));
+            cCont.appendChild(createStaffMember('Coach', 4));
 
             initDraggable();
             initNotesObjects();
