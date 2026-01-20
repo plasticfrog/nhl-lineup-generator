@@ -9,11 +9,7 @@
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
-        
-        @page { 
-            margin: 0; 
-            size: letter portrait;
-        }
+        @page { margin: 0; size: letter portrait; }
         
         html, body {
             height: 100%; width: 100%;
@@ -22,12 +18,10 @@
             overflow-x: hidden;
         }
         
-        /* The Actual Paper (8.5x11) */
         .container {
             background: white; width: 8.5in; height: 11in;
             display: flex; flex-direction: column; position: relative;
             flex-shrink: 0; overflow: hidden; padding-bottom: 3mm;
-            box-shadow: 0 0 50px rgba(0,0,0,1);
         }
         
         .forwards-section { height: 55%; width: 100%; display: flex; flex-direction: column; }
@@ -47,18 +41,17 @@
         }
         
         .staff-row { display: flex; height: 50%; width: 100%; }
-        .coach-row { border-top: 5px solid black; flex-grow: 1; }
+        .coach-row { border-top: 5px solid black; flex: 1; }
         
         .staff-member { 
-            flex: 0 0 25%; /* LOCKED WIDTH TO PREVENT SQUISHING */
-            display: flex; flex-direction: column; 
+            flex: 1; display: flex; flex-direction: column; 
             border-right: 1px solid black; overflow: hidden; position: relative; 
+            min-width: 0; height: 100%;
         }
-        .coach-row .staff-member { flex: 1; }
         .staff-member.hidden-coach { display: none !important; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
-        .notes-area { flex: 1; height: 100%; position: relative; overflow: hidden; background: #fff; }
+        .notes-area { flex: 1.5; height: 100%; position: relative; overflow: hidden; background: #fff; }
         .notes-area textarea { 
             width: 100%; height: 100%; border: none; padding: 10px; 
             font-size: 0.95em; font-weight: 900; resize: none; outline: none; 
@@ -83,7 +76,6 @@
             line-height: 0.9;
         }
 
-        /* SVG STAR BADGE FIX */
         .badge {
             position: absolute; top: 4px; left: 4px;
             color: white; z-index: 20; border-radius: 4px;
@@ -133,22 +125,9 @@
         .controls button { padding: 6px 10px; font-size: 12px; font-weight: 900; cursor: pointer; border: 1px solid black; background: #fff; text-transform: uppercase; }
         .controls button:hover { background: #000; color: #fff; }
 
-        /* STRICT ONE-PAGE PRINT FIXES */
         @media print {
-            body, html { 
-                background: white !important; 
-                overflow: hidden !important; 
-                height: 11in !important; 
-                width: 8.5in !important; 
-                padding: 0 !important; margin: 0 !important;
-            }
-            .container { 
-                position: fixed !important; 
-                top: 0 !important; left: 0 !important; 
-                margin: 0 !important; box-shadow: none !important; 
-                width: 8.5in !important; height: 11in !important; 
-                transform: scale(1) !important; /* Ensure no browser scaling interferes */
-            }
+            body, html { background: white !important; overflow: hidden !important; height: 11in !important; }
+            .container { position: absolute !important; top: 0 !important; left: 0 !important; margin: 0 !important; box-shadow: none !important; }
             .controls, .badge-selector, .find-btn, .handle { display: none !important; }
             .note-image-wrapper { border: none !important; }
             textarea::placeholder { color: transparent !important; }
@@ -157,7 +136,7 @@
 </head>
 <body>
     <div class="controls" id="draggable-controls">
-        <button onclick="window.scrollTo(0,0); window.print();">Print / Save PDF</button>
+        <button onclick="window.scrollTo(0,0); window.print();">Print</button>
         <button onclick="toggleFourthCoach()">Add/Remove 4th Coach</button>
         <button onclick="clearAllData()">Reset to Original</button>
     </div>
@@ -176,7 +155,7 @@
                         <textarea id="notes-input" placeholder="NOTES..."></textarea>
                     </div>
                 </div>
-                <div class="staff-row coach-row" id="coach-row"></div>
+                <div class="staff-row coach-row" id="coach-container"></div>
             </div>
         </div>
     </div>
@@ -217,13 +196,13 @@
             let fontSize = 1.0; 
             el.style.fontSize = fontSize + 'em';
             el.style.whiteSpace = 'nowrap';
-            while (el.scrollWidth > el.clientWidth && fontSize > 0.6) {
+            while (el.scrollWidth > el.clientWidth && fontSize > 0.7) {
                 fontSize -= 0.05;
                 el.style.fontSize = fontSize + 'em';
             }
             if (el.scrollWidth > el.clientWidth) {
                 el.style.whiteSpace = 'normal';
-                while (el.scrollHeight > el.clientHeight && fontSize > 0.5) {
+                while (el.scrollHeight > el.clientHeight && fontSize > 0.55) {
                     fontSize -= 0.05;
                     el.style.fontSize = fontSize + 'em';
                 }
@@ -264,8 +243,9 @@
             reader.readAsDataURL(file);
         }
 
-        function triggerMagicSearch(name) {
-            const query = encodeURIComponent(name + " hockey headshot");
+        function triggerMagicSearch(name, isStaff) {
+            const suffix = isStaff ? " hockey coach" : " hockey headshot";
+            const query = encodeURIComponent(name + suffix);
             window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank');
         }
 
@@ -316,7 +296,7 @@
             };
 
             const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
-            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(info.textContent); };
+            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(info.textContent, false); };
             imgCont.appendChild(fBtn);
 
             addBadgeSelector(imgCont, player.name);
@@ -368,9 +348,11 @@
             const sharksDefault = (isSharks && type === 'Coach') ? STAFF_REGISTRY['SJS'][key] : null;
 
             const member = document.createElement('div'); member.className = 'staff-member';
+            member.draggable = true; // COACH DRAGGING ENABLED
+
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
-            
             const staffName = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
+            
             let isStarter = type === 'Goalie' && badges[staffName] === 'Starter';
             if (isStarter) member.classList.add('starter-active');
             if (type === 'Coach' && index === 4 && localStorage.getItem(COACH_TOGGLE_KEY) !== 'true') member.classList.add('hidden-coach');
@@ -419,7 +401,7 @@
             };
 
             const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
-            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(nameInfo.textContent || type); };
+            fBtn.onclick = (e) => { e.stopPropagation(); triggerMagicSearch(nameInfo.textContent, true); };
             imgCont.appendChild(fBtn);
 
             addBadgeSelector(imgCont, staffName, type === 'Goalie');
@@ -430,6 +412,17 @@
 
             member.appendChild(imgCont); member.appendChild(nameInfo);
             setTimeout(() => fitText(nameInfo), 10);
+
+            // STAFF DRAG SWAP LOGIC
+            member.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = member; };
+            member.ondragover = e => e.preventDefault();
+            member.ondrop = e => {
+                if (e.dataTransfer.files.length || !draggedElement || draggedElement === member) return;
+                const p = member.parentElement;
+                const temp = document.createElement('div');
+                p.insertBefore(temp, draggedElement); p.insertBefore(draggedElement, member); p.insertBefore(member, temp); p.removeChild(temp);
+            };
+
             return member;
         }
 
