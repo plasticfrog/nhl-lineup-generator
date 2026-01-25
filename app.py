@@ -31,7 +31,9 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
     best_match = None
     best_score = 0
     
-    ocr_parts = ocr_name.split()
+    # Clean OCR noise
+    ocr_name = ocr_name.upper().replace('3', 'S').replace('5', 'S').replace('1', 'I')
+    ocr_parts = re.sub(r'[^A-Z\s]', '', ocr_name).split()
     
     for roster_name in roster_list:
         if roster_name in used_names:
@@ -48,125 +50,80 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
                 score += 100
             elif ocr_last in roster_last or roster_last in ocr_last:
                 score += 80
-            elif len(ocr_last) >= 4 and len(roster_last) >= 4:
-                if ocr_last[:4] == roster_last[:4]:
-                    score += 60
         
         if len(ocr_parts) > 1 and len(roster_parts) > 1:
-            ocr_first = ocr_parts[0]
-            roster_first = roster_parts[0]
-            
-            if ocr_first == roster_first:
+            if ocr_parts[0] == roster_parts[0]:
                 score += 50
-            elif len(ocr_first) >= 3 and len(roster_first) >= 3:
-                if ocr_first[:3] == roster_first[:3]:
-                    score += 30
-        
-        if ocr_name in roster_name or roster_name in ocr_name:
-            score += 40
         
         if score > best_score:
             best_score = score
             best_match = roster_name
     
-    if best_score >= 50:
-        return best_match
-    
-    return None
+    return best_match if best_score >= 50 else None
 
-def extract_players_via_coordinates(image_file, roster_forwards, roster_defense, expected_f=12, expected_d=6):
-    """New visual extraction logic: Groups words by coordinates to handle stacked names and columns"""
+def extract_via_grid(image_file, roster_subset, cols, rows):
+    """Divides the image into a grid and extracts text cell-by-cell to maintain order"""
     try:
         img = Image.open(image_file)
-        # image_to_data gives us coordinates (left, top, width, height) for every word
+        width, height = img.size
+        # Get OCR data with bounding boxes
         d = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
         
-        words = []
+        # Initialize grid cells to store text found in each jersey area
+        grid_cells = [["" for _ in range(cols)] for _ in range(rows)]
+        
         for i in range(len(d['text'])):
-            txt = d['text'][i].strip()
-            # Only keep words that look like names (Capitalized, letters only)
-            clean = ''.join(c for c in txt if c.isalpha())
-            if len(clean) >= 2:
-                words.append({
-                    'text': clean.upper(),
-                    'left': d['left'][i],
-                    'top': d['top'][i],
-                    'width': d['width'][i],
-                    'height': d['height'][i],
-                    'bottom': d['top'][i] + d['height'][i],
-                    'center_x': d['left'][i] + (d['width'][i] / 2)
-                })
-
-        if not words:
-            return [f"PLAYER {i+1}" for i in range(expected_f)], [f"PLAYER {i+1}" for i in range(expected_d)]
-
-        # Group words that are vertically aligned (names stacked on top of each other)
-        # Logic: If Word B is directly below Word A, they are a name pair
-        pairs = []
-        used_indices = set()
-        
-        for i in range(len(words)):
-            if i in used_indices: continue
-            w1 = words[i]
-            match_found = False
+            text = d['text'][i].strip()
+            if not text or int(d['conf'][i]) < 20:
+                continue
             
-            # Look for a word directly below this one
-            for j in range(len(words)):
-                if i == j or j in used_indices: continue
-                w2 = words[j]
-                
-                # Check if w2 is below w1 and horizontally aligned
-                x_overlap = abs(w1['center_x'] - w2['center_x']) < 30 # Words center within 30px
-                y_gap = w2['top'] - w1['bottom']
-                
-                if x_overlap and 0 < y_gap < 50: # w2 is 0-50 pixels below w1
-                    pairs.append(f"{w1['text']} {w2['text']}")
-                    used_indices.add(i)
-                    used_indices.add(j)
-                    match_found = True
-                    break
+            # Find the center point of the word
+            center_x = d['left'][i] + (d['width'][i] / 2)
+            center_y = d['top'][i] + (d['height'][i] / 2)
             
-            if not match_found:
-                pairs.append(w1['text'])
-                used_indices.add(i)
+            # Determine which grid cell this word belongs to
+            col_idx = int(center_x / (width / cols))
+            row_idx = int(center_y / (height / rows))
+            
+            # Clamp indices
+            col_idx = max(0, min(col_idx, cols - 1))
+            row_idx = max(0, min(row_idx, rows - 1))
+            
+            grid_cells[row_idx][col_idx] += " " + text
 
-        # Match detected name pairs to roster
-        all_roster = roster_forwards + roster_defense
-        matched_skaters = []
-        used_roster = set()
+        final_names = []
+        used_names = set()
         
-        for p in pairs:
-            match = match_name_to_roster(p, all_roster, used_roster)
-            if match:
-                matched_skaters.append(match)
-                used_roster.add(match)
-
-        # Separate based on roster definition
-        forwards = [m for m in matched_skaters if m in roster_forwards][:expected_f]
-        defense = [m for m in matched_skaters if m in roster_defense][:expected_d]
-
-        # Padding
-        while len(forwards) < expected_f: forwards.append(f"PLAYER {len(forwards)+1}")
-        while len(defense) < expected_d: defense.append(f"PLAYER {len(defense)+1}")
-        
-        return forwards, defense
-
+        # Process cells in visual order (Top-to-Bottom, Left-to-Right)
+        for r in range(rows):
+            for c in range(cols):
+                cell_text = grid_cells[r][c].strip()
+                match = match_name_to_roster(cell_text, roster_subset, used_names)
+                if match:
+                    final_names.append(match)
+                    used_names.add(match)
+                else:
+                    # Fallback: keep cleaned OCR text if no roster match found
+                    clean = re.sub(r'[^A-Z\s]', '', cell_text.upper()).strip()
+                    final_names.append(clean if len(clean) > 3 else f"PLAYER {len(final_names)+1}")
+                    
+        return final_names
     except Exception as e:
-        print(f"Coordinate extraction error: {e}")
-        return [f"PLAYER {i+1}" for i in range(expected_f)], [f"PLAYER {i+1}" for i in range(expected_d)]
+        print(f"Grid extraction error: {e}")
+        return [f"PLAYER {i+1}" for i in range(cols * rows)]
 
 def extract_players_from_combined_image(image_file, roster_forwards, roster_defense):
-    """Wrapper to maintain original function name but use the new coordinate logic"""
-    return extract_players_via_coordinates(image_file, roster_forwards, roster_defense)
+    """Handles combined images by splitting the grid into 12 forwards and 6 defense"""
+    # Assuming combined follows standard layout: 3 columns wide
+    all_players = extract_via_grid(image_file, roster_forwards + roster_defense, 3, 6)
+    return all_players[:12], all_players[12:18]
 
 def extract_players_from_image(image_file, expected_count, team_roster):
-    """Wrapper for separate images using coordinate logic"""
+    """Handles separate grid images (3x4 for forwards, 2x3 for defense)"""
     if expected_count == 12:
-        f, _ = extract_players_via_coordinates(image_file, team_roster, [], expected_f=12, expected_d=0)
-        return f
+        return extract_via_grid(image_file, team_roster, 3, 4)
     else:
-        _, d = extract_players_via_coordinates(image_file, [], team_roster, expected_f=0, expected_d=6)
-        return d
+        return extract_via_grid(image_file, team_roster, 2, 3)
 
 def search_player(player_name, known_team=None):
     if player_name.startswith("PLAYER "): return None
@@ -198,6 +155,7 @@ def get_coaches_from_nhl(team_abbrev):
             imgs = soup.find_all('img')
             for img in imgs:
                 alt = img.get('alt', '').lower()
+                src = img.get('src', '')
                 if any(keyword in alt for keyword in ['coach', 'assistant', 'goaltending']):
                     name_match = img.get('alt', '').split('-')[0].strip() if '-' in img.get('alt', '') else img.get('alt', '').strip()
                     role = 'COACH'
@@ -355,7 +313,7 @@ def process_numbers():
                 api_roster[str(p.get('sweaterNumber', ''))] = {'name': f"{p['firstName']['default']} {p['lastName']['default']}".upper(), 'id': p.get('id'), 'is_forward': pg == 'forwards'}
         for p in api_roster_json.get('goalies', [])[:2]:
             num = str(p.get('sweaterNumber', ''))
-            goalies_list.append({'name': f"#{num} {p['lastName']['default'].upper()}", 'id': p.get('id'), 'num': num, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{p.get('id')}.png"})
+            goalies_list.append({'name': f"#{num} {p['lastName']['default'].upper()}", 'id': p.get('id'), 'num': num, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{p['id']}.png"})
         final_coaches = get_coaches_from_nhl(team) or coaches
         all_p = []
         for i, num in enumerate(j_nums[:18]):
