@@ -60,8 +60,42 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
             
     return best_match if best_score >= 50 else None
 
-def extract_from_any_image(image_file, r_forwards, r_defense, r_goalies):
-    """Extract names and sort them into Forward/Defense/Goalie buckets"""
+# --- METHOD A: THE ORIGINAL WORKING SEPARATE LOGIC ---
+def extract_players_from_image(image_file, expected_count, team_roster):
+    """Original logic for Separate images: finds specific count of players"""
+    try:
+        image = Image.open(image_file)
+        text = pytesseract.image_to_string(image, config='--psm 6')
+        lines = text.split('\n')
+        matched_names = []
+        used_roster = set()
+        
+        for line in lines:
+            line = line.strip()
+            if not line: continue
+            alpha = sum(1 for c in line if c.isalpha())
+            if alpha > 10:
+                words = []
+                for word in line.split():
+                    clean = ''.join(c for c in word if c.isalpha() or c == '-')
+                    if clean: words.append(clean.upper())
+                
+                for i in range(len(words)-1):
+                    potential_name = f"{words[i]} {words[i+1]}"
+                    match = match_name_to_roster(potential_name, team_roster, used_roster)
+                    if match and match not in matched_names:
+                        matched_names.append(match)
+                        used_roster.add(match)
+        
+        while len(matched_names) < expected_count:
+            matched_names.append(f"PLAYER {len(matched_names)+1}")
+        return matched_names[:expected_count]
+    except:
+        return [f"PLAYER {i+1}" for i in range(expected_count)]
+
+# --- METHOD B: THE NEW BUCKET LOGIC FOR COMBINED IMAGES ---
+def extract_players_from_combined_image(image_file, roster_forwards, roster_defense, roster_goalies):
+    """New logic for Combined images: Sorts names into buckets to avoid goalie confusion"""
     try:
         image = Image.open(image_file)
         text = pytesseract.image_to_string(image, config='--psm 6')
@@ -74,8 +108,7 @@ def extract_from_any_image(image_file, r_forwards, r_defense, r_goalies):
         while i < len(lines):
             line = lines[i].strip()
             if not line or any(x in line.upper() for x in ['OVERALL', 'HOME', 'ROAD', 'IGP:', 'G:', 'A:', 'P:', 'H:', 'W:', 'ACE:']):
-                i += 1
-                continue
+                i += 1; continue
             
             words = [w.upper() for w in line.split() if len(re.sub(r'[^A-Z0-9]', '', w)) >= 2]
             if len(words) >= 2 and i + 1 < len(lines):
@@ -85,24 +118,14 @@ def extract_from_any_image(image_file, r_forwards, r_defense, r_goalies):
                 if len(next_words) >= 2:
                     for j in range(min(len(words), len(next_words))):
                         full_name = f"{words[j]} {next_words[j]}"
-                        
                         # Bucket Matching
-                        g_match = match_name_to_roster(full_name, r_goalies, used)
-                        if g_match:
-                            found_g.append(g_match); used.add(g_match)
-                            continue
-                        
-                        f_match = match_name_to_roster(full_name, r_forwards, used)
-                        if f_match:
-                            found_f.append(f_match); used.add(f_match)
-                            continue
-                            
-                        d_match = match_name_to_roster(full_name, r_defense, used)
-                        if d_match:
-                            found_d.append(d_match); used.add(d_match)
-                            continue
-                    i += 2
-                    continue
+                        g_match = match_name_to_roster(full_name, roster_goalies, used)
+                        if g_match: found_g.append(g_match); used.add(g_match); continue
+                        f_match = match_name_to_roster(full_name, roster_forwards, used)
+                        if f_match: found_f.append(f_match); used.add(f_match); continue
+                        d_match = match_name_to_roster(full_name, roster_defense, used)
+                        if d_match: found_d.append(d_match); used.add(d_match); continue
+                    i += 2; continue
             i += 1
         return found_f, found_d, found_g
     except:
@@ -118,7 +141,6 @@ def search_player(player_name):
     return None
 
 def get_coaches_from_nhl(team_abbrev):
-    # This is a basic version - your index.html handles the Sharks special list
     coaches = []
     try:
         slug = TEAM_NAME_MAP.get(team_abbrev, team_abbrev.lower())
@@ -150,11 +172,7 @@ def process_lineup():
         forwards_file = request.files.get('forwards')
         defense_file = request.files.get('defense')
         
-        # 1. Detect Team using whatever file is available
         sample_file = combined_file if combined_file else forwards_file
-        if not sample_file:
-            return jsonify({'error': 'No image uploaded'}), 400
-            
         sample_file.seek(0)
         img = Image.open(sample_file)
         text = clean_ocr_text(pytesseract.image_to_string(img, config='--psm 6'))
@@ -164,58 +182,60 @@ def process_lineup():
             res = search_player(f"{words[i]} {words[i+1]}")
             if res and res['team']: found_teams.append(res['team'])
             if len(found_teams) > 3: break
-        
         team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'SJS'
         
-        # 2. Get Full Team Roster
-        r_url = f"https://api-web.nhle.com/v1/roster/{team}/current"
-        roster_json = requests.get(r_url).json()
-        
+        r_json = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
         roster_data = {}
         r_forwards, r_defense, r_goalies = [], [], []
+        goalies_list = []
         
         for pos_key in ['forwards', 'defensemen', 'goalies']:
-            for p in roster_json.get(pos_key, []):
+            for p in r_json.get(pos_key, []):
                 name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
                 roster_data[name] = {'id': p['id'], 'num': str(p['sweaterNumber']), 'name': name}
                 if pos_key == 'forwards': r_forwards.append(name)
                 elif pos_key == 'defensemen': r_defense.append(name)
-                else: r_goalies.append(name)
+                else: 
+                    r_goalies.append(name)
+                    goalies_list.append({'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'id': p['id']})
 
-        # 3. Extract and bucket players
-        f_found, d_found, g_found = [], [], []
+        # --- SELECTION LOGIC ---
+        final_forwards_names = []
+        final_defense_names = []
+        final_goalies_names = []
+
         if combined_file:
+            # USE NEW BUCKET LOGIC
             combined_file.seek(0)
-            f_found, d_found, g_found = extract_from_any_image(combined_file, r_forwards, r_defense, r_goalies)
+            f_found, d_found, g_found = extract_players_from_combined_image(combined_file, r_forwards, r_defense, r_goalies)
+            final_forwards_names = f_found[:12]
+            final_defense_names = d_found[:6]
+            final_goalies_names = g_found[:2]
         else:
+            # USE ORIGINAL SEPARATE LOGIC (UNTOUCHED)
             forwards_file.seek(0)
-            f1, d1, g1 = extract_from_any_image(forwards_file, r_forwards, r_defense, r_goalies)
+            final_forwards_names = extract_players_from_image(forwards_file, 12, r_forwards)
             defense_file.seek(0)
-            f2, d2, g2 = extract_from_any_image(defense_file, r_forwards, r_defense, r_goalies)
-            f_found, d_found, g_found = f1+f2, d1+d2, g1+g2
+            final_defense_names = extract_players_from_image(defense_file, 6, r_defense)
+            final_goalies_names = r_goalies[:2]
 
-        # 4. Build Final Data
-        def build_list(names, count, is_f):
-            results = []
+        def build_obj_list(names, count):
+            res = []
             for name in names[:count]:
                 info = roster_data.get(name, {'id': None, 'num': ''})
-                results.append({
-                    'name': name, 'number': info['num'], 
-                    'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{info['id']}.png" if info['id'] else None
-                })
-            while len(results) < count:
-                results.append({'name': 'EMPTY', 'number': '', 'headshot_url': None})
-            return results
+                res.append({'name': name, 'number': info['num'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{info['id']}.png" if info['id'] else None})
+            while len(res) < count: res.append({'name': 'EMPTY', 'number': '', 'headshot_url': None})
+            return res
 
-        final_goalies = []
-        for g_name in (g_found + r_goalies)[:2]:
+        g_output = []
+        for g_name in (final_goalies_names + r_goalies)[:2]:
             info = roster_data.get(g_name)
-            final_goalies.append({'name': f"#{info['num']} {g_name.split()[-1]}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{info['id']}.png"})
+            g_output.append({'name': f"#{info['num']} {g_name.split()[-1]}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{info['id']}.png"})
 
         return jsonify({
-            'forwards': build_list(f_found, 12, True),
-            'defensemen': build_list(d_found, 6, False),
-            'goalies': final_goalies,
+            'forwards': build_obj_list(final_forwards_names, 12),
+            'defensemen': build_obj_list(final_defense_names, 6),
+            'goalies': g_output,
             'coaches': get_coaches_from_nhl(team),
             'team': team
         })
@@ -230,10 +250,17 @@ def process_numbers():
         lines_text = request.form.get('lines_text')
         lines_screenshot = request.files.get('lines_screenshot')
         
-        # Simple Number Entry logic
-        from app import extract_roster_from_screenshot, extract_line_numbers
-        roster, _ = extract_roster_from_screenshot(roster_screenshot)
-        nums = extract_line_numbers(text=lines_text, image_file=lines_screenshot)
+        # Numbers logic
+        image = Image.open(roster_screenshot)
+        text = pytesseract.image_to_string(image, config='--psm 6')
+        roster = {}
+        for line in text.split('\n'):
+            parts = line.split()
+            if len(parts) >= 3 and parts[0].isdigit():
+                roster[parts[0]] = {'name': ' '.join(parts[1:]).upper()}
+        
+        line_text = lines_text if lines_text else pytesseract.image_to_string(Image.open(lines_screenshot))
+        nums = re.findall(r'\d+', line_text)
         
         api_roster = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
         final_players = []
@@ -245,31 +272,12 @@ def process_numbers():
         return jsonify({
             'forwards': [p for p in final_players if p['is_forward']],
             'defensemen': [p for p in final_players if not p['is_forward']],
-            'goalies': [], # Simplified for numbers
+            'goalies': [],
             'coaches': get_coaches_from_nhl(team),
             'team': team
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-def extract_roster_from_screenshot(image_file):
-    try:
-        image = Image.open(image_file)
-        text = pytesseract.image_to_string(image, config='--psm 6')
-        roster = {}
-        for line in text.split('\n'):
-            parts = line.split()
-            if len(parts) >= 3 and parts[0].isdigit():
-                roster[parts[0]] = {'name': ' '.join(parts[1:]).upper()}
-        return roster, []
-    except: return {}, []
-
-def extract_line_numbers(text=None, image_file=None):
-    if text: return re.findall(r'\d+', text)
-    if image_file:
-        try: return re.findall(r'\d+', pytesseract.image_to_string(Image.open(image_file)))
-        except: return []
-    return []
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
