@@ -28,16 +28,17 @@ TEAM_NAME_MAP = {
 
 def match_name_to_roster(ocr_name, roster_list, used_names):
     """Find best matching name from roster using fuzzy matching"""
-    best_match = None
-    best_score = 0
+    if not ocr_name or len(ocr_name) < 2: return None
     
     # Clean OCR noise
     ocr_name = ocr_name.upper().replace('3', 'S').replace('5', 'S').replace('1', 'I')
     ocr_parts = re.sub(r'[^A-Z\s]', '', ocr_name).split()
     
+    best_match = None
+    best_score = 0
+    
     for roster_name in roster_list:
-        if roster_name in used_names:
-            continue
+        if roster_name in used_names: continue
         
         roster_parts = roster_name.split()
         score = 0
@@ -46,14 +47,11 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
             ocr_last = ocr_parts[-1]
             roster_last = roster_parts[-1]
             
-            if ocr_last == roster_last:
-                score += 100
-            elif ocr_last in roster_last or roster_last in ocr_last:
-                score += 80
+            if ocr_last == roster_last: score += 100
+            elif ocr_last in roster_last or roster_last in ocr_last: score += 80
         
         if len(ocr_parts) > 1 and len(roster_parts) > 1:
-            if ocr_parts[0] == roster_parts[0]:
-                score += 50
+            if ocr_parts[0] == roster_parts[0]: score += 50
         
         if score > best_score:
             best_score = score
@@ -63,98 +61,72 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
 
 def extract_via_grid(image_file, roster_subset, cols, rows):
     """
-    Uses visual clustering to group words into player 'cards'.
-    Ignores image size/resolution and focuses on text proximity.
+    Uses normalized percentage mapping to assign text to grid slots.
+    Works for any screenshot size or resolution.
     """
     try:
         img = Image.open(image_file)
-        # Get data with coordinates
+        # Get detailed OCR data with bounding boxes
         d = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
         
-        # 1. Collect all valid text fragments with their locations
-        fragments = []
+        # 1. Identify the 'Content Area' where actual text exists
+        valid_words = []
         for i in range(len(d['text'])):
             text = d['text'][i].strip()
-            if text and int(d['conf'][i]) > 20:
-                # Ignore common stat labels that aren't names
-                if text.upper() in ["GP", "G", "A", "P", "GAA", "SVP", "IGP", "PTS"]: continue
-                fragments.append({
-                    'text': text,
-                    'cx': d['left'][i] + (d['width'][i] / 2),
-                    'cy': d['top'][i] + (d['height'][i] / 2),
-                    'top': d['top'][i],
-                    'left': d['left'][i],
-                    'height': d['height'][i]
-                })
+            if text and int(d['conf'][i]) > 15:
+                valid_words.append(i)
         
-        if not fragments:
+        if not valid_words:
             return [f"PLAYER {i+1}" for i in range(cols * rows)]
 
-        # 2. Cluster fragments that are physically close (belong to the same jersey/card)
-        # We calculate threshold based on average text height to be resolution-independent
-        avg_h = sum(f['height'] for f in fragments) / len(fragments)
-        x_thresh = avg_h * 4  # Horizontal proximity
-        y_thresh = avg_h * 3  # Vertical proximity
-
-        clusters = []
-        for f in fragments:
-            added = False
-            for cluster in clusters:
-                # Check if this fragment is close to any fragment already in the cluster
-                for member in cluster:
-                    if abs(f['cx'] - member['cx']) < x_thresh and abs(f['cy'] - member['cy']) < y_thresh:
-                        cluster.append(f)
-                        added = True
-                        break
-                if added: break
-            if not added:
-                clusters.append([f])
-
-        # 3. Create a combined text string for each cluster and find its center
-        processed_clusters = []
-        for cluster in clusters:
-            combined_text = " ".join(f['text'] for f in cluster)
-            avg_x = sum(f['cx'] for f in cluster) / len(cluster)
-            avg_y = sum(f['cy'] for f in cluster) / len(cluster)
-            processed_clusters.append({'text': combined_text, 'x': avg_x, 'y': avg_y})
-
-        # 4. Sort clusters: Top-to-Bottom (Rows), then Left-to-Right (Columns)
-        # We use a slight tolerance for Y to group items on the same "row"
-        row_tolerance = avg_h * 2
-        processed_clusters.sort(key=lambda c: c['y'])
+        min_x = min(d['left'][i] for i in valid_words)
+        max_x = max(d['left'][i] + d['width'][i] for i in valid_words)
+        min_y = min(d['top'][i] for i in valid_words)
+        max_y = max(d['top'][i] + d['height'][i] for i in valid_words)
         
-        final_sorted = []
-        while processed_clusters:
-            # Take the top-most cluster and find all others in the same row
-            base_y = processed_clusters[0]['y']
-            row = [c for c in processed_clusters if abs(c['y'] - base_y) < row_tolerance]
-            # Sort the row left-to-right
-            row.sort(key=lambda c: c['x'])
-            final_sorted.extend(row)
-            # Remove processed row
-            processed_clusters = [c for c in processed_clusters if c not in row]
+        content_w = max_x - min_x
+        content_h = max_y - min_y
 
-        # 5. Match sorted clusters to the roster
+        # 2. Divide the Content Area into a virtual grid
+        grid_cells = [["" for _ in range(cols)] for _ in range(rows)]
+        
+        for i in valid_words:
+            text = d['text'][i].strip()
+            # Calculate word center relative to Content Area
+            cx = (d['left'][i] + d['width'][i]/2) - min_x
+            cy = (d['top'][i] + d['height'][i]/2) - min_y
+            
+            # Map to grid index using percentages
+            c_idx = int(cx / (content_w / cols))
+            r_idx = int(cy / (content_h / rows))
+            
+            # Clamp indices
+            c_idx = max(0, min(c_idx, cols - 1))
+            r_idx = max(0, min(r_idx, rows - 1))
+            
+            grid_cells[r_idx][c_idx] += " " + text
+
+        # 3. Match each cell sequentially
         final_names = []
         used_names = set()
-        for cluster in final_sorted:
-            match = match_name_to_roster(cluster['text'], roster_subset, used_names)
-            if match:
-                final_names.append(match)
-                used_names.add(match)
-            else:
-                clean = re.sub(r'[^A-Z\s]', '', cluster['text'].upper()).strip()
-                if len(clean) > 3:
-                    final_names.append(clean)
-
-        # Pad or truncate to match expected count
-        while len(final_names) < (cols * rows):
-            final_names.append(f"PLAYER {len(final_names)+1}")
-            
+        for r in range(rows):
+            for c in range(cols):
+                combined_cell_text = grid_cells[r][c].strip()
+                match = match_name_to_roster(combined_cell_text, roster_subset, used_names)
+                if match:
+                    final_names.append(match)
+                    used_names.add(match)
+                else:
+                    # Clean up noise for custom entries
+                    clean = re.sub(r'[^A-Z\s]', '', combined_cell_text.upper()).strip()
+                    if len(clean) > 3 and clean not in ["GAA", "SVP", "PTS"]:
+                        final_names.append(clean)
+                    else:
+                        final_names.append(f"PLAYER {len(final_names)+1}")
+                    
         return final_names[:cols * rows]
-
     except Exception as e:
-        print(f"Visual Cluster Error: {e}")
+        print(f"Grid Logic Error: {e}")
         return [f"PLAYER {i+1}" for i in range(cols * rows)]
 
 def extract_players_from_combined_image(image_file, roster_forwards, roster_defense):
@@ -204,7 +176,7 @@ def get_coaches_from_nhl(team_abbrev):
                     if 'head coach' in alt: role = 'HEAD COACH'
                     elif 'assistant' in alt: role = 'ASSISTANT COACH'
                     elif 'goaltending' in alt: role = 'GOALTENDING COACH'
-                    coaches_list.append({'name': name_match.upper(), 'role': role, 'headshot_url': src})
+                    coaches_list.append({'name': name_match.upper(), 'role': role, 'headshot_url': img.get('src')})
                     if len(coaches_list) >= 3: break
         return coaches_list
     except: return []
