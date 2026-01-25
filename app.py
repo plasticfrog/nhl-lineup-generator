@@ -62,30 +62,37 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
     return best_match if best_score >= 50 else None
 
 def extract_via_grid(image_file, roster_subset, cols, rows):
-    """Divides the image into a grid and extracts text cell-by-cell to maintain order"""
+    """Divides the image into a grid based on text boundaries to maintain order"""
     try:
         img = Image.open(image_file)
-        width, height = img.size
-        # Get OCR data with bounding boxes
         d = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
         
-        # Initialize grid cells to store text found in each jersey area
+        # 1. Find the "Active Area" where text actually exists
+        valid_indices = [i for i, text in enumerate(d['text']) if text.strip() and int(d['conf'][i]) > 20]
+        
+        if not valid_indices:
+            return [f"PLAYER {i+1}" for i in range(cols * rows)]
+
+        min_x = min(d['left'][i] for i in valid_indices)
+        max_x = max(d['left'][i] + d['width'][i] for i in valid_indices)
+        min_y = min(d['top'][i] for i in valid_indices)
+        max_y = max(d['top'][i] + d['height'][i] for i in valid_indices)
+        
+        active_w = max_x - min_x
+        active_h = max_y - min_y
+
+        # 2. Initialize grid cells
         grid_cells = [["" for _ in range(cols)] for _ in range(rows)]
         
-        for i in range(len(d['text'])):
+        for i in valid_indices:
             text = d['text'][i].strip()
-            if not text or int(d['conf'][i]) < 20:
-                continue
+            # Calculate position relative to the active area bounding box
+            center_x = (d['left'][i] + (d['width'][i] / 2)) - min_x
+            center_y = (d['top'][i] + (d['height'][i] / 2)) - min_y
             
-            # Find the center point of the word
-            center_x = d['left'][i] + (d['width'][i] / 2)
-            center_y = d['top'][i] + (d['height'][i] / 2)
+            col_idx = int(center_x / (active_w / cols))
+            row_idx = int(center_y / (active_h / rows))
             
-            # Determine which grid cell this word belongs to
-            col_idx = int(center_x / (width / cols))
-            row_idx = int(center_y / (height / rows))
-            
-            # Clamp indices
             col_idx = max(0, min(col_idx, cols - 1))
             row_idx = max(0, min(row_idx, rows - 1))
             
@@ -94,7 +101,7 @@ def extract_via_grid(image_file, roster_subset, cols, rows):
         final_names = []
         used_names = set()
         
-        # Process cells in visual order (Top-to-Bottom, Left-to-Right)
+        # 3. Process visual order
         for r in range(rows):
             for c in range(cols):
                 cell_text = grid_cells[r][c].strip()
@@ -103,7 +110,6 @@ def extract_via_grid(image_file, roster_subset, cols, rows):
                     final_names.append(match)
                     used_names.add(match)
                 else:
-                    # Fallback: keep cleaned OCR text if no roster match found
                     clean = re.sub(r'[^A-Z\s]', '', cell_text.upper()).strip()
                     final_names.append(clean if len(clean) > 3 else f"PLAYER {len(final_names)+1}")
                     
@@ -113,13 +119,10 @@ def extract_via_grid(image_file, roster_subset, cols, rows):
         return [f"PLAYER {i+1}" for i in range(cols * rows)]
 
 def extract_players_from_combined_image(image_file, roster_forwards, roster_defense):
-    """Handles combined images by splitting the grid into 12 forwards and 6 defense"""
-    # Assuming combined follows standard layout: 3 columns wide
     all_players = extract_via_grid(image_file, roster_forwards + roster_defense, 3, 6)
     return all_players[:12], all_players[12:18]
 
 def extract_players_from_image(image_file, expected_count, team_roster):
-    """Handles separate grid images (3x4 for forwards, 2x3 for defense)"""
     if expected_count == 12:
         return extract_via_grid(image_file, team_roster, 3, 4)
     else:
@@ -162,7 +165,7 @@ def get_coaches_from_nhl(team_abbrev):
                     if 'head coach' in alt: role = 'HEAD COACH'
                     elif 'assistant' in alt: role = 'ASSISTANT COACH'
                     elif 'goaltending' in alt: role = 'GOALTENDING COACH'
-                    coaches_list.append({'name': name_match.upper(), 'role': role, 'headshot_url': img.get('src')})
+                    coaches_list.append({'name': name_match.upper(), 'role': role, 'headshot_url': src})
                     if len(coaches_list) >= 3: break
         return coaches_list
     except: return []
