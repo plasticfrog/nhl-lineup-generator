@@ -62,62 +62,102 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
     return best_match if best_score >= 50 else None
 
 def extract_via_grid(image_file, roster_subset, cols, rows):
-    """Aligns the grid to the actual text content to ensure perfect column/row mapping"""
+    """
+    Uses visual clustering to group words into player 'cards'.
+    Ignores image size/resolution and focuses on text proximity.
+    """
     try:
         img = Image.open(image_file)
+        # Get data with coordinates
         d = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
         
-        # 1. Find the boundaries of where text actually exists
-        valid_indices = [i for i, text in enumerate(d['text']) if text.strip() and int(d['conf'][i]) > 20]
+        # 1. Collect all valid text fragments with their locations
+        fragments = []
+        for i in range(len(d['text'])):
+            text = d['text'][i].strip()
+            if text and int(d['conf'][i]) > 20:
+                # Ignore common stat labels that aren't names
+                if text.upper() in ["GP", "G", "A", "P", "GAA", "SVP", "IGP", "PTS"]: continue
+                fragments.append({
+                    'text': text,
+                    'cx': d['left'][i] + (d['width'][i] / 2),
+                    'cy': d['top'][i] + (d['height'][i] / 2),
+                    'top': d['top'][i],
+                    'left': d['left'][i],
+                    'height': d['height'][i]
+                })
         
-        if not valid_indices:
+        if not fragments:
             return [f"PLAYER {i+1}" for i in range(cols * rows)]
 
-        min_x = min(d['left'][i] for i in valid_indices)
-        max_x = max(d['left'][i] + d['width'][i] for i in valid_indices)
-        min_y = min(d['top'][i] for i in valid_indices)
-        max_y = max(d['top'][i] + d['height'][i] for i in valid_indices)
-        
-        active_w = max_x - min_x
-        active_h = max_y - min_y
+        # 2. Cluster fragments that are physically close (belong to the same jersey/card)
+        # We calculate threshold based on average text height to be resolution-independent
+        avg_h = sum(f['height'] for f in fragments) / len(fragments)
+        x_thresh = avg_h * 4  # Horizontal proximity
+        y_thresh = avg_h * 3  # Vertical proximity
 
-        # 2. Assign text to grid cells relative to the text-active area
-        grid_cells = [["" for _ in range(cols)] for _ in range(rows)]
-        
-        for i in valid_indices:
-            text = d['text'][i].strip()
-            center_x = (d['left'][i] + (d['width'][i] / 2)) - min_x
-            center_y = (d['top'][i] + (d['height'][i] / 2)) - min_y
-            
-            col_idx = int(center_x / (active_w / cols))
-            row_idx = int(center_y / (active_h / rows))
-            
-            col_idx = max(0, min(col_idx, cols - 1))
-            row_idx = max(0, min(row_idx, rows - 1))
-            
-            grid_cells[row_idx][col_idx] += " " + text
+        clusters = []
+        for f in fragments:
+            added = False
+            for cluster in clusters:
+                # Check if this fragment is close to any fragment already in the cluster
+                for member in cluster:
+                    if abs(f['cx'] - member['cx']) < x_thresh and abs(f['cy'] - member['cy']) < y_thresh:
+                        cluster.append(f)
+                        added = True
+                        break
+                if added: break
+            if not added:
+                clusters.append([f])
 
+        # 3. Create a combined text string for each cluster and find its center
+        processed_clusters = []
+        for cluster in clusters:
+            combined_text = " ".join(f['text'] for f in cluster)
+            avg_x = sum(f['cx'] for f in cluster) / len(cluster)
+            avg_y = sum(f['cy'] for f in cluster) / len(cluster)
+            processed_clusters.append({'text': combined_text, 'x': avg_x, 'y': avg_y})
+
+        # 4. Sort clusters: Top-to-Bottom (Rows), then Left-to-Right (Columns)
+        # We use a slight tolerance for Y to group items on the same "row"
+        row_tolerance = avg_h * 2
+        processed_clusters.sort(key=lambda c: c['y'])
+        
+        final_sorted = []
+        while processed_clusters:
+            # Take the top-most cluster and find all others in the same row
+            base_y = processed_clusters[0]['y']
+            row = [c for c in processed_clusters if abs(c['y'] - base_y) < row_tolerance]
+            # Sort the row left-to-right
+            row.sort(key=lambda c: c['x'])
+            final_sorted.extend(row)
+            # Remove processed row
+            processed_clusters = [c for c in processed_clusters if c not in row]
+
+        # 5. Match sorted clusters to the roster
         final_names = []
         used_names = set()
-        
-        for r in range(rows):
-            for c in range(cols):
-                cell_text = grid_cells[r][c].strip()
-                match = match_name_to_roster(cell_text, roster_subset, used_names)
-                if match:
-                    final_names.append(match)
-                    used_names.add(match)
-                else:
-                    clean = re.sub(r'[^A-Z\s]', '', cell_text.upper()).strip()
-                    final_names.append(clean if len(clean) > 3 else f"PLAYER {len(final_names)+1}")
-                    
-        return final_names
+        for cluster in final_sorted:
+            match = match_name_to_roster(cluster['text'], roster_subset, used_names)
+            if match:
+                final_names.append(match)
+                used_names.add(match)
+            else:
+                clean = re.sub(r'[^A-Z\s]', '', cluster['text'].upper()).strip()
+                if len(clean) > 3:
+                    final_names.append(clean)
+
+        # Pad or truncate to match expected count
+        while len(final_names) < (cols * rows):
+            final_names.append(f"PLAYER {len(final_names)+1}")
+            
+        return final_names[:cols * rows]
+
     except Exception as e:
-        print(f"Grid extraction error: {e}")
+        print(f"Visual Cluster Error: {e}")
         return [f"PLAYER {i+1}" for i in range(cols * rows)]
 
 def extract_players_from_combined_image(image_file, roster_forwards, roster_defense):
-    # Combined images are assumed to be 3 columns wide
     all_players = extract_via_grid(image_file, roster_forwards + roster_defense, 3, 6)
     return all_players[:12], all_players[12:18]
 
