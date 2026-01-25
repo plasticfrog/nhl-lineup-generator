@@ -28,17 +28,14 @@ TEAM_NAME_MAP = {
 
 def match_name_to_roster(ocr_name, roster_list, used_names):
     """Find best matching name from roster using fuzzy matching"""
-    if not ocr_name or len(ocr_name) < 2: return None
-    
-    # Clean OCR noise
-    ocr_name = ocr_name.upper().replace('3', 'S').replace('5', 'S').replace('1', 'I')
-    ocr_parts = re.sub(r'[^A-Z\s]', '', ocr_name).split()
-    
     best_match = None
     best_score = 0
     
+    ocr_parts = ocr_name.split()
+    
     for roster_name in roster_list:
-        if roster_name in used_names: continue
+        if roster_name in used_names:
+            continue
         
         roster_parts = roster_name.split()
         score = 0
@@ -47,100 +44,97 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
             ocr_last = ocr_parts[-1]
             roster_last = roster_parts[-1]
             
-            if ocr_last == roster_last: score += 100
-            elif ocr_last in roster_last or roster_last in ocr_last: score += 80
+            if ocr_last == roster_last:
+                score += 100
+            elif ocr_last in roster_last or roster_last in ocr_last:
+                score += 80
+            elif len(ocr_last) >= 4 and len(roster_last) >= 4:
+                if ocr_last[:4] == roster_last[:4]:
+                    score += 60
         
         if len(ocr_parts) > 1 and len(roster_parts) > 1:
-            if ocr_parts[0] == roster_parts[0]: score += 50
+            ocr_first = ocr_parts[0]
+            roster_first = roster_parts[0]
+            
+            if ocr_first == roster_first:
+                score += 50
+            elif len(ocr_first) >= 3 and len(roster_first) >= 3:
+                if ocr_first[:3] == roster_first[:3]:
+                    score += 30
+        
+        if ocr_name in roster_name or roster_name in ocr_name:
+            score += 40
         
         if score > best_score:
             best_score = score
             best_match = roster_name
     
-    return best_match if best_score >= 50 else None
+    if best_score >= 50:
+        return best_match
+    
+    return None
 
-def extract_via_grid(image_file, roster_subset, cols, rows):
-    """
-    Uses normalized percentage mapping to assign text to grid slots.
-    Works for any screenshot size or resolution.
-    """
+def extract_via_visual_grid(image_file, roster_subset, cols, rows):
+    """Core logic: Divides image area into grid bins and matches text found in each bin"""
     try:
         img = Image.open(image_file)
-        # Get detailed OCR data with bounding boxes
+        width, height = img.size
+        # Get coordinates for every word found in the image
         d = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
         
-        # 1. Identify the 'Content Area' where actual text exists
-        valid_words = []
+        # Create visual bins for each player slot in the grid
+        grid_bins = [["" for _ in range(cols)] for _ in range(rows)]
+        
         for i in range(len(d['text'])):
             text = d['text'][i].strip()
-            if text and int(d['conf'][i]) > 15:
-                valid_words.append(i)
-        
-        if not valid_words:
-            return [f"PLAYER {i+1}" for i in range(cols * rows)]
-
-        min_x = min(d['left'][i] for i in valid_words)
-        max_x = max(d['left'][i] + d['width'][i] for i in valid_words)
-        min_y = min(d['top'][i] for i in valid_words)
-        max_y = max(d['top'][i] + d['height'][i] for i in valid_words)
-        
-        content_w = max_x - min_x
-        content_h = max_y - min_y
-
-        # 2. Divide the Content Area into a virtual grid
-        grid_cells = [["" for _ in range(cols)] for _ in range(rows)]
-        
-        for i in valid_words:
-            text = d['text'][i].strip()
-            # Calculate word center relative to Content Area
-            cx = (d['left'][i] + d['width'][i]/2) - min_x
-            cy = (d['top'][i] + d['height'][i]/2) - min_y
+            # Basic cleanup and confidence check
+            if not text or int(d['conf'][i]) < 15: continue
             
-            # Map to grid index using percentages
-            c_idx = int(cx / (content_w / cols))
-            r_idx = int(cy / (content_h / rows))
+            # Find which visual box this text belongs to
+            cx = d['left'][i] + (d['width'][i] / 2)
+            cy = d['top'][i] + (d['height'][i] / 2)
             
-            # Clamp indices
-            c_idx = max(0, min(c_idx, cols - 1))
-            r_idx = max(0, min(r_idx, rows - 1))
-            
-            grid_cells[r_idx][c_idx] += " " + text
+            col_idx = min(int(cx / (width / cols)), cols - 1)
+            row_idx = min(int(cy / (height / rows)), rows - 1)
+            grid_bins[row_idx][col_idx] += " " + text
 
-        # 3. Match each cell sequentially
         final_names = []
         used_names = set()
+        
+        # Process bins in order (Row 1 Col 1, Row 1 Col 2...)
         for r in range(rows):
             for c in range(cols):
-                combined_cell_text = grid_cells[r][c].strip()
-                match = match_name_to_roster(combined_cell_text, roster_subset, used_names)
+                raw_bin_text = grid_bins[r][c].strip().upper()
+                # Clean OCR noise
+                clean_text = raw_bin_text.replace('3', 'S').replace('5', 'S').replace('1', 'I')
+                match = match_name_to_roster(clean_text, roster_subset, used_names)
                 if match:
                     final_names.append(match)
                     used_names.add(match)
                 else:
-                    # Clean up noise for custom entries
-                    clean = re.sub(r'[^A-Z\s]', '', combined_cell_text.upper()).strip()
-                    if len(clean) > 3 and clean not in ["GAA", "SVP", "PTS"]:
-                        final_names.append(clean)
-                    else:
-                        final_names.append(f"PLAYER {len(final_names)+1}")
-                    
-        return final_names[:cols * rows]
-    except Exception as e:
-        print(f"Grid Logic Error: {e}")
+                    # Fallback to cleaned text if no match, or generic placeholder
+                    fallback = re.sub(r'[^A-Z\s]', '', clean_text).strip()
+                    final_names.append(fallback if len(fallback) > 3 else f"PLAYER {len(final_names)+1}")
+        return final_names
+    except:
         return [f"PLAYER {i+1}" for i in range(cols * rows)]
 
 def extract_players_from_combined_image(image_file, roster_forwards, roster_defense):
-    all_players = extract_via_grid(image_file, roster_forwards + roster_defense, 3, 6)
+    """Extract players from single image maintain 3-column grid order"""
+    all_players = extract_via_visual_grid(image_file, roster_forwards + roster_defense, 3, 6)
     return all_players[:12], all_players[12:18]
 
 def extract_players_from_image(image_file, expected_count, team_roster):
+    """Extract player names from separate grid image (3x4 for forwards, 2x3 for defense)"""
     if expected_count == 12:
-        return extract_via_grid(image_file, team_roster, 3, 4)
+        return extract_via_visual_grid(image_file, team_roster, 3, 4)
     else:
-        return extract_via_grid(image_file, team_roster, 2, 3)
+        return extract_via_visual_grid(image_file, team_roster, 2, 3)
 
 def search_player(player_name, known_team=None):
-    if player_name.startswith("PLAYER "): return None
+    """Search for player using NHL API"""
+    if player_name.startswith("PLAYER "):
+        return None
     try:
         search_name = player_name.lower().replace(' ', '%20')
         search_url = f"https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q={search_name}"
@@ -152,12 +146,22 @@ def search_player(player_name, known_team=None):
                 for player in data:
                     player_full_name = player.get('name', '').upper()
                     if player_name.upper() in player_full_name or player_full_name in player_name.upper():
-                        return {'id': player.get('playerId'), 'team': player.get('teamAbbrev', None), 'full_name': player.get('name')}
-                return {'id': data[0].get('playerId'), 'team': data[0].get('teamAbbrev', None), 'full_name': data[0].get('name')}
-    except: pass
+                        return {
+                            'id': player.get('playerId'),
+                            'team': player.get('teamAbbrev', None),
+                            'full_name': player.get('name')
+                        }
+                return {
+                    'id': data[0].get('playerId'),
+                    'team': data[0].get('teamAbbrev', None),
+                    'full_name': data[0].get('name')
+                }
+    except:
+        pass
     return None
 
 def get_coaches_from_nhl(team_abbrev):
+    """Scrape coaches from NHL.com team coaches page"""
     coaches_list = []
     try:
         team_slug = TEAM_NAME_MAP.get(team_abbrev, team_abbrev.lower())
@@ -176,167 +180,91 @@ def get_coaches_from_nhl(team_abbrev):
                     if 'head coach' in alt: role = 'HEAD COACH'
                     elif 'assistant' in alt: role = 'ASSISTANT COACH'
                     elif 'goaltending' in alt: role = 'GOALTENDING COACH'
-                    coaches_list.append({'name': name_match.upper(), 'role': role, 'headshot_url': img.get('src')})
-                    if len(coaches_list) >= 3: break
-        return coaches_list
-    except: return []
+                    coaches_list.append({
+                        'name': name_match.upper(),
+                        'role': role,
+                        'headshot_url': src
+                    })
+                    if len(coaches_list) >= 3:
+                        break
+        return coaches_list[:3]
+    except Exception as e:
+        return []
 
 def extract_roster_from_screenshot(image_file):
+    """Extract player roster from stats table screenshot"""
     try:
         image = Image.open(image_file)
         text = pytesseract.image_to_string(image, config='--psm 6')
         lines = text.split('\n')
-        roster, coaches, in_coaching = {}, [], False
+        roster = {}
+        coaches = []
+        in_coaching_section = False
         for line in lines:
             line = line.strip()
-            if not line or len(line) < 5: continue
+            if not line or len(line) < 5:
+                continue
             if any(x in line.lower() for x in ['head coach', 'assistant coach', 'coach']):
-                in_coaching = True
+                in_coaching_section = True
                 parts = line.split()
                 if len(parts) >= 3:
-                    coaches.append({'role': 'HEAD COACH' if 'head' in line.lower() else 'ASSISTANT COACH', 'name': ' '.join(parts[-2:]).upper()})
+                    coach_name = ' '.join(parts[-2:])
+                    if sum(c.isalpha() for c in coach_name) > 5:
+                        coaches.append({
+                            'role': 'HEAD COACH' if 'head' in line.lower() else 'ASSISTANT COACH',
+                            'name': coach_name.upper()
+                        })
                 continue
-            if in_coaching:
+            if in_coaching_section:
                 parts = [p for p in line.split() if sum(c.isalpha() for c in p) > 2]
-                if len(parts) >= 2: coaches.append({'role': 'COACH', 'name': ' '.join(parts[-2:]).upper()})
+                if len(parts) >= 2:
+                    coach_name = ' '.join(parts[-2:]) if len(parts) >= 2 else parts[-1]
+                    if sum(c.isalpha() for c in coach_name) > 5:
+                        coaches.append({
+                            'role': 'COACH',
+                            'name': coach_name.upper()
+                        })
                 continue
             parts = line.split()
-            if len(parts) < 3 or not parts[0].isdigit(): continue
-            num = parts[0]
-            pos = 'F'
-            idx = 1
+            if len(parts) < 3 or not parts[0].isdigit():
+                continue
+            number = parts[0]
+            position = None
+            name_start_idx = 1
             if len(parts[1]) == 1 and parts[1] in ['C', 'L', 'R', 'D', 'W']:
-                pos = 'F' if parts[1] in ['C', 'L', 'R', 'W'] else 'D'
-                idx = 2
-            name = []
-            for i in range(idx, len(parts)):
-                if parts[i].isdigit(): break
-                name.append(parts[i])
-            if len(name) >= 2: roster[num] = {'name': ' '.join(name).upper(), 'position': pos}
+                position = 'F' if parts[1] in ['C', 'L', 'R', 'W'] else 'D'
+                name_start_idx = 2
+            if len(parts) > name_start_idx:
+                name_parts = []
+                for i in range(name_start_idx, len(parts)):
+                    word = parts[i]
+                    if word.isdigit() and len(word) <= 3:
+                        break
+                    if sum(c.isalpha() for c in word) >= len(word) * 0.5:
+                        name_parts.append(word)
+                if len(name_parts) >= 2:
+                    full_name = ' '.join(name_parts).upper()
+                    roster[number] = {
+                        'name': full_name,
+                        'position': position or 'F'
+                    }
         return roster, coaches
-    except: return {}, []
+    except:
+        return {}, []
 
 def extract_line_numbers(text=None, image_file=None):
+    """Extract jersey numbers from text or screenshot"""
+    numbers = []
     if text:
         text = re.sub(r'^\w+\s*\n', '', text)
-        return re.findall(r'\d+', text.replace('/', '-'))
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line: continue
+            line = line.replace('/', '-')
+            found_numbers = re.findall(r'\d+', line)
+            numbers.extend(found_numbers)
     elif image_file:
         try:
-            return re.findall(r'\d+', pytesseract.image_to_string(Image.open(image_file), config='--psm 6'))
-        except: pass
-    return []
-
-@app.route('/')
-def index(): return render_template('index.html')
-
-@app.route('/numbers')
-def numbers_page(): return render_template('index_numbers.html')
-
-@app.route('/lineup')
-def lineup(): return render_template('lineup.html')
-
-@app.route('/process', methods=['POST'])
-def process_lineup():
-    try:
-        combined_file = request.files.get('combined')
-        forwards_file = request.files.get('forwards')
-        defense_file = request.files.get('defense')
-        if not combined_file and not (forwards_file and defense_file): return jsonify({'error': 'Screenshots required'}), 400
-        
-        temp_names = []
-        sample = combined_file if combined_file else forwards_file
-        sample.seek(0)
-        text = pytesseract.image_to_string(Image.open(sample), config='--psm 6')
-        lines = text.split('\n')
-        for line in lines[5:]:
-            if sum(1 for c in line if c.isalpha()) > 20:
-                words = [w for w in line.split() if len(''.join(c for c in w if c.isalpha())) >= 3]
-                if len(words) >= 4:
-                    temp_names.append(f"{words[0]} {words[1]}")
-                    if len(temp_names) >= 5: break
-        
-        found_teams = []
-        for name in temp_names[:8]:
-            res = search_player(name)
-            if res and res['team']: found_teams.append(res['team'])
-        
-        team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'SJS'
-        roster_url = f"https://api-web.nhle.com/v1/roster/{team}/current"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        r_json = requests.get(roster_url, headers=headers, timeout=10).json()
-        
-        roster_data, goalies_list = {}, []
-        for pg in ['forwards', 'defensemen']:
-            for p in r_json.get(pg, []):
-                full = f"{p['firstName']['default']} {p['lastName']['default']}".strip().upper()
-                roster_data[full] = {'id': p['id'], 'num': str(p['sweaterNumber']), 'is_forward': pg == 'forwards'}
-        
-        for p in r_json.get('goalies', [])[:2]:
-            num = str(p.get('sweaterNumber', ''))
-            goalies_list.append({
-                'name': f"#{num} {p['lastName']['default'].upper()}",
-                'id': p['id'], 'num': num,
-                'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{p['id']}.png"
-            })
-            
-        r_f = [n for n, d in roster_data.items() if d['is_forward']]
-        r_d = [n for n, d in roster_data.items() if not d['is_forward']]
-        
-        if combined_file:
-            combined_file.seek(0)
-            forwards, defensemen = extract_players_from_combined_image(combined_file, r_f, r_d)
-        else:
-            forwards_file.seek(0); defense_file.seek(0)
-            forwards = extract_players_from_image(forwards_file, 12, r_f)
-            defensemen = extract_players_from_image(defense_file, 6, r_d)
-            
-        all_p = []
-        for n in forwards + defensemen:
-            info = roster_data.get(n, {'id': None, 'num': '', 'is_forward': n in forwards})
-            all_p.append({
-                'name': n, 'id': info['id'], 'team': team, 'number': info['num'], 'is_forward': info['is_forward'],
-                'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{info['id']}.png" if info['id'] else None
-            })
-            
-        return jsonify({'forwards': [p for p in all_p if p['is_forward']], 'defensemen': [p for p in all_p if not p['is_forward']], 'goalies': goalies_list, 'coaches': get_coaches_from_nhl(team), 'team': team})
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/process_numbers', methods=['POST'])
-def process_numbers():
-    try:
-        team = request.form.get('team')
-        lines_text = request.form.get('lines_text')
-        lines_screenshot = request.files.get('lines_screenshot')
-        roster_screenshot = request.files.get('roster_screenshot')
-        if not team or not roster_screenshot: return jsonify({'error': 'Missing data'}), 400
-        roster_screenshot.seek(0)
-        roster, coaches = extract_roster_from_screenshot(roster_screenshot)
-        if not roster: return jsonify({'error': 'OCR failed'}), 400
-        if lines_screenshot:
-            lines_screenshot.seek(0)
-            j_nums = extract_line_numbers(image_file=lines_screenshot)
-        else:
-            j_nums = extract_line_numbers(text=lines_text)
-        api_roster_json = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current", timeout=10).json()
-        api_roster, goalies_list = {}, []
-        for pg in ['forwards', 'defensemen']:
-            for p in api_roster_json.get(pg, []):
-                api_roster[str(p.get('sweaterNumber', ''))] = {'name': f"{p['firstName']['default']} {p['lastName']['default']}".upper(), 'id': p.get('id'), 'is_forward': pg == 'forwards'}
-        for p in api_roster_json.get('goalies', [])[:2]:
-            num = str(p.get('sweaterNumber', ''))
-            goalies_list.append({'name': f"#{num} {p['lastName']['default'].upper()}", 'id': p.get('id'), 'num': num, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{p['id']}.png"})
-        final_coaches = get_coaches_from_nhl(team) or coaches
-        all_p = []
-        for i, num in enumerate(j_nums[:18]):
-            p_api = api_roster.get(num)
-            name = p_api['name'] if p_api else (roster.get(num, {}).get('name') or f"PLAYER #{num}")
-            all_p.append({'name': name, 'id': p_api['id'] if p_api else None, 'team': team, 'number': num, 'is_forward': i < 12, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{p_api['id']}.png" if p_api else None})
-        return jsonify({'forwards': [p for p in all_p if p['is_forward']], 'defensemen': [p for p in all_p if not p['is_forward']], 'goalies': goalies_list, 'coaches': final_coaches[:3], 'team': team})
-    except Exception as e: return jsonify({'error': str(e)}), 500
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+            image = Image.open(image_file)
+            text = pytesseract.image_to_string(image, c
