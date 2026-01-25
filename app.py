@@ -62,12 +62,12 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
     return best_match if best_score >= 50 else None
 
 def extract_via_grid(image_file, roster_subset, cols, rows):
-    """Divides the image into a grid based on text boundaries to maintain order"""
+    """Aligns the grid to the actual text content to ensure perfect column/row mapping"""
     try:
         img = Image.open(image_file)
         d = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
         
-        # 1. Find the "Active Area" where text actually exists
+        # 1. Find the boundaries of where text actually exists
         valid_indices = [i for i, text in enumerate(d['text']) if text.strip() and int(d['conf'][i]) > 20]
         
         if not valid_indices:
@@ -81,12 +81,11 @@ def extract_via_grid(image_file, roster_subset, cols, rows):
         active_w = max_x - min_x
         active_h = max_y - min_y
 
-        # 2. Initialize grid cells
+        # 2. Assign text to grid cells relative to the text-active area
         grid_cells = [["" for _ in range(cols)] for _ in range(rows)]
         
         for i in valid_indices:
             text = d['text'][i].strip()
-            # Calculate position relative to the active area bounding box
             center_x = (d['left'][i] + (d['width'][i] / 2)) - min_x
             center_y = (d['top'][i] + (d['height'][i] / 2)) - min_y
             
@@ -101,7 +100,6 @@ def extract_via_grid(image_file, roster_subset, cols, rows):
         final_names = []
         used_names = set()
         
-        # 3. Process visual order
         for r in range(rows):
             for c in range(cols):
                 cell_text = grid_cells[r][c].strip()
@@ -119,6 +117,7 @@ def extract_via_grid(image_file, roster_subset, cols, rows):
         return [f"PLAYER {i+1}" for i in range(cols * rows)]
 
 def extract_players_from_combined_image(image_file, roster_forwards, roster_defense):
+    # Combined images are assumed to be 3 columns wide
     all_players = extract_via_grid(image_file, roster_forwards + roster_defense, 3, 6)
     return all_players[:12], all_players[12:18]
 
