@@ -31,24 +31,18 @@ def clean_ocr_text(text):
     return text.replace('3', 'S').replace('5', 'S').replace('0', 'O').replace('1', 'I').replace('4', 'A').replace('8', 'B')
 
 def match_player(ocr_text, roster_dict, used_ids):
-    """
-    Primary matching logic: 
-    1. Try matching by Jersey Number found in text
-    2. Fallback to fuzzy name matching
-    """
+    """Matches by Number first, then fuzzy name matching"""
     clean_text = clean_ocr_text(ocr_text.upper())
-    
-    # Try to find a number in the string (e.g., "#91" or "91")
     numbers_found = re.findall(r'\d+', clean_text)
     
-    # Match by Number first (Most accurate)
+    # 1. Match by Number (Highly accurate for jersey graphics)
     if numbers_found:
         for num in numbers_found:
             for name, data in roster_dict.items():
                 if data['num'] == num and data['id'] not in used_ids:
                     return name
 
-    # Fallback to Name matching if number fails or is wrong
+    # 2. Fallback to Name matching
     best_match = None
     best_score = 0
     ocr_parts = re.sub(r'[^A-Z\s]', '', clean_text).split()
@@ -70,7 +64,7 @@ def extract_in_order(image_file, roster_dict, expected_count):
     """Extracts players line-by-line to preserve grid order"""
     try:
         image = Image.open(image_file)
-        # Use a specific config to prioritize finding blocks of text/numbers
+        # PSM 11 is great for jerseys, PSM 6 is a backup for text blocks
         text = pytesseract.image_to_string(image, config='--psm 11')
         lines = text.split('\n')
         
@@ -79,10 +73,9 @@ def extract_in_order(image_file, roster_dict, expected_count):
         
         for line in lines:
             line = line.strip()
-            if len(line) < 3: continue
+            if len(line) < 2: continue
             
-            # Look for chunks that contain a number and a name
-            # We split the line by large gaps to find individual "cards"
+            # Split line into chunks (handling the gaps between jerseys)
             parts = re.split(r'\s{2,}', line)
             for part in parts:
                 if len(part) < 2: continue
@@ -90,10 +83,18 @@ def extract_in_order(image_file, roster_dict, expected_count):
                 if match:
                     found_players.append(match)
                     used_ids.add(roster_dict[match]['id'])
-                    if len(found_players) >= expected_count:
-                        return found_players
+                else:
+                    # If we found a name but it's not on roster (like Toews), 
+                    # keep the raw text so the user can see it
+                    clean_name = re.sub(r'[^A-Z\s]', '', clean_ocr_text(part)).strip()
+                    if len(clean_name) > 4 and clean_name not in ["GP", "GAA"]:
+                        found_players.append(clean_name)
+                
+                if len(found_players) >= expected_count:
+                    return found_players
         return found_players
-    except:
+    except Exception as e:
+        print(f"Extraction Error: {e}")
         return []
 
 def get_coaches_from_nhl(team_abbrev):
@@ -136,11 +137,13 @@ def process_lineup():
         found_teams = []
         for i in range(len(words)-1):
             search_name = f"{words[i]}%20{words[i+1]}".lower()
-            res = requests.get(f"https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=1&q={search_name}").json()
-            if res: found_teams.append(res[0].get('teamAbbrev'))
+            try:
+                res = requests.get(f"https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=1&q={search_name}", timeout=5).json()
+                if res: found_teams.append(res[0].get('teamAbbrev'))
+            except: pass
             if len(found_teams) > 2: break
         
-        team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'VAN'
+        team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'WPG'
         
         # Get Official Roster
         r_json = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
@@ -164,16 +167,27 @@ def process_lineup():
             final_forwards = all_found[:12]
             final_defense = all_found[12:18]
         else:
-            forwards_file.seek(0)
-            final_forwards = extract_in_order(forwards_file, roster_data, 12)
-            defense_file.seek(0)
-            final_defense = extract_in_order(defense_file, roster_data, 6)
+            if forwards_file:
+                forwards_file.seek(0)
+                final_forwards = extract_in_order(forwards_file, roster_data, 12)
+            if defense_file:
+                defense_file.seek(0)
+                final_defense = extract_in_order(defense_file, roster_data, 6)
 
         def build_output(names, count):
             res = []
             for name in names:
                 info = roster_data.get(name)
-                res.append({'name': name, 'number': info['num'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{info['id']}.png"})
+                if info:
+                    res.append({
+                        'name': name, 
+                        'number': info['num'], 
+                        'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{team}/{info['id']}.png"
+                    })
+                else:
+                    # SAFETY: Player not on official roster (retired/custom)
+                    res.append({'name': name, 'number': '', 'headshot_url': None})
+            
             while len(res) < count:
                 res.append({'name': 'EMPTY', 'number': '', 'headshot_url': None})
             return res
@@ -181,7 +195,10 @@ def process_lineup():
         g_output = []
         for g_name in r_goalies[:2]:
             info = roster_data[g_name]
-            g_output.append({'name': f"#{info['num']} {g_name.split()[-1]}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20252026/{team}/{info['id']}.png"})
+            g_output.append({
+                'name': f"#{info['num']} {g_name.split()[-1]}", 
+                'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{team}/{info['id']}.png"
+            })
 
         return jsonify({
             'forwards': build_output(final_forwards, 12),
@@ -191,6 +208,7 @@ def process_lineup():
             'team': team
         })
     except Exception as e:
+        print(f"Process Error: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
