@@ -108,7 +108,8 @@ def get_coaches_from_nhl(team_abbrev):
                 coaches.append({'name': alt.split('-')[0].strip(), 'role': 'COACH', 'headshot_url': img.get('src')})
                 if len(coaches) >= 4: break
         return coaches
-    except: return []
+    except: pass
+    return []
 
 def extract_roster_from_screenshot(image_file):
     try:
@@ -184,38 +185,67 @@ def process_lineup():
                 cx, cy = data['left'][i] + data['width'][i]/2, data['top'][i] + data['height'][i]/2
                 found = False
                 for j in jerseys:
-                    if abs(cy - j['cy']) < 80 and abs(cx - j['cx']) < 200:
+                    # Increased tolerance for clustering (120px Y, 250px X)
+                    if abs(cy - j['cy']) < 120 and abs(cx - j['cx']) < 250:
                         j['text'] += " " + txt
+                        j['all_y'].append(cy)
+                        j['cy'] = sum(j['all_y']) / len(j['all_y'])
                         found = True; break
-                if not found: jerseys.append({'text': txt, 'cx': cx, 'cy': cy})
+                if not found: jerseys.append({'text': txt, 'cx': cx, 'cy': cy, 'all_y': [cy]})
             
-            # Sort Top-to-Bottom, then Left-to-Right
-            jerseys.sort(key=lambda x: (x['cy'] // 100, x['cx']))
+            # Row-aware sorting
+            rows = []
+            if jerseys:
+                jerseys.sort(key=lambda x: x['cy'])
+                curr_row = [jerseys[0]]
+                for i in range(1, len(jerseys)):
+                    if abs(jerseys[i]['cy'] - curr_row[0]['cy']) < 150:
+                        curr_row.append(jerseys[i])
+                    else:
+                        curr_row.sort(key=lambda x: x['cx'])
+                        rows.extend(curr_row)
+                        curr_row = [jerseys[i]]
+                curr_row.sort(key=lambda x: x['cx'])
+                rows.extend(curr_row)
             
-            skaters_found, used = [], set()
+            skaters_objs, used = [], set()
             print("\n--- PROCESSING COMBINED IMAGE ---", flush=True)
-            for j in jerseys:
+            for j in rows:
                 txt = j['text'].upper()
-                # 1. Filter out Goalies
                 is_goalie = False
                 for g in goalies:
                     if g['last'] in txt: is_goalie = True; break
                 if is_goalie: continue
                 
-                # 2. Match Skaters
-                # Determine preferred context based on current count
-                pref = f_names if len(skaters_found) < 12 else d_names
+                # Try match
+                pref = f_names if len(skaters_objs) < 12 else d_names
                 m = match_name_to_roster(txt, all_team_names, pref, used, roster_data_full)
                 if m:
-                    skaters_found.append(m); used.add(m)
-                    print(f"  [FOUND {len(skaters_found)}] {m} at Y:{int(j['cy'])}", flush=True)
+                    skaters_objs.append({'name': m, 'cy': j['cy']})
+                    used.add(m)
+                    print(f"  [FOUND] {m} at Y:{int(j['cy'])}", flush=True)
+
+            # Secondary pass: if we missed skaters, look at raw OCR lines (safety net)
+            if len(skaters_objs) < 18:
+                raw_lines = pytesseract.image_to_string(img_c).split('\n')
+                for line in raw_lines:
+                    if len(skaters_objs) >= 18: break
+                    m = match_name_to_roster(line, all_team_names, all_team_names, used, roster_data_full)
+                    if m:
+                        skaters_objs.append({'name': m, 'cy': 9999}) # Add to end if no coords
+                        used.add(m)
+                        print(f"  [SAFETY MATCH] {m}", flush=True)
+
+            # Re-sort all found skaters by Y to ensure 1-12 are top, 13-18 are bottom
+            skaters_objs.sort(key=lambda x: x['cy'])
+            skaters_found = [s['name'] for s in skaters_objs]
 
             forwards_raw = (skaters_found[:12] + [f"PLAYER {i+1}" for i in range(12)])[:12]
             defense_raw = (skaters_found[12:18] + [f"PLAYER {i+1}" for i in range(6)])[:18][12:18]
         else:
             f_file.seek(0); d_file.seek(0)
             forwards_raw = extract_players_from_image(f_file, 12, f_names, all_team_names, "FORWARDS", roster_data_full)
-            defense_raw = extract_players_from_image(d_file, 6, d_names, all_team_names, "DEFENSE", roster_data_full)
+            defense_raw = extract_players_from_image(d_file, 6, d_names, "DEFENSE", roster_data_full)
 
         final_f, final_d = [], []
         for n in forwards_raw:
