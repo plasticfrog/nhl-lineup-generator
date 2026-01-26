@@ -26,16 +26,14 @@ TEAM_NAME_MAP = {
     'VAN': 'canucks', 'VGK': 'goldenknights', 'WPG': 'jets', 'WSH': 'capitals'
 }
 
-def get_ordered_lines_from_image(image):
+def get_grid_sorted_words(image):
     """
-    Improved spatial ordering: Clusters words into horizontal rows (bands) 
-    and sorts each row Left-to-Right.
+    Groups words into logical clusters (Jerseys) and sorts them 
+    Top-to-Bottom, then Left-to-Right.
     """
     data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT, config='--psm 6')
-    n_boxes = len(data['text'])
-    
     words = []
-    for i in range(n_boxes):
+    for i in range(len(data['text'])):
         text = data['text'][i].strip()
         if text and len(text) > 1:
             words.append({
@@ -44,192 +42,107 @@ def get_ordered_lines_from_image(image):
                 'top': data['top'][i],
                 'width': data['width'][i],
                 'height': data['height'][i],
-                'bottom': data['top'][i] + data['height'][i],
+                'center_x': data['left'][i] + (data['width'][i] / 2),
                 'center_y': data['top'][i] + (data['height'][i] / 2)
             })
     
-    if not words:
-        return []
+    if not words: return []
 
-    # Sort words primarily by vertical center to help bucketing
+    # 1. Determine Row Height (use average word height)
+    avg_h = sum(w['height'] for w in words) / len(words)
+    row_threshold = avg_h * 4 # Large threshold to group names and jersey numbers together
+
+    # 2. Cluster words into rows based on Y-coordinate
     words.sort(key=lambda x: x['center_y'])
-    
     rows = []
     if words:
         current_row = [words[0]]
         for i in range(1, len(words)):
-            prev_word = current_row[-1]
-            # If word vertical center is within the height of the current row's first word, bucket it
-            if abs(words[i]['center_y'] - current_row[0]['center_y']) < (current_row[0]['height'] * 1.5):
+            if abs(words[i]['center_y'] - current_row[0]['center_y']) < row_threshold:
                 current_row.append(words[i])
             else:
-                # Sort the completed row strictly Left-to-Right
-                current_row.sort(key=lambda x: x['left'])
                 rows.append(current_row)
                 current_row = [words[i]]
-        # Add final row
-        current_row.sort(key=lambda x: x['left'])
         rows.append(current_row)
 
-    # Convert word objects back to strings for existing processing logic
-    final_lines = []
+    # 3. Within each row, cluster words horizontally into "Jersey Blocks"
+    ordered_names = []
     for row in rows:
-        line_text = " ".join([w['text'] for w in row])
-        # Log the coordinates for debugging Railway logs
-        print(f"[DEBUG] Row Found at Y={row[0]['top']}: {line_text}", flush=True)
-        final_lines.append(line_text)
-    
-    return final_lines
+        row.sort(key=lambda x: x['left'])
+        jersey_blocks = []
+        if row:
+            current_block = [row[0]]
+            for i in range(1, len(row)):
+                # If gap is small (less than 3 word widths), it's the same jersey
+                gap = row[i]['left'] - (current_block[-1]['left'] + current_block[-1]['width'])
+                if gap < (avg_h * 5): 
+                    current_block.append(row[i])
+                else:
+                    jersey_blocks.append(current_block)
+                    current_block = [row[i]]
+            jersey_blocks.append(current_block)
 
-def match_name_to_roster(ocr_name, roster_list, used_names):
-    """Find best matching name from roster using fuzzy matching with OCR character fixes"""
-    ocr_name = ocr_name.replace('3', 'S').replace('0', 'O').replace('1', 'I').replace('4', 'A').replace('5', 'S')
+        for block in jersey_blocks:
+            block_text = " ".join([w['text'] for w in block])
+            ordered_names.append(block_text)
+            print(f"[DEBUG] Jersey Block Identified: {block_text}", flush=True)
+
+    return ordered_names
+
+def match_name_to_roster(ocr_name, roster_list, used_names, is_forward_context=None, roster_data_full=None):
+    """Improved matcher that handles duplicate last names (Petterssons) using position context"""
+    ocr_name = ocr_name.replace('3', 'S').replace('0', 'O').replace('1', 'I').replace('4', 'A').replace('5', 'S').upper()
     
     best_match = None
     best_score = 0
     
-    ocr_parts = ocr_name.split()
-    
     for roster_name in roster_list:
-        if roster_name in used_names:
-            continue
+        if roster_name in used_names: continue
         
+        # If we know we are looking for a forward, skip defensemen with same last name
+        if is_forward_context is not None and roster_data_full:
+            player_info = roster_data_full.get(roster_name)
+            if player_info and player_info['is_forward'] != is_forward_context:
+                continue
+
         roster_parts = roster_name.split()
         score = 0
         
-        if len(ocr_parts) > 0 and len(roster_parts) > 0:
-            ocr_last = ocr_parts[-1]
-            roster_last = roster_parts[-1]
+        # Primary check: Last Name match
+        last_name = roster_parts[-1]
+        if last_name in ocr_name:
+            score += 100
             
-            if ocr_last == roster_last:
-                score += 100
-            elif ocr_last in roster_last or roster_last in ocr_last:
-                score += 80
-            elif len(ocr_last) >= 4 and len(roster_last) >= 4:
-                if ocr_last[:4] == roster_last[:4]:
-                    score += 60
-        
-        if len(ocr_parts) > 1 and len(roster_parts) > 1:
-            ocr_first = ocr_parts[0]
-            roster_first = roster_parts[0]
-            
-            if ocr_first == roster_first:
+            # Tie-breaker: First Name match (crucial for Petterssons)
+            first_name = roster_parts[0]
+            if first_name in ocr_name:
                 score += 50
-            elif len(ocr_first) >= 3 and len(roster_first) >= 3:
-                if ocr_first[:3] == roster_first[:3]:
-                    score += 30
-        
-        if ocr_name in roster_name or roster_name in ocr_name:
-            score += 40
+            elif len(first_name) > 3 and first_name[:3] in ocr_name:
+                score += 25
         
         if score > best_score:
             best_score = score
             best_match = roster_name
     
-    if best_score >= 50:
-        return best_match
-    
-    return None
+    return best_match if best_score >= 80 else None
 
-def extract_players_from_combined_image(image_file, roster_forwards, roster_defense, roster_goalies):
-    """Extract players from single image with coordinate-based sorting"""
+def extract_players_from_image(image_file, expected_count, team_roster, type_label, is_forward, roster_data_full):
+    """Processes images using Grid Sorting to ensure Left-to-Right order"""
     try:
-        print("\n=== STARTING COMBINED EXTRACTION ===", flush=True)
+        print(f"\n=== PROCESSING {type_label} IMAGE ===", flush=True)
         image = Image.open(image_file)
-        lines = get_ordered_lines_from_image(image)
+        blocks = get_grid_sorted_words(image)
         
-        extracted_skaters = []
-        all_skater_roster = roster_forwards + roster_defense
-        used_skaters = set()
-        used_goalies = set()
-        
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-            
-            if not line or any(x in line.upper() for x in ['FORWARD', 'DEFENSE', 'GOALTENDER', 'OVERALL', 'HOME', 'ROAD', 'COACH', 'SCRATCH', 'LINES ARE']):
-                i += 1
-                continue
-            
-            if any(x in line for x in ['iP:', 'IGP:', 'G:', 'A:', 'P:', 'GAA:', 'SVP:', 'H:', 'W:', 'Ace:']):
-                i += 1
-                continue
-            
-            words = []
-            for word in line.split():
-                clean = ''.join(c for c in word if c.isalpha() or c.isdigit() or c in ["-", "'"])
-                if len(clean) >= 2:
-                    words.append(clean.upper())
-            
-            if len(words) >= 2 and i + 1 < len(lines):
-                next_line = lines[i + 1].strip()
-                next_words = []
-                for word in next_line.split():
-                    clean = ''.join(c for c in word if c.isalpha() or c.isdigit() or c in ["-", "'"])
-                    if len(clean) >= 2:
-                        next_words.append(clean.upper())
-                
-                if len(next_words) >= 2:
-                    for j in range(min(len(words), len(next_words))):
-                        f_name = words[j].replace('3', 'S').replace('5', 'S')
-                        l_name = next_words[j]
-                        full_name = f"{f_name} {l_name}"
-                        
-                        goalie_match = match_name_to_roster(full_name, roster_goalies, used_goalies)
-                        if goalie_match:
-                            print(f"[GOALIE] Found: {goalie_match}", flush=True)
-                            used_goalies.add(goalie_match)
-                            continue 
-                        
-                        skater_match = match_name_to_roster(full_name, all_skater_roster, used_skaters)
-                        if skater_match:
-                            print(f"[SKATER] Found in Order: {skater_match}", flush=True)
-                            extracted_skaters.append(skater_match)
-                            used_skaters.add(skater_match)
-                        else:
-                            extracted_skaters.append(full_name)
-                    
-                    i += 2
-                    continue
-            i += 1
-        
-        forwards = extracted_skaters[:12]
-        defense = extracted_skaters[12:18]
-        while len(forwards) < 12: forwards.append(f"PLAYER {len(forwards)+1}")
-        while len(defense) < 6: defense.append(f"PLAYER {len(defense)+1}")
-        return forwards, defense
-        
-    except Exception as e:
-        print(f"[ERROR] Combined extraction failed: {str(e)}", flush=True)
-        return [f"PLAYER {i+1}" for i in range(12)], [f"PLAYER {i+1}" for i in range(6)]
-
-def extract_players_from_image(image_file, expected_count, team_roster, type_label="SKATER"):
-    """Extract player names from jerseys with strict Left-to-Right sorting"""
-    try:
-        print(f"\n=== STARTING {type_label} EXTRACTION ===", flush=True)
-        image = Image.open(image_file)
-        lines = get_ordered_lines_from_image(image)
         matched_names = []
         used_roster = set()
         
-        for line in lines:
-            line = line.strip()
-            if not line: continue
-            
-            alpha = sum(1 for c in line if c.isalpha())
-            if alpha > 5:
-                words = []
-                for word in line.split():
-                    clean = ''.join(c for c in word if c.isalpha() or c == '-')
-                    if clean: words.append(clean.upper())
-                
-                for i in range(len(words)-1):
-                    potential_name = f"{words[i]} {words[i+1]}"
-                    match = match_name_to_roster(potential_name, team_roster, used_roster)
-                    if match and match not in matched_names:
-                        print(f"[{type_label} MATCH] Found in Order: {match}", flush=True)
-                        matched_names.append(match)
-                        used_roster.add(match)
+        for block_text in blocks:
+            match = match_name_to_roster(block_text, team_roster, used_roster, is_forward, roster_data_full)
+            if match:
+                print(f"[{type_label} MATCH] {match}", flush=True)
+                matched_names.append(match)
+                used_roster.add(match)
+            if len(matched_names) >= expected_count: break
         
         while len(matched_names) < expected_count:
             matched_names.append(f"PLAYER {len(matched_names)+1}")
@@ -238,83 +151,77 @@ def extract_players_from_image(image_file, expected_count, team_roster, type_lab
         print(f"[ERROR] {type_label} extraction failed: {str(e)}", flush=True)
         return [f"PLAYER {i+1}" for i in range(expected_count)]
 
+def extract_players_from_combined_image(image_file, roster_forwards, roster_defense, roster_goalies, roster_data_full):
+    """Processes combined images with Grid Sorting"""
+    try:
+        print("\n=== PROCESSING COMBINED IMAGE ===", flush=True)
+        image = Image.open(image_file)
+        blocks = get_grid_sorted_words(image)
+        
+        extracted_skaters = []
+        used_skaters = set()
+        used_goalies = set()
+        
+        all_skater_names = roster_forwards + roster_defense
+
+        for block_text in blocks:
+            # Check Goalies first to filter them out
+            g_match = match_name_to_roster(block_text, roster_goalies, used_goalies)
+            if g_match:
+                print(f"[GOALIE FILTER] {g_match}", flush=True)
+                used_goalies.add(g_match)
+                continue
+                
+            # Check Skaters (logic will handle 12 forwards then 6 defense)
+            # We don't pass is_forward_context here because combined order can vary
+            s_match = match_name_to_roster(block_text, all_skater_names, used_skaters)
+            if s_match:
+                print(f"[SKATER MATCH] {s_match}", flush=True)
+                extracted_skaters.append(s_match)
+                used_skaters.add(s_match)
+
+        forwards = extracted_skaters[:12]
+        defense = extracted_skaters[12:18]
+        while len(forwards) < 12: forwards.append(f"PLAYER {len(forwards)+1}")
+        while len(defense) < 6: defense.append(f"PLAYER {len(defense)+1}")
+        return forwards, defense
+    except Exception as e:
+        print(f"[ERROR] Combined failed: {str(e)}", flush=True)
+        return [f"PLAYER {i+1}" for i in range(12)], [f"PLAYER {i+1}" for i in range(6)]
+
 def search_player(player_name):
-    """Search for player using NHL API"""
     if not player_name or player_name.startswith("PLAYER "): return None
     try:
-        search_name = player_name.lower().replace(' ', '%20')
-        search_url = f"https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q={search_name}"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(search_url, headers=headers, timeout=5)
+        search_url = f"https://search.d3.nhle.com/api/v1/search/player?culture=en-us&limit=5&q={player_name.replace(' ', '%20')}"
+        response = requests.get(search_url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            if len(data) > 0:
-                return {'id': data[0].get('playerId'), 'team': data[0].get('teamAbbrev', None), 'full_name': data[0].get('name')}
+            if data: return {'id': data[0].get('playerId'), 'team': data[0].get('teamAbbrev'), 'full_name': data[0].get('name')}
     except: pass
     return None
 
 def get_coaches_from_nhl(team_abbrev):
-    """Scrape coaches from NHL.com team coaches page"""
-    coaches_list = []
     try:
         team_slug = TEAM_NAME_MAP.get(team_abbrev, team_abbrev.lower())
-        url = f"https://www.nhl.com/{team_slug}/team/coaches"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=10)
-        
+        response = requests.get(f"https://www.nhl.com/{team_slug}/team/coaches", headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            imgs = soup.find_all('img')
-            for img in imgs:
-                alt = img.get('alt', '').lower()
-                src = img.get('src', '')
-                if any(keyword in alt for keyword in ['coach', 'assistant', 'goaltending']):
-                    name = img.get('alt', '').split('-')[0].strip()
-                    role = 'HEAD COACH' if 'head' in alt else 'ASSISTANT COACH'
-                    coaches_list.append({'name': name.upper(), 'role': role, 'headshot_url': src})
-                    if len(coaches_list) >= 4: break
-        return coaches_list
-    except: return []
-
-def extract_roster_from_screenshot(image_file):
-    """Used for Number Entry method"""
-    try:
-        print("\n=== EXTRACTING ROSTER FROM SCREENSHOT ===", flush=True)
-        image = Image.open(image_file)
-        lines = get_ordered_lines_from_image(image)
-        roster = {}
-        coaches = []
-        for line in lines:
-            parts = line.split()
-            if len(parts) >= 3 and parts[0].isdigit():
-                number = parts[0]
-                name = ' '.join(parts[2:]).upper() if len(parts[1])==1 else ' '.join(parts[1:]).upper()
-                roster[number] = {'name': name}
-                print(f"[ROSTER] #{number} {name}", flush=True)
-        return roster, coaches
-    except: return {}, []
-
-def extract_line_numbers(text=None, image_file=None):
-    """Used for Number Entry method"""
-    if text: return re.findall(r'\d+', text)
-    if image_file:
-        try:
-            image = Image.open(image_file)
-            return re.findall(r'\d+', pytesseract.image_to_string(image))
-        except: return []
+            coaches = []
+            for img in soup.find_all('img'):
+                alt = img.get('alt', '').upper()
+                if any(k in alt for k in ['COACH', 'ASSISTANT']):
+                    name = alt.split('-')[0].strip()
+                    coaches.append({'name': name, 'role': 'COACH', 'headshot_url': img.get('src')})
+                    if len(coaches) >= 4: break
+            return coaches
+    except: pass
     return []
 
 @app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/numbers')
-def numbers_page():
-    return render_template('index_numbers.html')
+def index(): return render_template('index.html')
 
 @app.route('/lineup')
-def lineup():
-    return render_template('lineup.html')
+def lineup(): return render_template('lineup.html')
 
 @app.route('/process', methods=['POST'])
 def process_lineup():
@@ -323,107 +230,61 @@ def process_lineup():
         forwards_file = request.files.get('forwards')
         defense_file = request.files.get('defense')
         
-        sample_file = combined_file if combined_file else forwards_file
-        sample_file.seek(0)
-        image = Image.open(sample_file)
-        lines = get_ordered_lines_from_image(image)
-        
-        temp_names = []
-        for line in lines:
-            words = [w for w in line.split() if len(w) > 3]
-            for i in range(len(words)-1):
-                temp_names.append(f"{words[i]} {words[i+1]}")
-            if len(temp_names) > 15: break
+        sample = combined_file if combined_file else forwards_file
+        sample.seek(0)
+        image = Image.open(sample)
+        blocks = get_grid_sorted_words(image)
         
         found_teams = []
-        for name in temp_names:
-            res = search_player(name)
+        for b in blocks[:10]:
+            res = search_player(b)
             if res and res['team']: found_teams.append(res['team'])
         
         default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'SJS'
-        print(f"\n--- DETECTED TEAM: {default_team} ---", flush=True)
+        print(f"DETECTED TEAM: {default_team}", flush=True)
         
-        roster_url = f"https://api-web.nhle.com/v1/roster/{default_team}/current"
-        r_json = requests.get(roster_url, timeout=10).json()
-        roster_data = {}
+        r_json = requests.get(f"https://api-web.nhle.com/v1/roster/{default_team}/current").json()
+        roster_data_full = {}
         goalies_list = []
         
         for pos in ['forwards', 'defensemen', 'goalies']:
             for p in r_json.get(pos, []):
-                full_name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
+                name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
                 if pos == 'goalies':
-                    goalies_list.append({
-                        'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}",
-                        'headshot_url': f"https://assets.nhle.com/mugs/nhl/20242025/{default_team}/{p['id']}.png"
-                    })
+                    goalies_list.append({'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20242025/{default_team}/{p['id']}.png"})
                 else:
-                    roster_data[full_name] = {'id': p['id'], 'number': str(p['sweaterNumber']), 'is_forward': pos=='forwards'}
+                    roster_data_full[name] = {'id': p['id'], 'number': str(p['sweaterNumber']), 'is_forward': pos=='forwards'}
 
-        roster_forwards = [n for n, d in roster_data.items() if d['is_forward']]
-        roster_defense = [n for n, d in roster_data.items() if not d['is_forward']]
-        roster_goalie_names = [g['name'].split()[-1] for g in goalies_list]
+        roster_f_names = [n for n, d in roster_data_full.items() if d['is_forward']]
+        roster_d_names = [n for n, d in roster_data_full.items() if not d['is_forward']]
+        roster_g_names = [g['name'].split()[-1] for g in goalies_list]
 
         if combined_file:
             combined_file.seek(0)
-            forwards, defensemen = extract_players_from_combined_image(combined_file, roster_forwards, roster_defense, roster_goalie_names)
+            forwards, defense = extract_players_from_combined_image(combined_file, roster_f_names, roster_d_names, roster_g_names, roster_data_full)
         else:
             forwards_file.seek(0); defense_file.seek(0)
-            forwards = extract_players_from_image(forwards_file, 12, roster_forwards, "FORWARDS")
-            defensemen = extract_players_from_image(defense_file, 6, roster_defense, "DEFENSE")
+            forwards = extract_players_from_image(forwards_file, 12, roster_f_names, "FORWARDS", True, roster_data_full)
+            defense = extract_players_from_image(defense_file, 6, roster_d_names, "DEFENSE", False, roster_data_full)
 
-        all_players = []
-        for name in forwards + defensemen:
-            info = roster_data.get(name, {'id': None, 'number': ''})
-            all_players.append({
+        final_players = []
+        for name in forwards + defense:
+            info = roster_data_full.get(name, {'id': None, 'number': ''})
+            final_players.append({
                 'name': name, 'number': info['number'], 'is_forward': name in forwards,
                 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20242025/{default_team}/{info['id']}.png" if info['id'] else None
             })
 
         return jsonify({
-            'forwards': [p for p in all_players if p['is_forward']],
-            'defensemen': [p for p in all_players if not p['is_forward']],
+            'forwards': [p for p in final_players if p['is_forward']],
+            'defensemen': [p for p in final_players if not p['is_forward']],
             'goalies': goalies_list[:2],
             'coaches': get_coaches_from_nhl(default_team),
             'team': default_team
         })
     except Exception as e:
-        print(f"[CRITICAL ERROR] {str(e)}", flush=True)
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/process_numbers', methods=['POST'])
-def process_numbers():
-    try:
-        team = request.form.get('team')
-        roster_screenshot = request.files.get('roster_screenshot')
-        lines_text = request.form.get('lines_text')
-        lines_screenshot = request.files.get('lines_screenshot')
-        
-        roster, _ = extract_roster_from_screenshot(roster_screenshot)
-        nums = extract_line_numbers(text=lines_text, image_file=lines_screenshot)
-        
-        api_roster = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
-        goalies = [{'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20242025/{team}/{p['id']}.png"} for p in api_roster.get('goalies', [])]
-        
-        final_players = []
-        for i, n in enumerate(nums[:18]):
-            name = roster.get(n, {}).get('name', f"PLAYER #{n}")
-            pid = next((p['id'] for group in ['forwards', 'defensemen'] for p in api_roster.get(group, []) if str(p['sweaterNumber']) == n), None)
-            final_players.append({
-                'name': name, 'number': n, 'is_forward': i < 12,
-                'headshot_url': f"https://assets.nhle.com/mugs/nhl/20242025/{team}/{pid}.png" if pid else None
-            })
-
-        return jsonify({
-            'forwards': [p for p in final_players if p['is_forward']],
-            'defensemen': [p for p in final_players if not p['is_forward']],
-            'goalies': goalies[:2],
-            'coaches': get_coaches_from_nhl(team),
-            'team': team
-        })
-    except Exception as e:
-        print(f"[CRITICAL ERROR] {str(e)}", flush=True)
+        print(f"CRITICAL ERROR: {str(e)}", flush=True)
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
