@@ -1,3 +1,5 @@
+--- START OF FILE app.py ---
+
 from flask import Flask, render_template, request, jsonify
 import pytesseract
 from PIL import Image
@@ -28,8 +30,8 @@ TEAM_NAME_MAP = {
 
 def get_ordered_lines_from_image(image):
     """
-    Core OCR logic: Extracts text while strictly maintaining Left-to-Right and Top-to-Bottom order
-    using spatial coordinates. This prevents column-skipping or swapped horizontal names.
+    Improved spatial ordering: Clusters words into horizontal rows (bands) 
+    and sorts each row Left-to-Right.
     """
     data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT, config='--psm 6')
     n_boxes = len(data['text'])
@@ -37,35 +39,49 @@ def get_ordered_lines_from_image(image):
     words = []
     for i in range(n_boxes):
         text = data['text'][i].strip()
-        if text:
+        if text and len(text) > 1:
             words.append({
                 'text': text,
                 'left': data['left'][i],
                 'top': data['top'][i],
-                'height': data['height'][i]
+                'width': data['width'][i],
+                'height': data['height'][i],
+                'bottom': data['top'][i] + data['height'][i],
+                'center_y': data['top'][i] + (data['height'][i] / 2)
             })
     
     if not words:
         return []
 
-    words.sort(key=lambda x: x['top'])
+    # Sort words primarily by vertical center to help bucketing
+    words.sort(key=lambda x: x['center_y'])
     
-    lines_list = []
+    rows = []
     if words:
-        current_line = [words[0]]
+        current_row = [words[0]]
         for i in range(1, len(words)):
-            prev_word = current_line[-1]
-            if abs(words[i]['top'] - prev_word['top']) < (prev_word['height'] / 1.5):
-                current_line.append(words[i])
+            prev_word = current_row[-1]
+            # If word vertical center is within the height of the current row's first word, bucket it
+            if abs(words[i]['center_y'] - current_row[0]['center_y']) < (current_row[0]['height'] * 1.5):
+                current_row.append(words[i])
             else:
-                current_line.sort(key=lambda x: x['left'])
-                lines_list.append(" ".join([w['text'] for w in current_line]))
-                current_line = [words[i]]
-        
-        current_line.sort(key=lambda x: x['left'])
-        lines_list.append(" ".join([w['text'] for w in current_line]))
+                # Sort the completed row strictly Left-to-Right
+                current_row.sort(key=lambda x: x['left'])
+                rows.append(current_row)
+                current_row = [words[i]]
+        # Add final row
+        current_row.sort(key=lambda x: x['left'])
+        rows.append(current_row)
+
+    # Convert word objects back to strings for existing processing logic
+    final_lines = []
+    for row in rows:
+        line_text = " ".join([w['text'] for w in row])
+        # Log the coordinates for debugging Railway logs
+        print(f"[DEBUG] Row Found at Y={row[0]['top']}: {line_text}", flush=True)
+        final_lines.append(line_text)
     
-    return lines_list
+    return final_lines
 
 def match_name_to_roster(ocr_name, roster_list, used_names):
     """Find best matching name from roster using fuzzy matching with OCR character fixes"""
@@ -120,7 +136,7 @@ def match_name_to_roster(ocr_name, roster_list, used_names):
 def extract_players_from_combined_image(image_file, roster_forwards, roster_defense, roster_goalies):
     """Extract players from single image with coordinate-based sorting"""
     try:
-        print("\n--- PROCESSING COMBINED IMAGE ---")
+        print("\n=== STARTING COMBINED EXTRACTION ===", flush=True)
         image = Image.open(image_file)
         lines = get_ordered_lines_from_image(image)
         
@@ -163,13 +179,13 @@ def extract_players_from_combined_image(image_file, roster_forwards, roster_defe
                         
                         goalie_match = match_name_to_roster(full_name, roster_goalies, used_goalies)
                         if goalie_match:
-                            print(f"[GOALIE FILTER] {goalie_match}")
+                            print(f"[GOALIE] Found: {goalie_match}", flush=True)
                             used_goalies.add(goalie_match)
                             continue 
                         
                         skater_match = match_name_to_roster(full_name, all_skater_roster, used_skaters)
                         if skater_match:
-                            print(f"[MATCH FOUND] {skater_match}")
+                            print(f"[SKATER] Found in Order: {skater_match}", flush=True)
                             extracted_skaters.append(skater_match)
                             used_skaters.add(skater_match)
                         else:
@@ -186,13 +202,13 @@ def extract_players_from_combined_image(image_file, roster_forwards, roster_defe
         return forwards, defense
         
     except Exception as e:
-        print(f"[ERROR] Combined extraction failed: {str(e)}")
+        print(f"[ERROR] Combined extraction failed: {str(e)}", flush=True)
         return [f"PLAYER {i+1}" for i in range(12)], [f"PLAYER {i+1}" for i in range(6)]
 
 def extract_players_from_image(image_file, expected_count, team_roster, type_label="SKATER"):
     """Extract player names from jerseys with strict Left-to-Right sorting"""
     try:
-        print(f"\n--- PROCESSING {type_label} IMAGE ---")
+        print(f"\n=== STARTING {type_label} EXTRACTION ===", flush=True)
         image = Image.open(image_file)
         lines = get_ordered_lines_from_image(image)
         matched_names = []
@@ -213,7 +229,7 @@ def extract_players_from_image(image_file, expected_count, team_roster, type_lab
                     potential_name = f"{words[i]} {words[i+1]}"
                     match = match_name_to_roster(potential_name, team_roster, used_roster)
                     if match and match not in matched_names:
-                        print(f"[MATCH FOUND] {match}")
+                        print(f"[{type_label} MATCH] Found in Order: {match}", flush=True)
                         matched_names.append(match)
                         used_roster.add(match)
         
@@ -221,7 +237,7 @@ def extract_players_from_image(image_file, expected_count, team_roster, type_lab
             matched_names.append(f"PLAYER {len(matched_names)+1}")
         return matched_names[:expected_count]
     except Exception as e:
-        print(f"[ERROR] {type_label} extraction failed: {str(e)}")
+        print(f"[ERROR] {type_label} extraction failed: {str(e)}", flush=True)
         return [f"PLAYER {i+1}" for i in range(expected_count)]
 
 def search_player(player_name):
@@ -265,7 +281,7 @@ def get_coaches_from_nhl(team_abbrev):
 def extract_roster_from_screenshot(image_file):
     """Used for Number Entry method"""
     try:
-        print("\n--- EXTRACTING ROSTER FROM SCREENSHOT ---")
+        print("\n=== EXTRACTING ROSTER FROM SCREENSHOT ===", flush=True)
         image = Image.open(image_file)
         lines = get_ordered_lines_from_image(image)
         roster = {}
@@ -276,7 +292,7 @@ def extract_roster_from_screenshot(image_file):
                 number = parts[0]
                 name = ' '.join(parts[2:]).upper() if len(parts[1])==1 else ' '.join(parts[1:]).upper()
                 roster[number] = {'name': name}
-                print(f"[ROSTER] #{number} {name}")
+                print(f"[ROSTER] #{number} {name}", flush=True)
         return roster, coaches
     except: return {}, []
 
@@ -327,7 +343,7 @@ def process_lineup():
             if res and res['team']: found_teams.append(res['team'])
         
         default_team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'SJS'
-        print(f"\n--- DETECTED TEAM: {default_team} ---")
+        print(f"\n--- DETECTED TEAM: {default_team} ---", flush=True)
         
         roster_url = f"https://api-web.nhle.com/v1/roster/{default_team}/current"
         r_json = requests.get(roster_url, timeout=10).json()
@@ -373,7 +389,7 @@ def process_lineup():
             'team': default_team
         })
     except Exception as e:
-        print(f"[CRITICAL ERROR] {str(e)}")
+        print(f"[CRITICAL ERROR] {str(e)}", flush=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/process_numbers', methods=['POST'])
@@ -407,7 +423,7 @@ def process_numbers():
             'team': team
         })
     except Exception as e:
-        print(f"[CRITICAL ERROR] {str(e)}")
+        print(f"[CRITICAL ERROR] {str(e)}", flush=True)
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
