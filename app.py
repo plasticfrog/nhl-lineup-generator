@@ -5,6 +5,7 @@ import requests
 import os
 import time
 import re
+import sys
 from collections import Counter
 from bs4 import BeautifulSoup
 
@@ -14,7 +15,7 @@ app.config['UPLOAD_FOLDER'] = '/tmp/nhl_uploads'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# ALL ORIGINAL TEAM MAPPINGS RESTORED
+# ALL TEAM MAPPINGS RESTORED
 TEAM_NAME_MAP = {
     'ANA': 'ducks', 'BOS': 'bruins', 'BUF': 'sabres', 'CAR': 'hurricanes',
     'CBJ': 'bluejackets', 'CGY': 'flames', 'CHI': 'blackhawks', 'COL': 'avalanche',
@@ -28,48 +29,73 @@ TEAM_NAME_MAP = {
 
 def get_grid_binned_text(image, rows, cols):
     """
-    Mathematical Grid Sorting: 
-    Divides the image into a perfect grid and assigns OCR text to specific slots.
-    Ensures Left-to-Right and Top-to-Bottom order is 100% preserved.
+    Divides the text-containing area of an image into a strict R x C grid.
+    Ensures Left-Center-Right order by assigning text to spatial bins.
     """
-    width, height = image.size
     data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT, config='--psm 6')
     
-    # Initialize bins
-    bins = [[] for _ in range(rows * cols)]
+    # 1. Find the bounding box of all detected text to define the grid area
+    all_x = []
+    all_y = []
+    found_words = []
     
-    cell_w = width / cols
-    cell_h = height / rows
-
-    print(f"\n[GRID DEBUG] Processing {rows}x{cols} Grid ({width}x{height})", flush=True)
-
     for i in range(len(data['text'])):
         text = data['text'][i].strip()
         if text and len(text) >= 1:
-            x = data['left'][i] + (data['width'][i] / 2)
-            y = data['top'][i] + (data['height'][i] / 2)
+            x = data['left'][i]
+            y = data['top'][i]
+            w = data['width'][i]
+            h = data['height'][i]
+            found_words.append({'text': text, 'cx': x + w/2, 'cy': y + h/2})
+            all_x.extend([x, x + w])
+            all_y.extend([y, y + h])
             
-            # Determine which cell this word belongs to
-            col_idx = int(x // cell_w)
-            row_idx = int(y // cell_h)
-            
-            # Constrain to grid boundaries
-            col_idx = max(0, min(col_idx, cols - 1))
-            row_idx = max(0, min(row_idx, rows - 1))
-            
-            bin_idx = (row_idx * cols) + col_idx
-            bins[bin_idx].append(text)
-            print(f"  Word '{text}' mapped to Slot {bin_idx+1} (Row:{row_idx}, Col:{col_idx})", flush=True)
+    if not found_words:
+        return [""] * (rows * cols)
 
-    # Join text in each bin
-    return [" ".join(b) for b in bins]
+    min_x, max_x = min(all_x), max(all_x)
+    min_y, max_y = min(all_y), max(all_y)
+    
+    grid_w = (max_x - min_x) + 1
+    grid_h = (max_y - min_y) + 1
+    
+    bins = [[] for _ in range(rows * cols)]
+    
+    print(f"\n[GRID LOG] Content Area: X({min_x}-{max_x}) Y({min_y}-{max_y})", flush=True)
 
-def match_name_to_roster(ocr_text, roster_list, used_names, is_forward_context, roster_data_full):
-    """Matches based on Name + Sweater Number to handle duplicates like Pettersson"""
+    # 2. Assign each word to a bin based on relative position
+    for word in found_words:
+        # Normalize position relative to content box
+        rel_x = (word['cx'] - min_x) / grid_w
+        rel_y = (word['cy'] - min_y) / grid_h
+        
+        col_idx = int(rel_x * cols)
+        row_idx = int(rel_y * rows)
+        
+        # Clamp indices
+        col_idx = max(0, min(col_idx, cols - 1))
+        row_idx = max(0, min(row_idx, rows - 1))
+        
+        bin_idx = (row_idx * cols) + col_idx
+        bins[bin_idx].append(word['text'])
+
+    result = [" ".join(b) for b in bins]
+    for idx, txt in enumerate(result):
+        if txt:
+            print(f"  Bin {idx+1}: {txt}", flush=True)
+            
+    return result
+
+def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
+    """
+    Matches player based on Sweater Number (Primary) and Fuzzy Name (Secondary).
+    Crucial for Vancouver Elias Pettersson (#40) vs Elias Pettersson (#25).
+    """
     if not ocr_text: return None
     
-    clean_ocr = ocr_text.upper().replace('3', 'S').replace('5', 'S').replace('0', 'O')
-    found_nums = re.findall(r'\d+', clean_ocr)
+    # Clean OCR noise
+    clean_text = ocr_text.upper().replace('3', 'S').replace('5', 'S').replace('0', 'O').replace('1', 'I')
+    found_nums = re.findall(r'\d+', clean_text)
     
     best_match = None
     best_score = 0
@@ -77,55 +103,53 @@ def match_name_to_roster(ocr_text, roster_list, used_names, is_forward_context, 
     for roster_name in roster_list:
         if roster_name in used_names: continue
         p_info = roster_data_full.get(roster_name, {})
+        p_num = p_info.get('number', '')
         
-        # Priority 1: Exact Number Match (Best for Pettersson #40 vs #29)
-        if found_nums and p_info.get('number') in found_nums:
+        # Priority 1: Match sweater number found in the jersey bin
+        if p_num and p_num in found_nums:
             last_name = roster_name.split()[-1]
-            if last_name in clean_ocr:
-                return roster_name 
+            if last_name in clean_text:
+                return roster_name # High confidence match
 
-        # Priority 2: Name + Position Match
+        # Priority 2: Fuzzy match last name
         last_name = roster_name.split()[-1]
-        if last_name in clean_ocr:
+        if last_name in clean_text:
             score = 100
-            if is_forward_context is not None and p_info.get('is_forward') == is_forward_context:
-                score += 50
             if score > best_score:
                 best_score = score
                 best_match = roster_name
 
     return best_match if best_score >= 100 else None
 
-def extract_players_from_image(image_file, expected_count, team_roster, type_label, is_forward, roster_data_full):
+def extract_players_from_image(image_file, expected_count, team_roster, type_label, roster_data_full):
     try:
-        print(f"\n=== EXTRACTING {type_label} ===", flush=True)
+        print(f"\n=== PROCESSING {type_label} IMAGE ===", flush=True)
         image = Image.open(image_file)
         
-        # Set Grid Dimensions
-        if expected_count == 12: rows, cols = 4, 3
-        elif expected_count == 6: rows, cols = 3, 2
-        else: rows, cols = expected_count, 1 # Fallback
-            
-        slot_texts = get_grid_binned_text(image, rows, cols)
-        matched_names = []
-        used_roster = set()
+        # Forwards: 4 rows of 3 jerseys. Defense: 3 rows of 2 jerseys.
+        rows = 4 if expected_count == 12 else 3
+        cols = 3 if expected_count == 12 else 2
         
-        for i, text in enumerate(slot_texts):
-            match = match_name_to_roster(text, team_roster, used_roster, is_forward, roster_data_full)
+        bins = get_grid_binned_text(image, rows, cols)
+        matched_names = []
+        used = set()
+        
+        for i, bin_text in enumerate(bins):
+            match = match_name_to_roster(bin_text, team_roster, used, roster_data_full)
             if match:
-                print(f"  [SLOT {i+1}] Matched: {match}", flush=True)
+                print(f"  [Slot {i+1}] Matched: {match}", flush=True)
                 matched_names.append(match)
-                used_roster.add(match)
+                used.add(match)
             else:
-                print(f"  [SLOT {i+1}] No match found in text: '{text}'", flush=True)
+                print(f"  [Slot {i+1}] No match in text: '{bin_text}'", flush=True)
                 matched_names.append(f"PLAYER {i+1}")
                 
         return matched_names[:expected_count]
     except Exception as e:
-        print(f"[ERROR] {type_label} failed: {e}", flush=True)
+        print(f"[ERROR] {type_label} Extraction: {e}", flush=True)
         return [f"PLAYER {i+1}" for i in range(expected_count)]
 
-# ALL ORIGINAL SECONDARY FUNCTIONS RESTORED
+# TEAM SEARCH & SCRAPING RESTORED
 def search_player(player_name):
     if not player_name or "PLAYER" in player_name: return None
     try:
@@ -149,6 +173,7 @@ def get_coaches_from_nhl(team_abbrev):
         return coaches
     except: return []
 
+# NUMBER ENTRY LOGIC RESTORED
 def extract_roster_from_screenshot(image_file):
     try:
         image = Image.open(image_file)
@@ -172,7 +197,7 @@ def extract_line_numbers(text=None, image_file=None):
         except: return []
     return []
 
-# ALL ORIGINAL ROUTES RESTORED
+# ROUTES RESTORED
 @app.route('/')
 def index(): return render_template('index.html')
 
@@ -192,16 +217,18 @@ def process_lineup():
         sample = comb if comb else f_file
         sample.seek(0)
         img = Image.open(sample)
-        # Use a generic grid to find team names
-        test_blocks = get_grid_binned_text(img, 4, 3)
+        # Use a large sample of text to detect the team
+        test_data = pytesseract.image_to_string(img)
         found_teams = []
-        for b in test_blocks:
-            res = search_player(b)
-            if res and res['team']: found_teams.append(res['team'])
+        for word in test_data.split():
+            if len(word) > 4:
+                res = search_player(word)
+                if res and res['team']: found_teams.append(res['team'])
         
         team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'SJS'
         print(f"[PROCESS] Detected Team: {team}", flush=True)
         
+        # Load API Roster
         r_json = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
         roster_data_full = {}
         goalies = []
@@ -220,23 +247,21 @@ def process_lineup():
         if comb:
             comb.seek(0)
             img_c = Image.open(comb)
-            # 6 rows, 3 columns for 18 skaters
+            # Standard combined layout logic
             all_slots = get_grid_binned_text(img_c, 6, 3)
             all_players = []
             used = set()
             for i, txt in enumerate(all_slots):
-                # First 12 are forwards, next 6 are defense
-                ctx = True if i < 12 else False
                 r_list = f_names if i < 12 else d_names
-                m = match_name_to_roster(txt, r_list, used, ctx, roster_data_full)
+                m = match_name_to_roster(txt, r_list, used, roster_data_full)
                 all_players.append(m if m else f"PLAYER {i+1}")
                 if m: used.add(m)
             forwards = all_players[:12]
             defense = all_players[12:18]
         else:
             f_file.seek(0); d_file.seek(0)
-            forwards = extract_players_from_image(f_file, 12, f_names, "FORWARDS", True, roster_data_full)
-            defense = extract_players_from_image(d_file, 6, d_names, "DEFENSE", False, roster_data_full)
+            forwards = extract_players_from_image(f_file, 12, f_names, "FORWARDS", roster_data_full)
+            defense = extract_players_from_image(d_file, 6, d_names, "DEFENSE", roster_data_full)
 
         final_players = []
         for n in forwards + defense:
@@ -254,7 +279,7 @@ def process_lineup():
             'team': team
         })
     except Exception as e:
-        print(f"[CRITICAL] Failure: {e}", flush=True)
+        print(f"[CRITICAL] App Failure: {e}", flush=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/process_numbers', methods=['POST'])
