@@ -53,18 +53,24 @@ def match_name_to_roster(ocr_text, full_team_list, preferred_list, used_names, r
     if not ocr_text: return None
     clean_text = ocr_text.upper().replace('3', 'S').replace('5', 'S').replace('0', 'O').replace('1', 'I')
     found_nums = re.findall(r'\d+', clean_text)
+    
+    # 1. Check Preferred List (Position Context)
     for roster_name in preferred_list:
         if roster_name in used_names: continue
         p_info = roster_data_full.get(roster_name, {})
         last, first = roster_name.split()[-1], roster_name.split()[0]
         if (first in clean_text and last in clean_text) or (p_info.get('number') in found_nums and last in clean_text):
             return roster_name
+
+    # 2. Check Full Team (Out of Position)
     for roster_name in full_team_list:
         if roster_name in used_names: continue
         p_info = roster_data_full.get(roster_name, {})
         last, first = roster_name.split()[-1], roster_name.split()[0]
         if (first in clean_text and last in clean_text) or (p_info.get('number') in found_nums and last in clean_text):
             return roster_name
+
+    # 3. Last Name Backup
     for roster_name in full_team_list:
         if roster_name in used_names: continue
         if roster_name.split()[-1] in clean_text:
@@ -72,6 +78,7 @@ def match_name_to_roster(ocr_text, full_team_list, preferred_list, used_names, r
     return None
 
 def extract_players_from_image(image_file, expected_count, preferred_roster, full_roster, type_label, roster_data_full):
+    """USED BY DUAL SCREENSHOT METHOD"""
     try:
         print(f"\n=== PROCESSING SEPARATE {type_label} IMAGE ===", flush=True)
         image = Image.open(image_file)
@@ -108,8 +115,7 @@ def get_coaches_from_nhl(team_abbrev):
                 coaches.append({'name': alt.split('-')[0].strip(), 'role': 'COACH', 'headshot_url': img.get('src')})
                 if len(coaches) >= 4: break
         return coaches
-    except: pass
-    return []
+    except: return []
 
 def extract_roster_from_screenshot(image_file):
     try:
@@ -150,6 +156,8 @@ def process_lineup():
         sample = comb if comb else f_file
         sample.seek(0)
         img_full = Image.open(sample)
+        
+        # 1. Team Detection
         test_data = pytesseract.image_to_string(img_full)
         found_teams = []
         for word in test_data.split():
@@ -158,6 +166,7 @@ def process_lineup():
                 if res and res['team']: found_teams.append(res['team'])
         team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'SJS'
         
+        # 2. Get Official Roster
         r_json = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
         roster_data_full, goalies = {}, []
         for pos_key in ['forwards', 'defensemen', 'goalies']:
@@ -175,78 +184,49 @@ def process_lineup():
         if comb:
             comb.seek(0)
             img_c = Image.open(comb)
-            data = pytesseract.image_to_data(img_c, output_type=pytesseract.Output.DICT, config='--psm 6')
+            # Use raw data for global search
+            data = pytesseract.image_to_data(img_c, output_type=pytesseract.Output.DICT, config='--psm 11')
             
-            # Cluster all words into Jersey Blocks
+            found_players_list, used = [], set()
+            print("\n--- STARTING COMBINED GLOBAL SEARCH ---", flush=True)
+
+            # Pass 1: Find every skater on the roster anywhere in the image data
+            all_words_full = " ".join([t for t in data['text'] if t.strip()]).upper()
+            
+            # Extract clusters (Jerseys) to get coordinates
             jerseys = []
             for i in range(len(data['text'])):
-                txt = data['text'][i].strip()
+                txt = data['text'][i].strip().upper()
                 if not txt or len(txt) < 1: continue
                 cx, cy = data['left'][i] + data['width'][i]/2, data['top'][i] + data['height'][i]/2
-                found = False
-                for j in jerseys:
-                    # Increased tolerance for clustering (120px Y, 250px X)
-                    if abs(cy - j['cy']) < 120 and abs(cx - j['cx']) < 250:
-                        j['text'] += " " + txt
-                        j['all_y'].append(cy)
-                        j['cy'] = sum(j['all_y']) / len(j['all_y'])
-                        found = True; break
-                if not found: jerseys.append({'text': txt, 'cx': cx, 'cy': cy, 'all_y': [cy]})
-            
-            # Row-aware sorting
-            rows = []
-            if jerseys:
-                jerseys.sort(key=lambda x: x['cy'])
-                curr_row = [jerseys[0]]
-                for i in range(1, len(jerseys)):
-                    if abs(jerseys[i]['cy'] - curr_row[0]['cy']) < 150:
-                        curr_row.append(jerseys[i])
-                    else:
-                        curr_row.sort(key=lambda x: x['cx'])
-                        rows.extend(curr_row)
-                        curr_row = [jerseys[i]]
-                curr_row.sort(key=lambda x: x['cx'])
-                rows.extend(curr_row)
-            
-            skaters_objs, used = [], set()
-            print("\n--- PROCESSING COMBINED IMAGE ---", flush=True)
-            for j in rows:
-                txt = j['text'].upper()
-                is_goalie = False
-                for g in goalies:
-                    if g['last'] in txt: is_goalie = True; break
-                if is_goalie: continue
                 
-                # Try match
-                pref = f_names if len(skaters_objs) < 12 else d_names
-                m = match_name_to_roster(txt, all_team_names, pref, used, roster_data_full)
-                if m:
-                    skaters_objs.append({'name': m, 'cy': j['cy']})
-                    used.add(m)
-                    print(f"  [FOUND] {m} at Y:{int(j['cy'])}", flush=True)
+                # Check if this word is a player's last name or number
+                matched_p = None
+                for p_name in all_team_names:
+                    if p_name in used: continue
+                    p_info = roster_data_full[p_name]
+                    last = p_name.split()[-1]
+                    if last == txt or p_info['number'] == txt:
+                        matched_p = p_name; break
+                
+                if matched_p:
+                    found_players_list.append({'name': matched_p, 'cx': cx, 'cy': cy})
+                    used.add(matched_p)
+                    print(f"  [GLOBAL FOUND] {matched_p} at X:{int(cx)} Y:{int(cy)}", flush=True)
 
-            # Secondary pass: if we missed skaters, look at raw OCR lines (safety net)
-            if len(skaters_objs) < 18:
-                raw_lines = pytesseract.image_to_string(img_c).split('\n')
-                for line in raw_lines:
-                    if len(skaters_objs) >= 18: break
-                    m = match_name_to_roster(line, all_team_names, all_team_names, used, roster_data_full)
-                    if m:
-                        skaters_objs.append({'name': m, 'cy': 9999}) # Add to end if no coords
-                        used.add(m)
-                        print(f"  [SAFETY MATCH] {m}", flush=True)
-
-            # Re-sort all found skaters by Y to ensure 1-12 are top, 13-18 are bottom
-            skaters_objs.sort(key=lambda x: x['cy'])
-            skaters_found = [s['name'] for s in skaters_objs]
+            # Sort found players by Row (Y) then Column (X)
+            # Threshold of 100px to group into rows
+            found_players_list.sort(key=lambda p: (p['cy'] // 100, p['cx']))
+            skaters_found = [p['name'] for p in found_players_list]
 
             forwards_raw = (skaters_found[:12] + [f"PLAYER {i+1}" for i in range(12)])[:12]
-            defense_raw = (skaters_found[12:18] + [f"PLAYER {i+1}" for i in range(6)])[:18][12:18]
+            defense_raw = (skaters_found[12:18] + [f"PLAYER {i+13}" for i in range(6)])[:6]
         else:
             f_file.seek(0); d_file.seek(0)
             forwards_raw = extract_players_from_image(f_file, 12, f_names, all_team_names, "FORWARDS", roster_data_full)
-            defense_raw = extract_players_from_image(d_file, 6, d_names, "DEFENSE", roster_data_full)
+            defense_raw = extract_players_from_image(d_file, 6, d_names, all_team_names, "DEFENSE", roster_data_full)
 
+        # 4. Final Assembly with EDGE HEADSHOTS
         final_f, final_d = [], []
         for n in forwards_raw:
             info = roster_data_full.get(n, {'id': None, 'number': ''})
