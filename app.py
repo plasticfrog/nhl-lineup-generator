@@ -58,9 +58,13 @@ def get_grid_binned_text(image, rows, cols, debug_label=""):
     return [" ".join(b) for b in bins]
 
 def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
-    """STRICT Matcher: Requires the Last Name to be present."""
+    """STRICT Matcher: Handles names like Will Smith with slight OCR errors."""
     if not ocr_text: return None
+    
+    # Aggressively remove clutter (GP, G, A, P, Age, H, W) to leave just names/numbers
     clean_text = ocr_text.upper().replace('3', 'S').replace('5', 'S').replace('0', 'O').replace('1', 'I')
+    clean_text = re.sub(r'\b(GP|AGE|GP:|AGE:|S:L|S:R|G:|A:|P:|H:|W:)\b', '', clean_text)
+    
     found_nums = re.findall(r'\d+', clean_text)
     
     best_match, best_score = None, 0
@@ -69,18 +73,27 @@ def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
         p_info = roster_data_full.get(roster_name, {})
         last, first = roster_name.split()[-1], roster_name.split()[0]
         
-        if last not in clean_text: continue
+        score = 0
+        # Check for Last Name match
+        if last in clean_text:
+            score = 100
+        # Handling very short names (like SMITH misread as SITH)
+        elif len(last) >= 4:
+            # Check if name is within 1 character distance or if 3 chars match
+            if last[:3] in clean_text or last[1:] in clean_text:
+                score = 80
 
-        score = 100
-        if first in clean_text: score += 100
-        if p_info.get('number') in found_nums: score += 50
+        if score > 0:
+            if first in clean_text: score += 100
+            if p_info.get('number') in found_nums: score += 50
 
-        if score > best_score:
-            best_score, best_match = score, roster_name
+            if score > best_score:
+                best_score, best_match = score, roster_name
+
     return best_match if best_score >= 100 else None
 
 def extract_players_from_image(image_file, expected_count, preferred_roster, full_roster, type_label, roster_data_full):
-    """USED BY DUAL SCREENSHOT METHOD: Completely separate from combined logic."""
+    """USED BY DUAL SCREENSHOT METHOD: Isolated from combined logic."""
     try:
         print(f"\n=== PROCESSING SEPARATE {type_label} IMAGE ===", flush=True)
         image = Image.open(image_file)
@@ -180,16 +193,16 @@ def process_lineup():
             w, h = img_c.size
             d_ocr = pytesseract.image_to_data(img_c, output_type=pytesseract.Output.DICT)
             
-            # Find vertical markers for zones
-            f_start, d_start, g_col_x = 0, int(h * 0.55), int(w * 0.65)
+            # Find vertical markers for zones and skip headers
+            f_header_bottom, d_header_bottom, g_col_x = 0, int(h * 0.55), int(w * 0.65)
             for i, txt in enumerate(d_ocr['text']):
                 u_txt = txt.upper()
-                if 'FORWARDS' in u_txt: f_start = d_ocr['top'][i]
-                if 'DEFENSE' in u_txt: d_start = d_ocr['top'][i]
+                if 'FORWARDS' in u_txt: f_header_bottom = d_ocr['top'][i] + d_ocr['height'][i] + 20
+                if 'DEFENSE' in u_txt: d_header_bottom = d_ocr['top'][i] + d_ocr['height'][i] + 20
                 if 'GOALTENDER' in u_txt: g_col_x = d_ocr['left'][i]
 
-            # Zone 1: FORWARDS (4x3 Grid)
-            f_zone = img_c.crop((0, f_start, w, d_start))
+            # Zone 1: FORWARDS (4x3 Grid) - Starts below header
+            f_zone = img_c.crop((0, f_header_bottom, w, d_header_bottom - 40))
             f_bins = get_grid_binned_text(f_zone, 4, 3, "COMBINED-FORWARDS")
             forwards_raw, used_f = [], set()
             for i, txt in enumerate(f_bins):
@@ -197,8 +210,8 @@ def process_lineup():
                 forwards_raw.append(m if m else f"PLAYER {i+1}")
                 if m: used_f.add(m)
 
-            # Zone 2: DEFENSE (3x2 Grid on Left side only)
-            d_zone = img_c.crop((0, d_start, g_col_x, h))
+            # Zone 2: DEFENSE (3x2 Grid) - Starts below header
+            d_zone = img_c.crop((0, d_header_bottom, g_col_x, h))
             d_bins = get_grid_binned_text(d_zone, 3, 2, "COMBINED-DEFENSE")
             defense_raw, used_d = [], set()
             for i, txt in enumerate(d_bins):
