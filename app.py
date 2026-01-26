@@ -15,7 +15,7 @@ app.config['UPLOAD_FOLDER'] = '/tmp/nhl_uploads'
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# ALL ORIGINAL TEAM MAPPINGS RESTORED
+# ALL ORIGINAL TEAM MAPPINGS PRESERVED
 TEAM_NAME_MAP = {
     'ANA': 'ducks', 'BOS': 'bruins', 'BUF': 'sabres', 'CAR': 'hurricanes',
     'CBJ': 'bluejackets', 'CGY': 'flames', 'CHI': 'blackhawks', 'COL': 'avalanche',
@@ -101,7 +101,6 @@ def extract_players_from_image(image_file, expected_count, team_roster, type_lab
         matched_names, used = [], set()
         
         for i, bin_text in enumerate(bins):
-            # The roster passed here is ALREADY filtered by position (Forwards or Defense)
             match = match_name_to_roster(bin_text, team_roster, used, roster_data_full)
             if match:
                 print(f"  [Slot {i+1}] Matched: {match}", flush=True)
@@ -197,7 +196,8 @@ def process_lineup():
             for p in r_json.get(pos_key, []):
                 name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
                 if pos_key == 'goalies':
-                    goalies.append({'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20242025/{team}/{p['id']}.png"})
+                    # GOALIE HEADSHOT FROM UPDATED CDN
+                    goalies.append({'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{p['id']}.png"})
                 else:
                     roster_data_full[name] = {'id': p['id'], 'number': str(p['sweaterNumber']), 'is_forward': pos_key=='forwards'}
 
@@ -222,9 +222,10 @@ def process_lineup():
         final_players = []
         for n in forwards + defense:
             info = roster_data_full.get(n, {'id': None, 'number': ''})
+            # SKATER HEADSHOT FROM UPDATED CDN (EDGE SOURCE)
             final_players.append({
                 'name': n, 'number': info['number'], 'is_forward': n in forwards,
-                'headshot_url': f"https://assets.nhle.com/mugs/nhl/20242025/{team}/{info['id']}.png" if info['id'] else None
+                'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{info['id']}.png" if info['id'] else None
             })
 
         return jsonify({
@@ -251,12 +252,12 @@ def process_numbers():
             pid = next((p['id'] for group in ['forwards', 'defensemen'] for p in api.get(group, []) if str(p['sweaterNumber']) == n), None)
             final.append({
                 'name': name, 'number': n, 'is_forward': i < 12,
-                'headshot_url': f"https://assets.nhle.com/mugs/nhl/20242025/{team}/{pid}.png" if pid else None
+                'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{pid}.png" if pid else None
             })
         return jsonify({
             'forwards': [p for p in final if p['is_forward']],
             'defensemen': [p for p in final if not p['is_forward']],
-            'goalies': [{'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/20242025/{team}/{p['id']}.png"} for p in api.get('goalies', [])][:2],
+            'goalies': [{'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{p['id']}.png"} for p in api.get('goalies', [])][:2],
             'coaches': get_coaches_from_nhl(team), 'team': team
         })
     except Exception as e:
