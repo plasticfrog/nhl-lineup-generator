@@ -27,52 +27,74 @@ TEAM_NAME_MAP = {
     'VAN': 'canucks', 'VGK': 'goldenknights', 'WPG': 'jets', 'WSH': 'capitals'
 }
 
-def get_grid_binned_text(image, rows, cols):
-    """USED BY DUAL SCREENSHOT METHOD: Divides image into strict R x C grid."""
+def get_grid_binned_text(image, rows, cols, debug_label=""):
+    """
+    Mathematical Grid Sorting: 
+    Divides the provided image area into a strict R x C grid.
+    """
+    width, height = image.size
     data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT, config='--psm 6')
-    all_x, all_y, found_words = [], [], []
+    
+    bins = [[] for _ in range(rows * cols)]
+    cell_w = width / cols
+    cell_h = height / rows
+
+    print(f"\n[GRID DEBUG {debug_label}] Partitioning {rows}x{cols}", flush=True)
+
     for i in range(len(data['text'])):
         text = data['text'][i].strip()
         if text and len(text) >= 1:
-            x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
-            found_words.append({'text': text, 'cx': x + w/2, 'cy': y + h/2})
-            all_x.extend([x, x + w]); all_y.extend([y, y + h])
-    if not found_words: return [""] * (rows * cols)
-    min_x, max_x = min(all_x), max(all_x)
-    min_y, max_y = min(all_y), max(all_y)
-    grid_w, grid_h = (max_x - min_x) + 1, (max_y - min_y) + 1
-    bins = [[] for _ in range(rows * cols)]
-    for word in found_words:
-        rel_x, rel_y = (word['cx'] - min_x) / grid_w, (word['cy'] - min_y) / grid_h
-        col_idx = max(0, min(int(rel_x * cols), cols - 1))
-        row_idx = max(0, min(int(rel_y * rows), rows - 1))
-        bins[(row_idx * cols) + col_idx].append(word['text'])
+            # Word center
+            cx = data['left'][i] + (data['width'][i] / 2)
+            cy = data['top'][i] + (data['height'][i] / 2)
+            
+            col_idx = int(cx // cell_w)
+            row_idx = int(cy // cell_h)
+            
+            col_idx = max(0, min(col_idx, cols - 1))
+            row_idx = max(0, min(row_idx, rows - 1))
+            
+            bin_idx = (row_idx * cols) + col_idx
+            bins[bin_idx].append(text)
+
     return [" ".join(b) for b in bins]
 
-def match_name_to_roster(ocr_text, full_team_list, preferred_list, used_names, roster_data_full):
+def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
+    """
+    STRICT Matcher: Requires the Last Name to be present. 
+    Prevents hallucinations based on stray numbers (like #10 Ty Dellandrea).
+    """
     if not ocr_text: return None
     clean_text = ocr_text.upper().replace('3', 'S').replace('5', 'S').replace('0', 'O').replace('1', 'I')
     found_nums = re.findall(r'\d+', clean_text)
     
-    for roster_name in preferred_list:
+    best_match, best_score = None, 0
+    
+    for roster_name in roster_list:
         if roster_name in used_names: continue
         p_info = roster_data_full.get(roster_name, {})
-        last, first = roster_name.split()[-1], roster_name.split()[0]
-        if (first in clean_text and last in clean_text) or (p_info.get('number') in found_nums and last in clean_text):
-            return roster_name
+        last_name = roster_name.split()[-1]
+        first_name = roster_name.split()[0]
+        
+        # CRITICAL: If the last name isn't in the text, we do NOT match.
+        # This stops the app from matching "Age: 23" to a player who is #23.
+        if last_name not in clean_text:
+            continue
 
-    for roster_name in full_team_list:
-        if roster_name in used_names: continue
-        p_info = roster_data_full.get(roster_name, {})
-        last, first = roster_name.split()[-1], roster_name.split()[0]
-        if (first in clean_text and last in clean_text) or (p_info.get('number') in found_nums and last in clean_text):
-            return roster_name
+        score = 100 # Base score for last name match
+        
+        # Bonus for first name
+        if first_name in clean_text:
+            score += 100
+        # Bonus for correct number
+        if p_info.get('number') in found_nums:
+            score += 50
 
-    for roster_name in full_team_list:
-        if roster_name in used_names: continue
-        if roster_name.split()[-1] in clean_text:
-            return roster_name
-    return None
+        if score > best_score:
+            best_score = score
+            best_match = roster_name
+
+    return best_match if best_score >= 100 else None
 
 def extract_players_from_image(image_file, expected_count, preferred_roster, full_roster, type_label, roster_data_full):
     """USED BY DUAL SCREENSHOT METHOD"""
@@ -80,10 +102,10 @@ def extract_players_from_image(image_file, expected_count, preferred_roster, ful
         print(f"\n=== PROCESSING SEPARATE {type_label} IMAGE ===", flush=True)
         image = Image.open(image_file)
         rows, cols = (4, 3) if expected_count == 12 else (3, 2)
-        bins = get_grid_binned_text(image, rows, cols)
+        bins = get_grid_binned_text(image, rows, cols, type_label)
         matched_names, used = [], set()
         for i, bin_text in enumerate(bins):
-            match = match_name_to_roster(bin_text, full_roster, preferred_roster, used, roster_data_full)
+            match = match_name_to_roster(bin_text, preferred_roster, used, roster_data_full)
             matched_names.append(match if match else f"PLAYER {i+1}")
             if match: used.add(match)
         return matched_names[:expected_count]
@@ -153,8 +175,6 @@ def process_lineup():
         sample = comb if comb else f_file
         sample.seek(0)
         img_full = Image.open(sample)
-        
-        # 1. Team Detection
         test_data = pytesseract.image_to_string(img_full)
         found_teams = []
         for word in test_data.split():
@@ -162,9 +182,7 @@ def process_lineup():
                 res = search_player(word)
                 if res and res['team']: found_teams.append(res['team'])
         team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'SJS'
-        print(f"[PROCESS] Team Detection: {team}", flush=True)
         
-        # 2. Roster Data
         r_json = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
         roster_data_full, goalies = {}, []
         for pos_key in ['forwards', 'defensemen', 'goalies']:
@@ -182,72 +200,40 @@ def process_lineup():
         if comb:
             comb.seek(0)
             img_c = Image.open(comb)
-            data = pytesseract.image_to_data(img_c, output_type=pytesseract.Output.DICT, config='--psm 11')
+            w, h = img_c.size
             
-            # A. Global Search: Collect every word and find players
-            found_instances = []
-            used_for_combined = set()
-            print("\n--- STARTING COMBINED GLOBAL SEARCH ---", flush=True)
-            
-            # Map words to players
-            player_coords = {name: {'cx': [], 'cy': []} for name in all_team_names}
-            
-            for i in range(len(data['text'])):
-                txt = data['text'][i].strip().upper().replace('#', '')
-                if not txt or len(txt) < 1: continue
-                cx, cy = data['left'][i] + data['width'][i]/2, data['top'][i] + data['height'][i]/2
+            # Find the "DEFENSEMEN" horizontal divider to split the grids
+            d_ocr = pytesseract.image_to_data(img_c, output_type=pytesseract.Output.DICT)
+            split_y = int(h * 0.58) # Conservative fallback
+            for i, txt in enumerate(d_ocr['text']):
+                if 'DEFENSE' in txt.upper():
+                    split_y = d_ocr['top'][i]
+                    break
+
+            # 1. Process FORWARDS (Top zone, 4x3 Grid)
+            f_zone = img_c.crop((0, 0, w, split_y))
+            f_bins = get_grid_binned_text(f_zone, 4, 3, "COMBINED-FORWARDS")
+            forwards, used_f = [], set()
+            for i, txt in enumerate(f_bins):
+                m = match_name_to_roster(txt, f_names, used_f, roster_data_full)
+                forwards.append(m if m else f"PLAYER {i+1}")
+                if m: used_f.add(m)
+
+            # 2. Process DEFENSE (Bottom zone, left 66%, 3x2 Grid)
+            d_zone = img_c.crop((0, split_y, int(w * 0.68), h))
+            d_bins = get_grid_binned_text(d_zone, 3, 2, "COMBINED-DEFENSE")
+            defense, used_d = [], set()
+            for i, txt in enumerate(d_bins):
+                m = match_name_to_roster(txt, d_names, used_d, roster_data_full)
+                defense.append(m if m else f"PLAYER {i+13}")
+                if m: used_d.add(m)
                 
-                for p_name in all_team_names:
-                    p_info = roster_data_full[p_name]
-                    last = p_name.split()[-1]
-                    if last == txt or p_info['number'] == txt:
-                        player_coords[p_name]['cx'].append(cx)
-                        player_coords[p_name]['cy'].append(cy)
-
-            # B. Deduplicate and refine coordinates
-            final_found_skaters = []
-            for name, coords in player_coords.items():
-                if coords['cx']:
-                    avg_x = sum(coords['cx']) / len(coords['cx'])
-                    avg_y = sum(coords['cy']) / len(coords['cy'])
-                    final_found_skaters.append({'name': name, 'cx': avg_x, 'cy': avg_y})
-                    print(f"  [GLOBAL FOUND] {name} at X:{int(avg_x)} Y:{int(avg_y)}", flush=True)
-
-            # C. Cluster into Rows (Adaptive Threshold: Jersey Height)
-            # We sort by Y, then start a new row if the gap > 200px
-            final_found_skaters.sort(key=lambda p: p['cy'])
-            rows, current_row = [], []
-            if final_found_skaters:
-                current_row = [final_found_skaters[0]]
-                for i in range(1, len(final_found_skaters)):
-                    if (final_found_skaters[i]['cy'] - current_row[-1]['cy']) < 250:
-                        current_row.append(final_found_skaters[i])
-                    else:
-                        current_row.sort(key=lambda p: p['cx'])
-                        rows.append(current_row)
-                        current_row = [final_found_skaters[i]]
-                current_row.sort(key=lambda p: p['cx'])
-                rows.append(current_row)
-
-            # Flatten rows to get final 1-18 order
-            ordered_skaters = []
-            for r in rows:
-                for p in r: ordered_skaters.append(p['name'])
-
-            # D. Goalies (found separately fromSkater flow)
-            goalie_matches = []
-            for g in goalies:
-                # Search for goalie last names in raw OCR
-                if g['last'] in test_data.upper(): goalie_matches.append(g)
-
-            forwards_raw = (ordered_skaters[:12] + [f"PLAYER {i+1}" for i in range(12)])[:12]
-            defense_raw = (ordered_skaters[12:18] + [f"PLAYER {i+13}" for i in range(6)])[:6]
+            forwards_raw, defense_raw = forwards, defense
         else:
             f_file.seek(0); d_file.seek(0)
             forwards_raw = extract_players_from_image(f_file, 12, f_names, all_team_names, "FORWARDS", roster_data_full)
             defense_raw = extract_players_from_image(d_file, 6, d_names, all_team_names, "DEFENSE", roster_data_full)
 
-        # Final Construction
         final_f, final_d = [], []
         for n in forwards_raw:
             info = roster_data_full.get(n, {'id': None, 'number': ''})
