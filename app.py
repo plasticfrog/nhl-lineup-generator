@@ -44,9 +44,14 @@ def get_grid_binned_text(image, rows, cols, debug_label=""):
     for i in range(len(data['text'])):
         text = data['text'][i].strip()
         if text and len(text) >= 1:
+            # Word center
             cx = data['left'][i] + (data['width'][i] / 2)
             cy = data['top'][i] + (data['height'][i] / 2)
             
+            # NOISE FILTER: Skip single digits found in the top 10% of a cell (likely silhouette labels)
+            if len(text) == 1 and text.isdigit() and (cy % cell_h) < (cell_h * 0.2):
+                continue
+
             col_idx = int(cx // cell_w)
             row_idx = int(cy // cell_h)
             
@@ -58,9 +63,11 @@ def get_grid_binned_text(image, rows, cols, debug_label=""):
     return [" ".join(b) for b in bins]
 
 def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
-    """STRICT Matcher: Requires the Last Name to be present."""
+    """STRICT Matcher: Handles names like Will Smith with position-restricted roster."""
     if not ocr_text: return None
+    
     clean_text = ocr_text.upper().replace('3', 'S').replace('5', 'S').replace('0', 'O').replace('1', 'I')
+    # Remove common stat clutter
     clean_text = re.sub(r'\b(GP|AGE|GP:|AGE:|S:L|S:R|G:|A:|P:|H:|W:)\b', '', clean_text)
     found_nums = re.findall(r'\d+', clean_text)
     
@@ -70,14 +77,20 @@ def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
         p_info = roster_data_full.get(roster_name, {})
         last, first = roster_name.split()[-1], roster_name.split()[0]
         
-        if last not in clean_text: continue
+        score = 0
+        # Priority 1: Exact Last Name Match
+        if last in clean_text:
+            score = 150
+        # Priority 2: Fuzzy match for short names (SMITH misread as SITH)
+        elif len(last) >= 4 and (last[:3] in clean_text or last[1:] in clean_text):
+            score = 100
 
-        score = 100
-        if first in clean_text: score += 100
-        if p_info.get('number') in found_nums: score += 50
+        if score > 0:
+            if first in clean_text: score += 100
+            if p_info.get('number') in found_nums: score += 50
+            if score > best_score:
+                best_score, best_match = score, roster_name
 
-        if score > best_score:
-            best_score, best_match = score, roster_name
     return best_match if best_score >= 100 else None
 
 def extract_players_from_image(image_file, expected_count, preferred_roster, full_roster, type_label, roster_data_full):
@@ -89,9 +102,9 @@ def extract_players_from_image(image_file, expected_count, preferred_roster, ful
         bins = get_grid_binned_text(image, rows, cols, type_label)
         matched, used = [], set()
         for i, text in enumerate(bins):
-            m = match_name_to_roster(text, preferred_roster, used, roster_data_full)
-            matched.append(m if m else f"PLAYER {i+1}")
-            if m: used.add(m)
+            match = match_name_to_roster(text, preferred_roster, used, roster_data_full)
+            matched.append(match if match else f"PLAYER {i+1}")
+            if match: used.add(match)
         return matched[:expected_count]
     except Exception as e:
         print(f"Error: {e}", flush=True); return [f"PLAYER {i+1}" for i in range(expected_count)]
@@ -181,7 +194,7 @@ def process_lineup():
             w, h = img_c.size
             d_ocr = pytesseract.image_to_data(img_c, output_type=pytesseract.Output.DICT)
             
-            # Anchor Detection
+            # Header Detection
             f_start, d_start, d_end, g_col_x = 0, int(h * 0.55), h, int(w * 0.65)
             for i, txt in enumerate(d_ocr['text']):
                 u_txt = txt.upper()
@@ -191,7 +204,7 @@ def process_lineup():
                 if 'COACH' in u_txt or 'SCRATCH' in u_txt: d_end = min(d_end, d_ocr['top'][i])
 
             # Forwards (4x3 Grid)
-            f_zone = img_c.crop((0, f_start + 10, w, d_start - 20))
+            f_zone = img_c.crop((0, f_start + 15, w, d_start - 15))
             f_bins = get_grid_binned_text(f_zone, 4, 3, "COMBINED-FORWARDS")
             forwards_raw, used_f = [], set()
             for i, txt in enumerate(f_bins):
@@ -200,7 +213,7 @@ def process_lineup():
                 if m: used_f.add(m)
 
             # Defense (3x2 Grid)
-            d_zone = img_c.crop((0, d_start + 10, g_col_x - 10, d_end - 10))
+            d_zone = img_c.crop((0, d_start + 15, g_col_x - 10, d_end - 15))
             d_bins = get_grid_binned_text(d_zone, 3, 2, "COMBINED-DEFENSE")
             defense_raw, used_d = [], set()
             for i, txt in enumerate(d_bins):
@@ -212,7 +225,7 @@ def process_lineup():
             forwards_raw = extract_players_from_image(f_file, 12, f_names, list(roster_data_full.keys()), "FORWARDS", roster_data_full)
             defense_raw = extract_players_from_image(d_file, 6, d_names, list(roster_data_full.keys()), "DEFENSE", roster_data_full)
 
-        # Build Final Objects
+        # Build Final Objects with Edge Headshots
         final_f, final_d = [], []
         for n in forwards_raw:
             info = roster_data_full.get(n, {'id': None, 'number': ''})
