@@ -28,86 +28,57 @@ TEAM_NAME_MAP = {
 }
 
 def get_grid_binned_text(image, rows, cols, debug_label=""):
-    """
-    Mathematical Grid Sorting: 
-    Divides the provided image area into a strict R x C grid.
-    """
+    """USED BY DUAL SCREENSHOT: Mathematical grid division."""
     width, height = image.size
     data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT, config='--psm 6')
-    
-    bins = [[] for _ in range(rows * cols)]
-    cell_w = width / cols
-    cell_h = height / rows
-
-    print(f"\n[GRID DEBUG {debug_label}] Partitioning {rows}x{cols} ({width}x{height})", flush=True)
-
+    all_x, all_y, found_words = [], [], []
     for i in range(len(data['text'])):
         text = data['text'][i].strip()
         if text and len(text) >= 1:
-            # Word center
-            cx = data['left'][i] + (data['width'][i] / 2)
-            cy = data['top'][i] + (data['height'][i] / 2)
-            
-            # NOISE FILTER: Skip single digits found in the top 10% of a cell (likely silhouette labels)
-            if len(text) == 1 and text.isdigit() and (cy % cell_h) < (cell_h * 0.2):
-                continue
-
-            col_idx = int(cx // cell_w)
-            row_idx = int(cy // cell_h)
-            
-            col_idx = max(0, min(col_idx, cols - 1))
-            row_idx = max(0, min(row_idx, rows - 1))
-            
-            bin_idx = (row_idx * cols) + col_idx
-            bins[bin_idx].append(text)
+            x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+            found_words.append({'text': text, 'cx': x + w/2, 'cy': y + h/2})
+            all_x.extend([x, x + w]); all_y.extend([y, y + h])
+    if not found_words: return [""] * (rows * cols)
+    min_x, max_x, min_y, max_y = min(all_x), max(all_x), min(all_y), max(all_y)
+    grid_w, grid_h = (max_x - min_x) + 1, (max_y - min_y) + 1
+    bins = [[] for _ in range(rows * cols)]
+    for word in found_words:
+        rel_x, rel_y = (word['cx'] - min_x) / grid_w, (word['cy'] - min_y) / grid_h
+        col_idx, row_idx = max(0, min(int(rel_x * cols), cols - 1)), max(0, min(int(rel_y * rows), rows - 1))
+        # Silhouette filtering for combined Sharks style
+        if len(word['text']) <= 2 and word['text'].isdigit() and (rel_y * rows % 1) < 0.2: continue
+        bins[(row_idx * cols) + col_idx].append(word['text'])
     return [" ".join(b) for b in bins]
 
 def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
-    """STRICT Matcher: Handles names like Will Smith with position-restricted roster."""
     if not ocr_text: return None
-    
     clean_text = ocr_text.upper().replace('3', 'S').replace('5', 'S').replace('0', 'O').replace('1', 'I')
-    # Remove common stat clutter
     clean_text = re.sub(r'\b(GP|AGE|GP:|AGE:|S:L|S:R|G:|A:|P:|H:|W:)\b', '', clean_text)
     found_nums = re.findall(r'\d+', clean_text)
-    
     best_match, best_score = None, 0
     for roster_name in roster_list:
         if roster_name in used_names: continue
         p_info = roster_data_full.get(roster_name, {})
         last, first = roster_name.split()[-1], roster_name.split()[0]
-        
-        score = 0
-        # Priority 1: Exact Last Name Match
-        if last in clean_text:
-            score = 150
-        # Priority 2: Fuzzy match for short names (SMITH misread as SITH)
-        elif len(last) >= 4 and (last[:3] in clean_text or last[1:] in clean_text):
-            score = 100
-
-        if score > 0:
-            if first in clean_text: score += 100
-            if p_info.get('number') in found_nums: score += 50
-            if score > best_score:
-                best_score, best_match = score, roster_name
-
+        if last not in clean_text: continue
+        score = 100
+        if first in clean_text: score += 100
+        if p_info.get('number') in found_nums: score += 50
+        if score > best_score: best_score, best_match = score, roster_name
     return best_match if best_score >= 100 else None
 
 def extract_players_from_image(image_file, expected_count, preferred_roster, full_roster, type_label, roster_data_full):
-    """USED BY DUAL SCREENSHOT METHOD"""
     try:
-        print(f"\n=== PROCESSING SEPARATE {type_label} IMAGE ===", flush=True)
         image = Image.open(image_file)
         rows, cols = (4, 3) if expected_count == 12 else (3, 2)
         bins = get_grid_binned_text(image, rows, cols, type_label)
         matched, used = [], set()
         for i, text in enumerate(bins):
-            match = match_name_to_roster(text, preferred_roster, used, roster_data_full)
-            matched.append(match if match else f"PLAYER {i+1}")
-            if match: used.add(match)
+            m = match_name_to_roster(text, preferred_roster, used, roster_data_full)
+            matched.append(m if m else f"PLAYER {i+1}")
+            if m: used.add(m)
         return matched[:expected_count]
-    except Exception as e:
-        print(f"Error: {e}", flush=True); return [f"PLAYER {i+1}" for i in range(expected_count)]
+    except Exception as e: return [f"PLAYER {i+1}" for i in range(expected_count)]
 
 def search_player(player_name):
     if not player_name or "PLAYER" in player_name: return None
@@ -133,16 +104,24 @@ def get_coaches_from_nhl(team_abbrev):
     except: return []
 
 def extract_roster_from_screenshot(image_file):
+    """Refined for Number Entry method to avoid stat-noise in names"""
     try:
         image = Image.open(image_file); text = pytesseract.image_to_string(image)
         roster = {}
         for line in text.split('\n'):
-            nums = re.findall(r'^\d+', line.strip())
-            if nums: roster[nums[0]] = {'name': line.replace(nums[0], '').strip().upper()}
+            line = line.strip()
+            # Look for number at the start, followed by the rest of the line as name
+            match = re.search(r'^(\d+)\s+(.+)', line)
+            if match:
+                num, name = match.groups()
+                # Clean name: remove common table stats that might follow name
+                name = re.split(r'\d', name)[0].strip().upper()
+                if len(name) > 3: roster[num] = {'name': name}
         return roster, []
     except: return {}, []
 
 def extract_line_numbers(text=None, image_file=None):
+    """Finds all digits in the provided input"""
     if text: return re.findall(r'\d+', text)
     if image_file:
         try: return re.findall(r'\d+', pytesseract.image_to_string(Image.open(image_file)))
@@ -165,8 +144,6 @@ def process_lineup():
         f_file, d_file = request.files.get('forwards'), request.files.get('defense')
         sample = comb if comb else f_file
         sample.seek(0); img_full = Image.open(sample)
-        
-        # 1. Team Detection
         test_data = pytesseract.image_to_string(img_full)
         found_teams = []
         for word in test_data.split():
@@ -175,7 +152,6 @@ def process_lineup():
                 if res and res['team']: found_teams.append(res['team'])
         team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'SJS'
         
-        # 2. API Roster
         r_json = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
         roster_data_full, goalies = {}, []
         for pos_key in ['forwards', 'defensemen', 'goalies']:
@@ -190,11 +166,8 @@ def process_lineup():
         d_names = [n for n, d in roster_data_full.items() if not d['is_forward']]
 
         if comb:
-            comb.seek(0); img_c = Image.open(comb)
-            w, h = img_c.size
+            comb.seek(0); img_c = Image.open(comb); w, h = img_c.size
             d_ocr = pytesseract.image_to_data(img_c, output_type=pytesseract.Output.DICT)
-            
-            # Header Detection
             f_start, d_start, d_end, g_col_x = 0, int(h * 0.55), h, int(w * 0.65)
             for i, txt in enumerate(d_ocr['text']):
                 u_txt = txt.upper()
@@ -203,7 +176,6 @@ def process_lineup():
                 if 'GOALTENDER' in u_txt: g_col_x = d_ocr['left'][i]
                 if 'COACH' in u_txt or 'SCRATCH' in u_txt: d_end = min(d_end, d_ocr['top'][i])
 
-            # Forwards (4x3 Grid)
             f_zone = img_c.crop((0, f_start + 15, w, d_start - 15))
             f_bins = get_grid_binned_text(f_zone, 4, 3, "COMBINED-FORWARDS")
             forwards_raw, used_f = [], set()
@@ -212,7 +184,6 @@ def process_lineup():
                 forwards_raw.append(m if m else f"PLAYER {i+1}")
                 if m: used_f.add(m)
 
-            # Defense (3x2 Grid)
             d_zone = img_c.crop((0, d_start + 15, g_col_x - 10, d_end - 15))
             d_bins = get_grid_binned_text(d_zone, 3, 2, "COMBINED-DEFENSE")
             defense_raw, used_d = [], set()
@@ -225,7 +196,6 @@ def process_lineup():
             forwards_raw = extract_players_from_image(f_file, 12, f_names, list(roster_data_full.keys()), "FORWARDS", roster_data_full)
             defense_raw = extract_players_from_image(d_file, 6, d_names, list(roster_data_full.keys()), "DEFENSE", roster_data_full)
 
-        # Build Final Objects with Edge Headshots
         final_f, final_d = [], []
         for n in forwards_raw:
             info = roster_data_full.get(n, {'id': None, 'number': ''})
@@ -234,29 +204,45 @@ def process_lineup():
             info = roster_data_full.get(n, {'id': None, 'number': ''})
             final_d.append({'name': n, 'number': info['number'], 'is_forward': False, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{info['id']}.png" if info['id'] else None})
 
-        return jsonify({
-            'forwards': final_f, 'defensemen': final_d,
-            'goalies': [{'name': g['name'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{g['id']}.png"} for g in goalies[:2]],
-            'coaches': get_coaches_from_nhl(team), 'team': team
-        })
-    except Exception as e:
-        print(f"Error: {e}", flush=True); return jsonify({'error': str(e)}), 500
+        return jsonify({'forwards': final_f, 'defensemen': final_d, 'goalies': [{'name': g['name'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{g['id']}.png"} for g in goalies[:2]], 'coaches': get_coaches_from_nhl(team), 'team': team})
+    except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/process_numbers', methods=['POST'])
 def process_numbers():
+    """Improved to strictly use Official API names and ignore stat-noise digits"""
     try:
         team = request.form.get('team'); roster_img = request.files.get('roster_screenshot')
         l_text, l_img = request.form.get('lines_text'), request.files.get('lines_screenshot')
+        
         ref_roster, _ = extract_roster_from_screenshot(roster_img)
-        nums = extract_line_numbers(text=l_text, image_file=l_img)
+        raw_nums = extract_line_numbers(text=l_text, image_file=l_img)
+        
         api = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
+        
+        # Build a valid skater map to filter out stat-noise digits (like Age, GP)
+        valid_skaters = {}
+        for pos in ['forwards', 'defensemen']:
+            for p in api.get(pos, []):
+                name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
+                valid_skaters[str(p['sweaterNumber'])] = {'id': p['id'], 'name': name, 'is_forward': pos == 'forwards'}
+        
+        # Filter: Only keep numbers that actually belong to an active player on the team
+        nums = [n for n in raw_nums if n in valid_skaters]
+        
         f_out, d_out = [], []
         for i, n in enumerate(nums[:18]):
-            name = ref_roster.get(n, {}).get('name', f"PLAYER #{n}")
-            pid = next((p['id'] for group in ['forwards', 'defensemen'] for p in api.get(group, []) if str(p['sweaterNumber']) == n), None)
-            obj = {'name': name, 'number': n, 'is_forward': i < 12, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{pid}.png" if pid else None}
+            player = valid_skaters[n]
+            # Use Official Name if screenshot name is missing or just digits
+            scr_name = ref_roster.get(n, {}).get('name', '')
+            display_name = player['name'] if not scr_name or scr_name.isdigit() else scr_name
+            
+            obj = {
+                'name': display_name, 'number': n, 'is_forward': i < 12,
+                'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{player['id']}.png"
+            }
             if i < 12: f_out.append(obj)
             else: d_out.append(obj)
+            
         return jsonify({
             'forwards': f_out, 'defensemen': d_out,
             'goalies': [{'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{p['id']}.png"} for p in api.get('goalies', [])][:2],
