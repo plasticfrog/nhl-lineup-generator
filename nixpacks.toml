@@ -1,5 +1,2 @@
-[phases.setup]
-nixPkgs = ["..."]
-
-[start]
-cmd = "python3 -m http.server $PORT"
+[static]
+directory = "."
