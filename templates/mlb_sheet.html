@@ -271,14 +271,13 @@
                     el.style.fontSize = size + 'px';
                 }
             });
-            // Auto-shrink role-header titles
+            // Auto-shrink role-header titles — start big, shrink only if needed
             document.querySelectorAll('.role-header').forEach(el => {
                 const span = el.querySelector('span');
                 if (!span) return;
-                span.style.fontSize = '';
-                let size = 8;
+                let size = 10;
                 span.style.fontSize = size + 'px';
-                while (size > 4.5 && span.scrollHeight > el.clientHeight) {
+                while (size > 5 && span.scrollHeight > el.clientHeight) {
                     size -= 0.5;
                     span.style.fontSize = size + 'px';
                 }
