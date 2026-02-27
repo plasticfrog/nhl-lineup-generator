@@ -48,31 +48,37 @@
         .sport-toggle {
             display: flex;
             justify-content: center;
-            gap: 15px;
-            margin-bottom: 20px;
+            border-bottom: 2px solid rgba(255,255,255,0.12);
+            margin-bottom: 30px;
         }
 
         .sport-btn {
-            padding: 14px 30px;
-            font-size: 1.1em;
-            font-weight: 700;
+            padding: 14px 48px;
+            font-size: 1.25em;
+            font-weight: 900;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 4px;
-            background: rgba(255,255,255,0.05);
-            color: #fff;
+            letter-spacing: 2px;
+            border: none;
+            border-bottom: 4px solid transparent;
+            margin-bottom: -2px;
+            background: transparent;
+            color: rgba(255,255,255,0.38);
             cursor: pointer;
             transition: all 0.2s ease;
         }
 
-        .sport-btn:hover {
-            background: rgba(255,255,255,0.1);
+        .sport-btn.nhl-btn.active {
+            background: rgba(91,142,196,0.13);
+            border-bottom-color: #5b8ec4;
+            color: #fff;
+            cursor: default;
         }
 
-        .sport-btn.active {
-            background: #415a77;
-            border-color: #778da9;
+        .sport-btn.mlb-btn.active {
+            background: rgba(210,40,40,0.13);
+            border-bottom-color: #e05555;
+            color: #fff;
+            cursor: default;
         }
 
         .upload-section {
@@ -213,8 +219,8 @@
         <p class="subtitle">Generate Gameday Headshot Sheets for Any Matchup</p>
 
         <div class="sport-toggle">
-            <button class="sport-btn" onclick="window.location.href='/'">NHL</button>
-            <button class="sport-btn active">MLB</button>
+            <button class="sport-btn nhl-btn" onclick="window.location.href='/'">🏒 NHL</button>
+            <button class="sport-btn mlb-btn active">⚾ MLB</button>
         </div>
 
         <div class="upload-section">

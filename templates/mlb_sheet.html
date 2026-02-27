@@ -33,15 +33,15 @@
 
         .role-header { height: 26px; background: #fff; border-bottom: 2px solid black; display: flex; align-items: center; justify-content: center; padding: 0 2px; pointer-events: auto; }
         .role-header span { font-size: 10px; font-weight: 900; text-transform: uppercase; line-height: 1; text-align: center; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
-        .card-top { height: 32px; background: #fff; display: flex; justify-content: center; align-items: center; font-weight: 900; font-size: 28px; border-bottom: 2px solid black; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
+        .card-top { height: 42px; background: #fff; display: flex; justify-content: center; align-items: center; font-weight: 900; font-size: 32px; border-bottom: 2px solid black; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
 
         .img-box { flex: 1; position: relative; background: transparent; overflow: hidden; display: flex; justify-content: center; align-items: center; pointer-events: none; }
-        .img-box.player img { width: 100%; height: 100%; object-fit: contain; object-position: center 45%; transform: scale(2.4); }
+        .img-box.player img { width: 100%; height: 100%; object-fit: contain; object-position: center 25%; transform: scale(1.75); }
         .img-box.coach img { width: 95%; aspect-ratio: 1/1; object-fit: cover; object-position: center 10%; transform: scale(1.6); border-radius: 50%; margin: auto; }
 
-        .card-bottom { height: 40px; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; font-size: clamp(10px, 1.5vw, 16px); font-weight: 900; text-align: center; line-height: 0.85; border-top: 2.5px solid black; padding: 2px; word-wrap: break-word; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
+        .card-bottom { height: 52px; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; font-size: clamp(11px, 1.8vw, 19px); font-weight: 900; text-align: center; line-height: 1; border-top: 2.5px solid black; padding: 3px; word-wrap: break-word; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
 
-        .handed { color: #cc0000; margin-left: 2px; font-weight: 900; font-size: 28px; }
+        .handed { color: #cc0000; margin-left: 2px; font-weight: 900; font-size: 32px; }
         .row-header { width: 100%; color: white; font-weight: 900; font-size: 11px; padding: 1px 15px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; min-height: 16px; font-family: 'Arial Narrow', sans-serif; }
 
         .no-data { color: #aaa; text-align: center; margin-top: 100px; font-size: 1.5em; }
@@ -81,12 +81,19 @@
             const reader = new FileReader();
             reader.onload = (event) => {
                 imgElement.src = event.target.result;
-                imgElement.style.transform = 'scale(1)';
-                imgElement.style.objectFit = 'cover';
-                imgElement.style.objectPosition = 'center center';
                 if (imgElement.parentElement.classList.contains('coach')) {
-                    imgElement.style.borderRadius = '50%';
-                    imgElement.style.aspectRatio = '1/1';
+                    // Remove circle crop — show custom image naturally filling the card
+                    imgElement.style.width = '100%';
+                    imgElement.style.height = '100%';
+                    imgElement.style.objectFit = 'cover';
+                    imgElement.style.objectPosition = 'center 20%';
+                    imgElement.style.transform = 'none';
+                    imgElement.style.borderRadius = '0';
+                    imgElement.style.aspectRatio = 'auto';
+                } else {
+                    imgElement.style.transform = 'scale(1)';
+                    imgElement.style.objectFit = 'cover';
+                    imgElement.style.objectPosition = 'center center';
                 }
             };
             reader.readAsDataURL(file);
@@ -151,7 +158,7 @@
                     coachesHtml += `<div class="card" style="border-color: ${c1};">`;
                     coachesHtml += `<div class="role-header" style="border-color: ${c1};"><span contenteditable="true">${escapeHtml(c.role)}</span></div>`;
                     coachesHtml += `<div class="img-box coach"><img src="${escapeHtml(c.image)}" onerror="this.src='${escapeHtml(t.logo)}';"></div>`;
-                    coachesHtml += `<div class="card-bottom coach-name" style="border-color: ${c1}; height: 35px;" contenteditable="true">${escapeHtml(c.name)}</div>`;
+                    coachesHtml += `<div class="card-bottom coach-name" style="border-color: ${c1}; height: 48px;" contenteditable="true">${escapeHtml(c.name)}</div>`;
                     coachesHtml += `</div>`;
                 });
                 coachesHtml += `</div></div>`;
