@@ -33,15 +33,15 @@
 
         .role-header { height: 26px; background: #fff; border-bottom: 2px solid black; display: flex; align-items: center; justify-content: center; padding: 0 2px; pointer-events: auto; }
         .role-header span { font-size: 10px; font-weight: 900; text-transform: uppercase; line-height: 1; text-align: center; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
-        .card-top { height: 42px; background: #fff; display: flex; justify-content: center; align-items: center; font-weight: 900; font-size: 32px; border-bottom: 2px solid black; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
+        .card-top { height: 36px; background: #fff; display: flex; justify-content: center; align-items: center; font-weight: 900; font-size: 26px; border-bottom: 2px solid black; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; line-height: 1; }
 
         .img-box { flex: 1; position: relative; background: transparent; overflow: hidden; display: flex; justify-content: center; align-items: center; pointer-events: none; }
-        .img-box.player img { width: 100%; height: 100%; object-fit: contain; object-position: center 25%; transform: scale(1.75); }
+        .img-box.player img { width: 100%; height: 100%; object-fit: contain; object-position: center top; transform: scale(2.15); transform-origin: center 18%; }
         .img-box.coach img { width: 95%; aspect-ratio: 1/1; object-fit: cover; object-position: center 10%; transform: scale(1.6); border-radius: 50%; margin: auto; }
 
-        .card-bottom { height: 52px; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; font-size: clamp(11px, 1.8vw, 19px); font-weight: 900; text-align: center; line-height: 1; border-top: 2.5px solid black; padding: 3px; word-wrap: break-word; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
+        .card-bottom { height: 50px; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; font-size: clamp(7px, 1.05vw, 14px); font-weight: 900; text-align: center; line-height: 1.15; border-top: 2.5px solid black; padding: 2px 1px; overflow-wrap: break-word; word-break: break-word; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
 
-        .handed { color: #cc0000; margin-left: 2px; font-weight: 900; font-size: 32px; }
+        .handed { color: #cc0000; margin-left: 1px; font-weight: 900; font-size: 17px; vertical-align: middle; }
         .row-header { width: 100%; color: white; font-weight: 900; font-size: 11px; padding: 1px 15px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; min-height: 16px; font-family: 'Arial Narrow', sans-serif; }
 
         .no-data { color: #aaa; text-align: center; margin-top: 100px; font-size: 1.5em; }
@@ -100,11 +100,18 @@
         }
 
         function setupCard(card) {
-            card.addEventListener('click', (e) => {
-                if (e.target.hasAttribute('contenteditable')) return;
-                activeTargetImg = card.querySelector('img');
-                if (activeTargetImg) fileInput.click();
-            });
+            const isLogoBox = card.classList.contains('logo-box');
+
+            // Click-to-upload only for player/coach cards, NOT the logo box
+            if (!isLogoBox) {
+                card.addEventListener('click', (e) => {
+                    if (e.target.hasAttribute('contenteditable')) return;
+                    activeTargetImg = card.querySelector('img');
+                    if (activeTargetImg) fileInput.click();
+                });
+            }
+
+            // Drag-and-drop works for all cards including logo box
             card.addEventListener('dragenter', (e) => { e.preventDefault(); card.classList.add('drag-over'); });
             card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('drag-over'); });
             card.addEventListener('dragleave', () => { card.classList.remove('drag-over'); });
@@ -182,8 +189,8 @@
                 pitchersHtml += `</div></div>`;
 
                 // === POSITION PLAYERS ROW ===
-                let posHtml = `<div class="row players" style="background: #222;">`;
-                posHtml += `<div class="row-header" style="background: #222;"><span>INFIELDERS</span><span>OUTFIELDERS</span><span>CATCHERS</span></div>`;
+                let posHtml = `<div class="row players" style="background: ${c1};">`;
+                posHtml += `<div class="row-header" style="background: ${c1};"><span>INFIELDERS</span><span>OUTFIELDERS</span><span>CATCHERS</span></div>`;
                 posHtml += `<div class="grid-container">`;
 
                 t.pos_players.forEach(b => {
@@ -191,7 +198,7 @@
                         posHtml += `<div class="card" style="background:#fff; border-color: ${c1};">`;
                         posHtml += `<div class="card-top" style="border-color: ${c1};" contenteditable="true">${escapeHtml(b.number)}<span class="handed">${escapeHtml(b.bat_l || '')}</span></div>`;
                         posHtml += `<div class="img-box player"><img src="${escapeHtml(b.image)}"></div>`;
-                        posHtml += `<div class="card-bottom" style="border-color: #222;" contenteditable="true">${escapeHtml(b.name)}</div>`;
+                        posHtml += `<div class="card-bottom" style="border-color: ${c1};" contenteditable="true">${escapeHtml(b.name)}</div>`;
                         posHtml += `</div>`;
                     } else {
                         posHtml += `<div class="card" style="background:#e6e6e6; border-color: ${c1};"><div class="img-box"><img></div></div>`;
