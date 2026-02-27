@@ -31,8 +31,8 @@
         .card:last-child { border-right: none; }
         .card.drag-over { background: #ffffa0 !important; }
 
-        .role-header { height: 26px; background: #fff; border-bottom: 2px solid black; display: flex; align-items: center; justify-content: center; padding: 0 2px; pointer-events: auto; }
-        .role-header span { font-size: 10px; font-weight: 900; text-transform: uppercase; line-height: 1; text-align: center; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
+        .role-header { height: 26px; background: #fff; border-bottom: 2px solid black; display: flex; align-items: center; justify-content: center; padding: 0 2px; pointer-events: auto; overflow: hidden; }
+        .role-header span { font-size: 8px; font-weight: 900; text-transform: uppercase; line-height: 1.1; text-align: center; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
         .card-top { height: 36px; background: #fff; display: flex; justify-content: center; align-items: center; font-weight: 900; font-size: 26px; border-bottom: 2px solid black; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; line-height: 1; }
 
         .img-box { flex: 1; position: relative; background: transparent; overflow: hidden; display: flex; justify-content: center; align-items: center; pointer-events: none; }
@@ -62,7 +62,7 @@
             /* TWO-UP PRINT: fit both sheets on one landscape page */
             body.two-up .sheet {
                 transform: none;
-                height: 4.1in;
+                height: 4.0in;
                 width: 11in;
                 margin: 0;
                 padding: 0.5mm;
@@ -70,10 +70,11 @@
                 page-break-after: avoid;
             }
             body.two-up .sheet:last-child { page-break-after: auto; }
-            body.two-up .card-top { height: 15px; font-size: 12px; }
+            body.two-up .row { margin-bottom: 0 !important; }
+            body.two-up .card-top { height: 15px !important; font-size: 12px !important; }
             body.two-up .handed { font-size: 9px; }
-            body.two-up .card-bottom { height: 24px; font-size: clamp(4px, 0.6vw, 9px); line-height: 1.05; padding: 1px; }
-            body.two-up .role-header { height: 12px; }
+            body.two-up .card-bottom { height: 22px !important; font-size: clamp(4px, 0.6vw, 9px) !important; line-height: 1.05; padding: 1px; }
+            body.two-up .role-header { height: 12px !important; }
             body.two-up .role-header span { font-size: 6px; }
             body.two-up .row-header { min-height: 8px; font-size: 6px; padding: 0 6px; }
             body.two-up .logo-box img { height: 38px; }
@@ -268,6 +269,18 @@
                 while (size > 7 && (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth)) {
                     size -= 0.5;
                     el.style.fontSize = size + 'px';
+                }
+            });
+            // Auto-shrink role-header titles
+            document.querySelectorAll('.role-header').forEach(el => {
+                const span = el.querySelector('span');
+                if (!span) return;
+                span.style.fontSize = '';
+                let size = 8;
+                span.style.fontSize = size + 'px';
+                while (size > 4.5 && span.scrollHeight > el.clientHeight) {
+                    size -= 0.5;
+                    span.style.fontSize = size + 'px';
                 }
             });
         }
