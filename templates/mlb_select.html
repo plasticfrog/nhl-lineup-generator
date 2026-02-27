@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLB Headshot Sheet Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at center, #1b263b 0%, #0d1b2a 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            color: #e0e1dd;
+        }
+
+        .container {
+            max-width: 1100px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.8em;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            color: #ffffff;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 1.1em;
+            margin-bottom: 40px;
+            color: #778da9;
+            font-weight: 400;
+        }
+
+        .sport-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .sport-btn {
+            padding: 14px 30px;
+            font-size: 1.1em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .sport-btn:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .sport-btn.active {
+            background: #415a77;
+            border-color: #778da9;
+        }
+
+        .upload-section {
+            background: rgba(13, 27, 42, 0.8);
+            border-radius: 8px;
+            padding: 40px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .team-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .team-box {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 20px;
+        }
+
+        .team-label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 700;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #778da9;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            font-size: 1em;
+            border-radius: 4px;
+            background: #0d1b2a;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .generate-btn {
+            width: 100%;
+            padding: 18px;
+            font-size: 1.1em;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background: #415a77;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .generate-btn:hover:not(:disabled) {
+            background: #778da9;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .generate-btn:disabled {
+            background: #1b263b;
+            color: #415a77;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #778da9;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: rgba(230, 57, 70, 0.1);
+            border: 1px solid #e63946;
+            color: #f1faee;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            display: none;
+            font-size: 0.9em;
+        }
+
+        .instructions {
+            background: rgba(255,255,255,0.03);
+            border-radius: 6px;
+            padding: 30px;
+            margin-top: 40px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .instructions h3 {
+            margin-bottom: 20px;
+            font-size: 1em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #fff;
+        }
+
+        .instructions li {
+            margin: 12px 0;
+            line-height: 1.6;
+            font-size: 0.95em;
+            color: #778da9;
+        }
+
+        .validation-msg {
+            color: #e63946;
+            font-size: 0.85em;
+            margin-top: 8px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MLB Headshot Sheets</h1>
+        <p class="subtitle">Generate Gameday Headshot Sheets for Any Matchup</p>
+
+        <div class="sport-toggle">
+            <button class="sport-btn" onclick="window.location.href='/'">NHL</button>
+            <button class="sport-btn active">MLB</button>
+        </div>
+
+        <div class="upload-section">
+            <div class="team-grid">
+                <div class="team-box">
+                    <label class="team-label">Away Team</label>
+                    <select id="away-team" onchange="checkReady()">
+                        <option value="">Choose Away Team...</option>
+                        {% for slug, info in teams %}
+                        <option value="{{ slug }}">{{ info.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="team-box">
+                    <label class="team-label">Home Team</label>
+                    <select id="home-team" onchange="checkReady()">
+                        <option value="">Choose Home Team...</option>
+                        {% for slug, info in teams %}
+                        <option value="{{ slug }}">{{ info.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="validation-msg" id="same-team-msg">Away and Home teams must be different.</div>
+
+            <button class="generate-btn" id="generate-btn" onclick="generateSheet()" disabled>
+                Generate Headshot Sheets
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Fetching roster data from MLB...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="instructions">
+            <h3>How It Works</h3>
+            <ol>
+                <li>Select the Away and Home teams for the matchup.</li>
+                <li>Click Generate to fetch current rosters and coaching staffs.</li>
+                <li>Two printable landscape headshot sheets will be created (one per team).</li>
+                <li>Edit names, swap headshots, and print directly from the output page.</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function checkReady() {
+            const away = document.getElementById('away-team').value;
+            const home = document.getElementById('home-team').value;
+            const msg = document.getElementById('same-team-msg');
+
+            if (away && home && away === home) {
+                msg.style.display = 'block';
+                document.getElementById('generate-btn').disabled = true;
+            } else {
+                msg.style.display = 'none';
+                document.getElementById('generate-btn').disabled = !(away && home);
+            }
+        }
+
+        async function generateSheet() {
+            const away = document.getElementById('away-team').value;
+            const home = document.getElementById('home-team').value;
+
+            const formData = new FormData();
+            formData.append('away_team', away);
+            formData.append('home_team', home);
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('generate-btn').disabled = true;
+
+            try {
+                const response = await fetch('/mlb/generate', { method: 'POST', body: formData });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Processing failed');
+                localStorage.setItem('mlb_sheet_data', JSON.stringify(data));
+                window.open('/mlb/sheet', '_blank');
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('generate-btn').disabled = false;
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Error: ' + error.message;
+                document.getElementById('generate-btn').disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

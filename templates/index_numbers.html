@@ -247,7 +247,12 @@
     <div class="container">
         <h1>NHL Lineup Generator</h1>
         <p class="subtitle">Manual number entry for precision lineup building</p>
-        
+
+        <div style="display: flex; justify-content: center; gap: 15px; margin-bottom: 20px;">
+            <button class="method-btn active" style="font-size: 1.1em; padding: 14px 30px;">NHL</button>
+            <button class="method-btn" onclick="window.location.href='/mlb'" style="font-size: 1.1em; padding: 14px 30px;">MLB</button>
+        </div>
+
         <div class="method-toggle">
             <button class="method-btn" onclick="window.location.href='/'">Screenshot Method</button>
             <button class="method-btn active">Number Entry Method</button>

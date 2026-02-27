@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <title>MLB Headshot Sheets</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; }
+        @page { size: letter landscape; margin: 0; }
+        body { background: #111; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; }
+
+        .btn-container { position: fixed; top: 15px; right: 20px; display: flex; gap: 12px; z-index: 9999; }
+        .nav-btn { padding: 10px 20px; font-size: 13px; font-weight: 700; text-transform: uppercase; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; }
+        .reset-btn { background: #334155; color: white; }
+        .print-btn { background: #005A9C; color: white; }
+        .nav-btn:active { transform: scale(0.95); }
+
+        .sheet { background: white; width: 11in; height: 8.5in; padding: 1mm; display: flex; flex-direction: column; page-break-after: always; border: 8px solid black; margin-top: 60px; }
+        .row { display: flex; flex-direction: column; margin-bottom: 2px; overflow: hidden; }
+        .row.coaches { flex: 0.8; }
+        .row.players { flex: 1.2; }
+        .grid-container { display: grid; grid-template-columns: repeat(13, 1fr); gap: 1.5px; flex: 1; }
+
+        [contenteditable="true"]:focus { outline: none; background: #ffffd0; }
+
+        .logo-box { background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; border-right: 3.5px solid black; padding: 5px; position: relative; }
+        .logo-box img { height: 85px; width: auto; object-fit: contain; pointer-events: none; }
+        .logo-team-name { font-size: 28px; font-weight: 900; color: #000; text-transform: uppercase; margin-top: 5px; font-family: 'Arial Narrow', sans-serif; }
+
+        .card { background: #fff; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; border-right: 1.5px solid black; cursor: pointer; }
+        .card:last-child { border-right: none; }
+        .card.drag-over { background: #ffffa0 !important; }
+
+        .role-header { height: 26px; background: #fff; border-bottom: 2px solid black; display: flex; align-items: center; justify-content: center; padding: 0 2px; pointer-events: auto; }
+        .role-header span { font-size: 10px; font-weight: 900; text-transform: uppercase; line-height: 1; text-align: center; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
+        .card-top { height: 32px; background: #fff; display: flex; justify-content: center; align-items: center; font-weight: 900; font-size: 28px; border-bottom: 2px solid black; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
+
+        .img-box { flex: 1; position: relative; background: transparent; overflow: hidden; display: flex; justify-content: center; align-items: center; pointer-events: none; }
+        .img-box.player img { width: 100%; height: 100%; object-fit: contain; object-position: center 45%; transform: scale(2.4); }
+        .img-box.coach img { width: 95%; aspect-ratio: 1/1; object-fit: cover; object-position: center 10%; transform: scale(1.6); border-radius: 50%; margin: auto; }
+
+        .card-bottom { height: 40px; background: #fff; color: #000; display: flex; align-items: center; justify-content: center; font-size: clamp(10px, 1.5vw, 16px); font-weight: 900; text-align: center; line-height: 0.85; border-top: 2.5px solid black; padding: 2px; word-wrap: break-word; font-family: 'Arial Narrow', sans-serif; pointer-events: auto; }
+
+        .handed { color: #cc0000; margin-left: 2px; font-weight: 900; font-size: 28px; }
+        .row-header { width: 100%; color: white; font-weight: 900; font-size: 11px; padding: 1px 15px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; min-height: 16px; font-family: 'Arial Narrow', sans-serif; }
+
+        .no-data { color: #aaa; text-align: center; margin-top: 100px; font-size: 1.5em; }
+
+        @media print {
+            body { background: white; }
+            .btn-container { display: none; }
+            .sheet { margin: 0; border-width: 10px; }
+            .no-data { display: none; }
+            [contenteditable="true"]:focus { background: transparent; }
+        }
+    </style>
+</head>
+<body>
+    <div class="btn-container">
+        <button class="nav-btn reset-btn" onclick="window.location.reload()">Reset Original</button>
+        <button class="nav-btn print-btn" onclick="window.print()">Print Sheets</button>
+    </div>
+    <input type="file" id="imageInput" style="display:none" accept="image/*">
+
+    <div id="sheets-container"></div>
+
+    <script>
+        let activeTargetImg = null;
+        const fileInput = document.getElementById('imageInput');
+
+        window.addEventListener("dragover", function(e) { e.preventDefault(); }, false);
+        window.addEventListener("drop", function(e) { e.preventDefault(); }, false);
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0] && activeTargetImg) {
+                processFile(e.target.files[0], activeTargetImg);
+            }
+        });
+
+        function processFile(file, imgElement) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                imgElement.src = event.target.result;
+                imgElement.style.transform = 'scale(1)';
+                imgElement.style.objectFit = 'cover';
+                imgElement.style.objectPosition = 'center center';
+                if (imgElement.parentElement.classList.contains('coach')) {
+                    imgElement.style.borderRadius = '50%';
+                    imgElement.style.aspectRatio = '1/1';
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function setupCard(card) {
+            card.addEventListener('click', (e) => {
+                if (e.target.hasAttribute('contenteditable')) return;
+                activeTargetImg = card.querySelector('img');
+                if (activeTargetImg) fileInput.click();
+            });
+            card.addEventListener('dragenter', (e) => { e.preventDefault(); card.classList.add('drag-over'); });
+            card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('drag-over'); });
+            card.addEventListener('dragleave', () => { card.classList.remove('drag-over'); });
+            card.addEventListener('drop', (e) => {
+                e.preventDefault();
+                card.classList.remove('drag-over');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    let targetImg = card.querySelector('img');
+                    if (!targetImg) {
+                        targetImg = document.createElement('img');
+                        card.prepend(targetImg);
+                    }
+                    processFile(file, targetImg);
+                }
+            });
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function buildSheets() {
+            const raw = localStorage.getItem('mlb_sheet_data');
+            if (!raw) {
+                document.getElementById('sheets-container').innerHTML = '<div class="no-data">No data found. Go back to the MLB selection page and generate a matchup.</div>';
+                return;
+            }
+            const data = JSON.parse(raw);
+            const teams = data.teams || [];
+            const container = document.getElementById('sheets-container');
+
+            teams.forEach(t => {
+                const c1 = t.colors.primary;
+                const logoSpan = 13 - t.coaches.length;
+                const sheet = document.createElement('div');
+                sheet.className = 'sheet';
+                sheet.style.borderColor = c1;
+
+                // === COACHES ROW ===
+                let coachesHtml = `<div class="row coaches" style="background: ${c1};">`;
+                coachesHtml += `<div class="grid-container">`;
+                coachesHtml += `<div class="logo-box" style="grid-column: span ${logoSpan}; border-right: 3px solid ${c1};" contenteditable="true">`;
+                coachesHtml += `<img src="${escapeHtml(t.logo)}">`;
+                coachesHtml += `<div class="logo-team-name">${escapeHtml(t.name)}</div>`;
+                coachesHtml += `</div>`;
+
+                t.coaches.forEach(c => {
+                    coachesHtml += `<div class="card" style="border-color: ${c1};">`;
+                    coachesHtml += `<div class="role-header" style="border-color: ${c1};"><span contenteditable="true">${escapeHtml(c.role)}</span></div>`;
+                    coachesHtml += `<div class="img-box coach"><img src="${escapeHtml(c.image)}" onerror="this.src='${escapeHtml(t.logo)}';"></div>`;
+                    coachesHtml += `<div class="card-bottom coach-name" style="border-color: ${c1}; height: 35px;" contenteditable="true">${escapeHtml(c.name)}</div>`;
+                    coachesHtml += `</div>`;
+                });
+                coachesHtml += `</div></div>`;
+
+                // === PITCHERS ROW ===
+                let pitchersHtml = `<div class="row players" style="background: ${c1};">`;
+                pitchersHtml += `<div class="row-header" style="background: ${c1};"><span>STARTING PITCHERS (2024 LEADERS)</span><span>RELIEF PITCHERS</span><span>CLOSER</span></div>`;
+                pitchersHtml += `<div class="grid-container">`;
+
+                t.pitchers.forEach(p => {
+                    if (p.name) {
+                        pitchersHtml += `<div class="card" style="background:#fff; border-color: ${c1};">`;
+                        pitchersHtml += `<div class="card-top" style="border-color: ${c1};" contenteditable="true">${escapeHtml(p.number)}<span class="handed">${escapeHtml(p.throw_l)}</span></div>`;
+                        pitchersHtml += `<div class="img-box player"><img src="${escapeHtml(p.image)}"></div>`;
+                        pitchersHtml += `<div class="card-bottom" style="border-color: ${c1};" contenteditable="true">${escapeHtml(p.name)}</div>`;
+                        pitchersHtml += `</div>`;
+                    } else {
+                        pitchersHtml += `<div class="card" style="background:#f2f2f2; border-color: ${c1};"><div class="img-box"><img></div></div>`;
+                    }
+                });
+                pitchersHtml += `</div></div>`;
+
+                // === POSITION PLAYERS ROW ===
+                let posHtml = `<div class="row players" style="background: #222;">`;
+                posHtml += `<div class="row-header" style="background: #222;"><span>INFIELDERS</span><span>OUTFIELDERS</span><span>CATCHERS</span></div>`;
+                posHtml += `<div class="grid-container">`;
+
+                t.pos_players.forEach(b => {
+                    if (b.name) {
+                        posHtml += `<div class="card" style="background:#fff; border-color: ${c1};">`;
+                        posHtml += `<div class="card-top" style="border-color: ${c1};" contenteditable="true">${escapeHtml(b.number)}<span class="handed">${escapeHtml(b.bat_l || '')}</span></div>`;
+                        posHtml += `<div class="img-box player"><img src="${escapeHtml(b.image)}"></div>`;
+                        posHtml += `<div class="card-bottom" style="border-color: #222;" contenteditable="true">${escapeHtml(b.name)}</div>`;
+                        posHtml += `</div>`;
+                    } else {
+                        posHtml += `<div class="card" style="background:#e6e6e6; border-color: ${c1};"><div class="img-box"><img></div></div>`;
+                    }
+                });
+                posHtml += `</div></div>`;
+
+                sheet.innerHTML = coachesHtml + pitchersHtml + posHtml;
+                container.appendChild(sheet);
+
+                // Setup click/drag interactivity on all cards in this sheet
+                sheet.querySelectorAll('.card, .logo-box').forEach(setupCard);
+            });
+        }
+
+        buildSheets();
+    </script>
+</body>
+</html>

@@ -8,6 +8,7 @@ import re
 import sys
 from collections import Counter
 from bs4 import BeautifulSoup
+from mlb import MLB_TEAMS, fetch_team_data as mlb_fetch_team_data
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -249,6 +250,26 @@ def process_numbers():
             'coaches': get_coaches_from_nhl(team), 'team': team
         })
     except Exception as e: return jsonify({'error': str(e)}), 500
+
+@app.route('/mlb')
+def mlb_select():
+    teams_sorted = sorted(MLB_TEAMS.items(), key=lambda x: x[1]['name'])
+    return render_template('mlb_select.html', teams=teams_sorted)
+
+@app.route('/mlb/generate', methods=['POST'])
+def mlb_generate():
+    try:
+        away_slug = request.form.get('away_team')
+        home_slug = request.form.get('home_team')
+        away_data = mlb_fetch_team_data(away_slug, MLB_TEAMS[away_slug]['id'])
+        home_data = mlb_fetch_team_data(home_slug, MLB_TEAMS[home_slug]['id'])
+        return jsonify({'teams': [away_data, home_data]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/mlb/sheet')
+def mlb_sheet():
+    return render_template('mlb_sheet.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
