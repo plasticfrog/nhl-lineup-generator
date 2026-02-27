@@ -46,47 +46,18 @@
 
         .no-data { color: #aaa; text-align: center; margin-top: 100px; font-size: 1.5em; }
 
-        /* TWO-UP SCREEN VIEW: scale sheets down so both are visible */
-        body.two-up .sheet { transform: scale(0.49); transform-origin: top center; margin-top: 5px; margin-bottom: -420px; }
-        body.two-up .sheet:last-child { margin-bottom: 20px; }
-        .one-page-btn { background: #6d28d9; color: white; }
-        body.two-up .one-page-btn { background: #16a34a; }
-
         @media print {
             body { background: white; }
             .btn-container { display: none; }
             .sheet { margin: 0; border-width: 10px; }
             .no-data { display: none; }
             [contenteditable="true"]:focus { background: transparent; }
-
-            /* TWO-UP PRINT: fit both sheets on one landscape page */
-            body.two-up .sheet {
-                transform: none;
-                height: 4.0in;
-                width: 11in;
-                margin: 0;
-                padding: 0.5mm;
-                border-width: 5px;
-                page-break-after: avoid;
-            }
-            body.two-up .sheet:last-child { page-break-after: auto; }
-            body.two-up .row { margin-bottom: 0 !important; }
-            body.two-up .card-top { height: 15px !important; font-size: 12px !important; }
-            body.two-up .handed { font-size: 9px; }
-            body.two-up .card-bottom { height: 22px !important; font-size: clamp(4px, 0.6vw, 9px) !important; line-height: 1.05; padding: 1px; }
-            body.two-up .role-header { height: 12px !important; }
-            body.two-up .role-header span { font-size: 6px; }
-            body.two-up .row-header { min-height: 8px; font-size: 6px; padding: 0 6px; }
-            body.two-up .logo-box img { height: 38px; }
-            body.two-up .logo-team-name { font-size: 13px; margin-top: 2px; }
-            body.two-up .grid-container { gap: 1px; }
         }
     </style>
 </head>
 <body>
     <div class="btn-container">
         <button class="nav-btn reset-btn" onclick="window.location.reload()">Reset Original</button>
-        <button class="nav-btn one-page-btn" onclick="toggleTwoUp(this)">1-Page Print</button>
         <button class="nav-btn print-btn" onclick="window.print()">Print Sheets</button>
     </div>
     <input type="file" id="imageInput" style="display:none" accept="image/*">
@@ -249,13 +220,6 @@
                 // Setup click/drag interactivity on all cards in this sheet
                 sheet.querySelectorAll('.card, .logo-box').forEach(setupCard);
             });
-        }
-
-        function toggleTwoUp(btn) {
-            document.body.classList.toggle('two-up');
-            const active = document.body.classList.contains('two-up');
-            btn.textContent = active ? 'Normal View' : '1-Page Print';
-            setTimeout(fitCardText, 150);
         }
 
         buildSheets();
