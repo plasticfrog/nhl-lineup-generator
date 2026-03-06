@@ -7,6 +7,7 @@ import time
 import re
 import sys
 from collections import Counter
+from difflib import SequenceMatcher
 from bs4 import BeautifulSoup
 from mlb import MLB_TEAMS, fetch_team_data as mlb_fetch_team_data
 
@@ -53,20 +54,57 @@ def get_grid_binned_text(image, rows, cols, debug_label=""):
 
 def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
     if not ocr_text: return None
-    clean_text = ocr_text.upper().replace('3', 'S').replace('5', 'S').replace('0', 'O').replace('1', 'I')
-    clean_text = re.sub(r'\b(GP|AGE|GP:|AGE:|S:L|S:R|G:|A:|P:|H:|W:)\b', '', clean_text)
-    found_nums = re.findall(r'\d+', clean_text)
+
+    raw_text = ocr_text.upper()
+    # Extract jersey numbers BEFORE character substitutions so 35 doesn't become SS
+    found_nums = re.findall(r'\d+', raw_text)
+
+    # Remove stat keywords
+    clean_text = re.sub(r'\b(GP|AGE|GP:|AGE:|S:L|S:R|G:|A:|P:|H:|W:)\b', '', raw_text)
+    # Apply OCR digit→letter fixes only when digit is adjacent to a letter (not standalone numbers)
+    clean_text = re.sub(r'(?<=[A-Z])3|3(?=[A-Z])', 'S', clean_text)
+    clean_text = re.sub(r'(?<=[A-Z])5|5(?=[A-Z])', 'S', clean_text)
+    clean_text = re.sub(r'(?<=[A-Z])0|0(?=[A-Z])', 'O', clean_text)
+    clean_text = re.sub(r'(?<=[A-Z])1|1(?=[A-Z])', 'I', clean_text)
+
+    words = [w for w in clean_text.split() if len(w) > 1]
+
     best_match, best_score = None, 0
     for roster_name in roster_list:
         if roster_name in used_names: continue
         p_info = roster_data_full.get(roster_name, {})
-        last, first = roster_name.split()[-1], roster_name.split()[0]
-        if last not in clean_text: continue
-        score = 100
-        if first in clean_text: score += 100
-        if p_info.get('number') in found_nums: score += 50
-        if score > best_score: best_score, best_match = score, roster_name
-    return best_match if best_score >= 100 else None
+        parts = roster_name.split()
+        last, first = parts[-1], parts[0]
+        score = 0
+
+        # Exact substring match (preserves original behavior)
+        if last in clean_text:
+            score = 100
+        elif words:
+            # Fuzzy match last name against OCR words
+            best_ratio = max(SequenceMatcher(None, last, w).ratio() for w in words)
+            if best_ratio >= 0.8:
+                score = 100
+            elif best_ratio >= 0.6:
+                score = 60  # Weak match — needs first name or number to confirm
+
+        # First name bonus
+        if score > 0:
+            if first in clean_text:
+                score += 100
+            elif words:
+                best_ratio = max(SequenceMatcher(None, first, w).ratio() for w in words)
+                if best_ratio >= 0.7:
+                    score += 50
+
+        # Jersey number — strong independent signal
+        if p_info.get('number') in found_nums:
+            score += 80
+
+        if score > best_score:
+            best_score, best_match = score, roster_name
+
+    return best_match if best_score >= 75 else None
 
 def extract_players_from_image(image_file, expected_count, preferred_roster, full_roster, type_label, roster_data_full):
     try:
