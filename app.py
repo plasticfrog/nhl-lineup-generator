@@ -52,10 +52,8 @@ def get_grid_binned_text(image, rows, cols, debug_label=""):
         bins[(row_idx * cols) + col_idx].append(word['text'])
     return [" ".join(b) for b in bins]
 
-def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full, debug_log=None):
-    if not ocr_text:
-        if debug_log is not None: debug_log.append({'cell_text': '', 'result': None, 'reason': 'empty cell'})
-        return None
+def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
+    if not ocr_text: return None
 
     raw_text = ocr_text.upper()
     # Extract jersey numbers BEFORE character substitutions so 35 doesn't become SS
@@ -72,7 +70,6 @@ def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full, de
     words = [w for w in clean_text.split() if len(w) > 1]
 
     best_match, best_score = None, 0
-    top_candidates = []
     for roster_name in roster_list:
         if roster_name in used_names: continue
         p_info = roster_data_full.get(roster_name, {})
@@ -104,25 +101,10 @@ def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full, de
         if p_info.get('number') in found_nums:
             score += 80
 
-        if score > 0:
-            top_candidates.append({'name': roster_name, 'score': score})
-
         if score > best_score:
             best_score, best_match = score, roster_name
 
-    result = best_match if best_score >= 75 else None
-    if debug_log is not None:
-        top_candidates.sort(key=lambda x: x['score'], reverse=True)
-        debug_log.append({
-            'raw_ocr': raw_text,
-            'clean_text': clean_text,
-            'words': words,
-            'found_nums': found_nums,
-            'best_match': result,
-            'best_score': best_score,
-            'top_3': top_candidates[:3]
-        })
-    return result
+    return best_match if best_score >= 75 else None
 
 def extract_players_from_image(image_file, expected_count, preferred_roster, full_roster, type_label, roster_data_full):
     try:
@@ -222,8 +204,6 @@ def process_lineup():
         f_names = [n for n, d in roster_data_full.items() if d['is_forward']]
         d_names = [n for n, d in roster_data_full.items() if not d['is_forward']]
 
-        debug_info = {'team_detected': team, 'sections': {}, 'forward_cells': [], 'defense_cells': []}
-
         if comb:
             comb.seek(0); img_c = Image.open(comb); w, h = img_c.size
             d_ocr = pytesseract.image_to_data(img_c, output_type=pytesseract.Output.DICT)
@@ -235,27 +215,21 @@ def process_lineup():
                 if 'GOALTENDER' in u_txt: g_col_x = d_ocr['left'][i]
                 if 'COACH' in u_txt or 'SCRATCH' in u_txt: d_end = min(d_end, d_ocr['top'][i])
 
-            debug_info['sections'] = {'f_start': f_start, 'd_start': d_start, 'd_end': d_end, 'g_col_x': g_col_x, 'img_w': w, 'img_h': h}
-
             f_zone = img_c.crop((0, f_start + 15, w, d_start - 15))
             f_bins = get_grid_binned_text(f_zone, 4, 3, "COMBINED-FORWARDS")
             forwards_raw, used_f = [], set()
-            f_debug = []
             for i, txt in enumerate(f_bins):
-                m = match_name_to_roster(txt, f_names, used_f, roster_data_full, debug_log=f_debug)
+                m = match_name_to_roster(txt, f_names, used_f, roster_data_full)
                 forwards_raw.append(m if m else f"PLAYER {i+1}")
                 if m: used_f.add(m)
-            debug_info['forward_cells'] = f_debug
 
             d_zone = img_c.crop((0, d_start + 15, g_col_x - 10, d_end - 15))
             d_bins = get_grid_binned_text(d_zone, 3, 2, "COMBINED-DEFENSE")
             defense_raw, used_d = [], set()
-            d_debug = []
             for i, txt in enumerate(d_bins):
-                m = match_name_to_roster(txt, d_names, used_d, roster_data_full, debug_log=d_debug)
+                m = match_name_to_roster(txt, d_names, used_d, roster_data_full)
                 defense_raw.append(m if m else f"PLAYER {i+13}")
                 if m: used_d.add(m)
-            debug_info['defense_cells'] = d_debug
         else:
             f_file.seek(0); d_file.seek(0)
             forwards_raw = extract_players_from_image(f_file, 12, f_names, list(roster_data_full.keys()), "FORWARDS", roster_data_full)
@@ -269,7 +243,7 @@ def process_lineup():
             info = roster_data_full.get(n, {'id': None, 'number': ''})
             final_d.append({'name': n, 'number': info['number'], 'is_forward': False, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{info['id']}.png" if info['id'] else None})
 
-        return jsonify({'forwards': final_f, 'defensemen': final_d, 'goalies': [{'name': g['name'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{g['id']}.png"} for g in goalies[:2]], 'coaches': get_coaches_from_nhl(team), 'team': team, '_debug': debug_info})
+        return jsonify({'forwards': final_f, 'defensemen': final_d, 'goalies': [{'name': g['name'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{g['id']}.png"} for g in goalies[:2]], 'coaches': get_coaches_from_nhl(team), 'team': team})
     except Exception as e: return jsonify({'error': str(e)}), 500
 
 @app.route('/process_numbers', methods=['POST'])

@@ -27,7 +27,7 @@
         .logo-box img { height: 85px; width: auto; object-fit: contain; pointer-events: none; }
         .logo-team-name { font-size: 28px; font-weight: 900; color: #000; text-transform: uppercase; margin-top: 5px; font-family: 'Arial Narrow', sans-serif; }
 
-        .card { background: #fff; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; border-right: 1.5px solid black; cursor: pointer; }
+        .card { background: #fff; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; border-right: 1.5px solid black; cursor: default; }
         .card:last-child { border-right: none; }
         .card.drag-over { background: #ffffa0 !important; }
 
@@ -81,20 +81,18 @@
             const reader = new FileReader();
             reader.onload = (event) => {
                 imgElement.src = event.target.result;
-                if (imgElement.parentElement.classList.contains('coach')) {
-                    // Remove circle crop — show custom image naturally filling the card
-                    imgElement.style.width = '100%';
-                    imgElement.style.height = '100%';
-                    imgElement.style.objectFit = 'cover';
-                    imgElement.style.objectPosition = 'center 20%';
-                    imgElement.style.transform = 'none';
-                    imgElement.style.borderRadius = '0';
-                    imgElement.style.aspectRatio = 'auto';
-                } else {
-                    imgElement.style.transform = 'scale(1)';
-                    imgElement.style.objectFit = 'cover';
-                    imgElement.style.objectPosition = 'center center';
-                }
+                // Reset to clean state for uploaded image
+                imgElement.style.objectFit = 'cover';
+                imgElement.style.objectPosition = 'center 20%';
+                imgElement.style.borderRadius = '0';
+                imgElement.style.aspectRatio = 'auto';
+                // Start at a reasonable scale, user can scroll to adjust
+                const currentScale = parseFloat(imgElement.dataset.zoomScale) || 1;
+                imgElement.dataset.zoomScale = '1.3';
+                imgElement.style.transform = 'scale(1.3)';
+                imgElement.style.transformOrigin = 'center 38%';
+                imgElement.style.width = '100%';
+                imgElement.style.height = '100%';
             };
             reader.readAsDataURL(file);
         }
@@ -102,13 +100,29 @@
         function setupCard(card) {
             const isLogoBox = card.classList.contains('logo-box');
 
-            // Click-to-upload only for player/coach cards, NOT the logo box
+            // Double-click to upload for player/coach cards, NOT the logo box
             if (!isLogoBox) {
-                card.addEventListener('click', (e) => {
+                card.addEventListener('dblclick', (e) => {
                     if (e.target.hasAttribute('contenteditable')) return;
                     activeTargetImg = card.querySelector('img');
                     if (activeTargetImg) fileInput.click();
                 });
+            }
+
+            // Scroll-to-zoom on img-box areas
+            const imgBox = card.querySelector('.img-box');
+            if (imgBox) {
+                imgBox.style.pointerEvents = 'auto';
+                imgBox.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const img = imgBox.querySelector('img');
+                    if (!img) return;
+                    let scale = parseFloat(img.dataset.zoomScale) || parseFloat(img.style.transform?.match(/scale\(([^)]+)\)/)?.[1]) || 1;
+                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                    scale = Math.max(0.5, Math.min(4, scale + delta));
+                    img.dataset.zoomScale = scale;
+                    img.style.transform = `scale(${scale})`;
+                }, { passive: false });
             }
 
             // Drag-and-drop works for all cards including logo box
