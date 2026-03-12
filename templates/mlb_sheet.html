@@ -109,16 +109,17 @@
                 });
             }
 
-            // Scroll-to-zoom on img-box areas
+            // Option+scroll to zoom on img-box areas (hold Alt/Option key)
             const imgBox = card.querySelector('.img-box');
             if (imgBox) {
                 imgBox.style.pointerEvents = 'auto';
                 imgBox.addEventListener('wheel', (e) => {
+                    if (!e.altKey) return; // Only zoom when Option/Alt is held
                     e.preventDefault();
                     const img = imgBox.querySelector('img');
                     if (!img) return;
                     let scale = parseFloat(img.dataset.zoomScale) || parseFloat(img.style.transform?.match(/scale\(([^)]+)\)/)?.[1]) || 1;
-                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                    const delta = e.deltaY > 0 ? -0.03 : 0.03;
                     scale = Math.max(0.5, Math.min(4, scale + delta));
                     img.dataset.zoomScale = scale;
                     img.style.transform = `scale(${scale})`;
