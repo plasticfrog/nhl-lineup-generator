@@ -6,6 +6,8 @@ import os
 import time
 import re
 import sys
+import logging
+from datetime import datetime, timezone
 from collections import Counter
 from difflib import SequenceMatcher
 from bs4 import BeautifulSoup
@@ -14,6 +16,15 @@ from mlb import MLB_TEAMS, fetch_team_data as mlb_fetch_team_data
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config['UPLOAD_FOLDER'] = '/tmp/nhl_uploads'
+
+# Structured logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
@@ -178,6 +189,10 @@ def lineup(): return render_template('lineup.html')
 
 @app.route('/process', methods=['POST'])
 def process_lineup():
+    start = time.time()
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    method = 'combined' if request.files.get('combined') else 'split'
+    logger.info(f"NHL PROCESS | method: {method} | IP: {ip}")
     try:
         comb = request.files.get('combined')
         f_file, d_file = request.files.get('forwards'), request.files.get('defense')
@@ -243,14 +258,24 @@ def process_lineup():
             info = roster_data_full.get(n, {'id': None, 'number': ''})
             final_d.append({'name': n, 'number': info['number'], 'is_forward': False, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{info['id']}.png" if info['id'] else None})
 
+        elapsed = round(time.time() - start, 2)
+        matched_f = sum(1 for p in final_f if 'PLAYER' not in p['name'])
+        matched_d = sum(1 for p in final_d if 'PLAYER' not in p['name'])
+        logger.info(f"NHL PROCESS OK | team: {team} | method: {method} | {elapsed}s | matched: {matched_f}F+{matched_d}D of {len(final_f)}F+{len(final_d)}D")
         return jsonify({'forwards': final_f, 'defensemen': final_d, 'goalies': [{'name': g['name'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{g['id']}.png"} for g in goalies[:2]], 'coaches': get_coaches_from_nhl(team), 'team': team})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        elapsed = round(time.time() - start, 2)
+        logger.error(f"NHL PROCESS FAIL | method: {method} | {elapsed}s | error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/process_numbers', methods=['POST'])
 def process_numbers():
     """Improved to strictly use Official API names and ignore stat-noise digits"""
+    start = time.time()
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     try:
         team = request.form.get('team'); roster_img = request.files.get('roster_screenshot')
+        logger.info(f"NHL NUMBERS | team: {team} | IP: {ip}")
         l_text, l_img = request.form.get('lines_text'), request.files.get('lines_screenshot')
         
         ref_roster, _ = extract_roster_from_screenshot(roster_img)
@@ -282,12 +307,17 @@ def process_numbers():
             if i < 12: f_out.append(obj)
             else: d_out.append(obj)
             
+        elapsed = round(time.time() - start, 2)
+        logger.info(f"NHL NUMBERS OK | team: {team} | {elapsed}s | players: {len(f_out)}F+{len(d_out)}D")
         return jsonify({
             'forwards': f_out, 'defensemen': d_out,
             'goalies': [{'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{p['id']}.png"} for p in api.get('goalies', [])][:2],
             'coaches': get_coaches_from_nhl(team), 'team': team
         })
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        elapsed = round(time.time() - start, 2)
+        logger.error(f"NHL NUMBERS FAIL | team: {team} | {elapsed}s | error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/mlb')
 def mlb_select():
@@ -296,13 +326,29 @@ def mlb_select():
 
 @app.route('/mlb/generate', methods=['POST'])
 def mlb_generate():
+    start = time.time()
+    away_slug = request.form.get('away_team')
+    home_slug = request.form.get('home_team')
+    away_name = MLB_TEAMS.get(away_slug, {}).get('name', away_slug)
+    home_name = MLB_TEAMS.get(home_slug, {}).get('name', home_slug)
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    ua = request.headers.get('User-Agent', 'unknown')
+
+    logger.info(f"MLB GENERATE | {away_name} @ {home_name} | IP: {ip} | UA: {ua}")
+
     try:
-        away_slug = request.form.get('away_team')
-        home_slug = request.form.get('home_team')
         away_data = mlb_fetch_team_data(away_slug, MLB_TEAMS[away_slug]['id'])
         home_data = mlb_fetch_team_data(home_slug, MLB_TEAMS[home_slug]['id'])
+        elapsed = round(time.time() - start, 2)
+        away_players = len(away_data.get('players', []))
+        home_players = len(home_data.get('players', []))
+        away_coaches = len(away_data.get('coaches', []))
+        home_coaches = len(home_data.get('coaches', []))
+        logger.info(f"MLB GENERATE OK | {away_name} @ {home_name} | {elapsed}s | players: {away_players}+{home_players} | coaches: {away_coaches}+{home_coaches}")
         return jsonify({'teams': [away_data, home_data]})
     except Exception as e:
+        elapsed = round(time.time() - start, 2)
+        logger.error(f"MLB GENERATE FAIL | {away_name} @ {home_name} | {elapsed}s | error: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/mlb/sheet')
