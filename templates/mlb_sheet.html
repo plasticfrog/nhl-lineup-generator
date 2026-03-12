@@ -9,7 +9,7 @@
         @page { size: letter landscape; margin: 0; }
         body { background: #111; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; }
 
-        .btn-container { position: fixed; top: 15px; right: 20px; display: flex; gap: 12px; z-index: 9999; }
+        .btn-container { position: fixed; top: 15px; right: 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 0; z-index: 9999; }
         .nav-btn { padding: 10px 20px; font-size: 13px; font-weight: 700; text-transform: uppercase; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: transform 0.1s; }
         .reset-btn { background: #334155; color: white; }
         .print-btn { background: #005A9C; color: white; }
@@ -57,13 +57,15 @@
 </head>
 <body>
     <div class="btn-container">
-        <button class="nav-btn reset-btn" onclick="window.location.reload()">Reset Original</button>
-        <button class="nav-btn print-btn" onclick="window.print()">Print Sheets</button>
-        <div style="margin-top: 8px; font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.6; text-align: right; font-family: 'Segoe UI', sans-serif;">
-            <span style="color: rgba(255,255,255,0.75);">Option + Scroll</span> over photo to zoom &nbsp;|&nbsp;
-            <span style="color: rgba(255,255,255,0.75);">Double-click</span> photo to replace &nbsp;|&nbsp;
-            <span style="color: rgba(255,255,255,0.75);">Drag & drop</span> image onto any card<br>
-            <span style="color: rgba(255,255,255,0.75);">Click</span> any name, number, or title to edit in place
+        <div style="display: flex; gap: 12px;">
+            <button class="nav-btn reset-btn" onclick="window.location.reload()">Reset Original</button>
+            <button class="nav-btn print-btn" onclick="window.print()">Print Sheets</button>
+        </div>
+        <div style="margin-top: 10px; font-size: 10px; color: rgba(255,255,255,0.5); line-height: 1.7; text-align: right; font-family: 'Segoe UI', sans-serif; background: rgba(255,255,255,0.06); padding: 6px 10px; border-radius: 4px;">
+            <b style="color: rgba(255,255,255,0.7);">Option + Scroll</b> over photo to zoom<br>
+            <b style="color: rgba(255,255,255,0.7);">Double-click</b> photo to replace<br>
+            <b style="color: rgba(255,255,255,0.7);">Drag & drop</b> image onto any card<br>
+            <b style="color: rgba(255,255,255,0.7);">Click</b> any name, number, or title to edit
         </div>
     </div>
     <input type="file" id="imageInput" style="display:none" accept="image/*">
@@ -183,10 +185,15 @@
                 coachesHtml += `</div>`;
 
                 t.coaches.forEach(c => {
+                    const isPitching = c.role && c.role.toUpperCase().includes('PITCHING');
+                    const roleHeaderBg = isPitching ? c1 : '#fff';
+                    const roleHeaderColor = isPitching ? 'white' : 'inherit';
+                    const nameBg = isPitching ? c1 : '#fff';
+                    const nameColor = isPitching ? 'white' : '#000';
                     coachesHtml += `<div class="card" style="border-color: ${c1};">`;
-                    coachesHtml += `<div class="role-header" style="border-color: ${c1};"><span contenteditable="true">${escapeHtml(c.role)}</span></div>`;
+                    coachesHtml += `<div class="role-header" style="border-color: ${c1}; background: ${roleHeaderBg}; color: ${roleHeaderColor};"><span contenteditable="true">${escapeHtml(c.role)}</span></div>`;
                     coachesHtml += `<div class="img-box coach"><img src="${escapeHtml(c.image)}" onerror="this.src='${escapeHtml(t.logo)}';"></div>`;
-                    coachesHtml += `<div class="card-bottom coach-name" style="border-color: ${c1}; height: 48px;" contenteditable="true">${escapeHtml(c.name)}</div>`;
+                    coachesHtml += `<div class="card-bottom coach-name" style="border-color: ${c1}; height: 48px; background: ${nameBg}; color: ${nameColor};" contenteditable="true">${escapeHtml(c.name)}</div>`;
                     coachesHtml += `</div>`;
                 });
                 coachesHtml += `</div></div>`;
