@@ -46,9 +46,13 @@
 
         .no-data { color: #aaa; text-align: center; margin-top: 100px; font-size: 1.5em; }
 
+        #ctx-menu { display: none; position: fixed; z-index: 10000; background: #1a1a2e; border: 1px solid #444; border-radius: 4px; padding: 4px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.6); font-family: 'Segoe UI', sans-serif; }
+        #ctx-menu div { padding: 7px 16px; cursor: pointer; color: #ddd; font-size: 12px; font-weight: 600; white-space: nowrap; }
+        #ctx-menu div:hover { background: #333; color: #fff; }
+
         @media print {
             body { background: white; }
-            .btn-container { display: none; }
+            .btn-container, #ctx-menu { display: none; }
             .sheet { margin: 0; border-width: 10px; }
             .no-data { display: none; }
             [contenteditable="true"]:focus { background: transparent; }
@@ -65,9 +69,11 @@
             <b style="color: rgba(255,255,255,0.7);">Option + Scroll</b> over photo to zoom<br>
             <b style="color: rgba(255,255,255,0.7);">Double-click</b> photo to replace<br>
             <b style="color: rgba(255,255,255,0.7);">Drag & drop</b> image onto any card<br>
-            <b style="color: rgba(255,255,255,0.7);">Click</b> any name, number, or title to edit
+            <b style="color: rgba(255,255,255,0.7);">Click</b> any name, number, or title to edit<br>
+            <b style="color: rgba(255,255,255,0.7);">Right-click</b> coach or pitcher to assign role
         </div>
     </div>
+    <div id="ctx-menu"></div>
     <input type="file" id="imageInput" style="display:none" accept="image/*">
 
     <div id="sheets-container"></div>
@@ -105,6 +111,64 @@
             reader.readAsDataURL(file);
         }
 
+        // === CONTEXT MENU ===
+        const ctxMenu = document.getElementById('ctx-menu');
+        document.addEventListener('click', () => ctxMenu.style.display = 'none');
+        window.addEventListener('scroll', () => ctxMenu.style.display = 'none');
+
+        function showCtxMenu(e, options) {
+            e.preventDefault();
+            ctxMenu.innerHTML = '';
+            options.forEach(opt => {
+                const item = document.createElement('div');
+                item.textContent = opt.label;
+                item.onclick = () => { opt.action(); ctxMenu.style.display = 'none'; };
+                ctxMenu.appendChild(item);
+            });
+            ctxMenu.style.display = 'block';
+            ctxMenu.style.left = e.clientX + 'px';
+            ctxMenu.style.top = e.clientY + 'px';
+        }
+
+        function setPitchingCoach(card, sheet, c1) {
+            // Clear all coach highlights in this sheet
+            sheet.querySelectorAll('.row.coaches .card').forEach(c => {
+                const rh = c.querySelector('.role-header');
+                const nb = c.querySelector('.card-bottom');
+                if (rh) { rh.style.background = '#fff'; rh.style.color = 'inherit'; }
+                if (nb) { nb.style.background = '#fff'; nb.style.color = '#000'; }
+            });
+            // Highlight selected coach
+            const rh = card.querySelector('.role-header');
+            const nb = card.querySelector('.card-bottom');
+            if (rh) { rh.style.background = c1; rh.style.color = 'white'; }
+            if (nb) { nb.style.background = c1; nb.style.color = 'white'; }
+        }
+
+        function applyCloserStyle(card, c1, isCloser) {
+            const top = card.querySelector('.card-top');
+            const bot = card.querySelector('.card-bottom');
+            const hand = card.querySelector('.handed');
+            if (top) { top.style.background = isCloser ? c1 : '#fff'; top.style.color = isCloser ? 'white' : 'inherit'; }
+            if (hand) { hand.style.color = isCloser ? '#ffe066' : '#cc0000'; }
+            if (bot) { bot.style.background = isCloser ? c1 : '#fff'; bot.style.color = isCloser ? 'white' : 'inherit'; }
+        }
+
+        function setAsCloser(card, grid, c1) {
+            const cards = Array.from(grid.querySelectorAll('.card'));
+            const oldCloser = cards[cards.length - 1];
+            if (card === oldCloser) return;
+            // Swap DOM positions
+            const marker = document.createElement('div');
+            grid.insertBefore(marker, card);
+            grid.insertBefore(card, oldCloser);
+            grid.insertBefore(oldCloser, marker);
+            marker.remove();
+            // Swap styles
+            applyCloserStyle(oldCloser, c1, false);
+            applyCloserStyle(card, c1, true);
+        }
+
         function setupCard(card) {
             const isLogoBox = card.classList.contains('logo-box');
 
@@ -114,6 +178,31 @@
                     if (e.target.hasAttribute('contenteditable')) return;
                     activeTargetImg = card.querySelector('img');
                     if (activeTargetImg) fileInput.click();
+                });
+            }
+
+            // Right-click context menu for role assignment
+            if (!isLogoBox) {
+                card.addEventListener('contextmenu', (e) => {
+                    const sheet = card.closest('.sheet');
+                    const c1 = sheet.dataset.teamColor;
+                    const row = card.closest('.row');
+                    const grid = card.closest('.grid-container');
+                    const options = [];
+
+                    if (row.classList.contains('coaches')) {
+                        options.push({ label: 'Set as Pitching Coach', action: () => setPitchingCoach(card, sheet, c1) });
+                    }
+
+                    const pitcherRow = sheet.querySelectorAll('.row.players')[0];
+                    if (row === pitcherRow) {
+                        const cards = grid.querySelectorAll('.card');
+                        if (card !== cards[cards.length - 1]) {
+                            options.push({ label: 'Set as Closer', action: () => setAsCloser(card, grid, c1) });
+                        }
+                    }
+
+                    if (options.length > 0) showCtxMenu(e, options);
                 });
             }
 
@@ -175,6 +264,7 @@
                 const sheet = document.createElement('div');
                 sheet.className = 'sheet';
                 sheet.style.borderColor = c1;
+                sheet.dataset.teamColor = c1;
 
                 // === COACHES ROW ===
                 let coachesHtml = `<div class="row coaches" style="background: ${c1};">`;
@@ -185,15 +275,10 @@
                 coachesHtml += `</div>`;
 
                 t.coaches.forEach(c => {
-                    const isPitching = c.role && c.role.toUpperCase().includes('PITCHING');
-                    const roleHeaderBg = isPitching ? c1 : '#fff';
-                    const roleHeaderColor = isPitching ? 'white' : 'inherit';
-                    const nameBg = isPitching ? c1 : '#fff';
-                    const nameColor = isPitching ? 'white' : '#000';
                     coachesHtml += `<div class="card" style="border-color: ${c1};">`;
-                    coachesHtml += `<div class="role-header" style="border-color: ${c1}; background: ${roleHeaderBg}; color: ${roleHeaderColor};"><span contenteditable="true">${escapeHtml(c.role)}</span></div>`;
+                    coachesHtml += `<div class="role-header" style="border-color: ${c1};"><span contenteditable="true">${escapeHtml(c.role)}</span></div>`;
                     coachesHtml += `<div class="img-box coach"><img src="${escapeHtml(c.image)}" onerror="this.src='${escapeHtml(t.logo)}';"></div>`;
-                    coachesHtml += `<div class="card-bottom coach-name" style="border-color: ${c1}; height: 48px; background: ${nameBg}; color: ${nameColor};" contenteditable="true">${escapeHtml(c.name)}</div>`;
+                    coachesHtml += `<div class="card-bottom coach-name" style="border-color: ${c1}; height: 48px;" contenteditable="true">${escapeHtml(c.name)}</div>`;
                     coachesHtml += `</div>`;
                 });
                 coachesHtml += `</div></div>`;
