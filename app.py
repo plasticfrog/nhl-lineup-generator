@@ -184,9 +184,8 @@ def get_coaches_from_nhl(team_abbrev):
         logger.warning(f"NHL management page scrape error: {e}")
 
     # Pad to 4 coaches with blank placeholder slots
-    default_roles = ['HEAD COACH', 'ASSISTANT', 'ASSISTANT', 'GOALTENDING']
     while len(coaches) < 4:
-        coaches.append({'name': '', 'role': default_roles[len(coaches)] if len(coaches) < len(default_roles) else 'COACH', 'headshot_url': ''})
+        coaches.append({'name': '', 'role': 'COACH', 'headshot_url': ''})
 
     return coaches[:4]
 
