@@ -139,19 +139,56 @@ def search_player(player_name):
     except: pass
     return None
 
+# NHL Records API teamId -> team abbreviation
+NHL_TEAM_ID_MAP = {
+    1: 'NJD', 2: 'NYI', 3: 'NYR', 4: 'PHI', 5: 'PIT', 6: 'BOS', 7: 'BUF',
+    8: 'MTL', 9: 'OTT', 10: 'TOR', 12: 'CAR', 13: 'FLA', 14: 'TBL', 15: 'WSH',
+    16: 'CHI', 17: 'DET', 18: 'NSH', 19: 'STL', 20: 'CGY', 21: 'COL', 22: 'EDM',
+    23: 'VAN', 24: 'ANA', 25: 'DAL', 26: 'LAK', 28: 'SJS', 29: 'CBJ', 30: 'MIN',
+    52: 'WPG', 54: 'VGK', 55: 'SEA', 59: 'UTA'
+}
+
 def get_coaches_from_nhl(team_abbrev):
+    """Fetch head coach name from NHL Records API, return with blank assistant slots."""
+    coaches = []
+    try:
+        res = requests.get('https://records.nhl.com/site/api/coach?cayenneExp=isActive=true',
+                           headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+        if res.status_code == 200:
+            for c in res.json().get('data', []):
+                tid = c.get('teamId')
+                if NHL_TEAM_ID_MAP.get(tid) == team_abbrev:
+                    coaches.append({'name': c['fullName'].upper(), 'role': 'HEAD COACH', 'headshot_url': ''})
+                    break
+    except Exception as e:
+        logger.warning(f"NHL coach API error: {e}")
+
+    # Also try scraping NHL.com management page for assistant coaches (works for some teams)
     try:
         slug = TEAM_NAME_MAP.get(team_abbrev, team_abbrev.lower())
-        res = requests.get(f"https://www.nhl.com/{slug}/team/coaches", headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        coaches = []
-        for img in soup.find_all('img'):
-            alt = img.get('alt', '').upper()
-            if 'COACH' in alt:
-                coaches.append({'name': alt.split('-')[0].strip(), 'role': 'COACH', 'headshot_url': img.get('src')})
-                if len(coaches) >= 4: break
-        return coaches
-    except: return []
+        res = requests.get(f"https://www.nhl.com/{slug}/team/management",
+                           headers={'User-Agent': 'Mozilla/5.0'}, timeout=8)
+        if res.status_code == 200 and len(res.text) > 1000:
+            for match in re.finditer(
+                r'(Assistant Coach(?:es)?|Associate Coach|Goaltending Coach)\s*\|\s*([^\n\\<]+)', res.text):
+                role = match.group(1).strip().upper()
+                names = match.group(2).strip()
+                # "Assistant Coaches | Name1, Name2, Name3" -> split
+                for name in names.split(','):
+                    name = name.strip()
+                    if name and len(coaches) < 4:
+                        short_role = role.replace('ASSISTANT COACHES', 'ASSISTANT').replace('ASSISTANT COACH', 'ASSISTANT')
+                        short_role = short_role.replace(' COACH', '')
+                        coaches.append({'name': name.upper(), 'role': short_role, 'headshot_url': ''})
+    except Exception as e:
+        logger.warning(f"NHL management page scrape error: {e}")
+
+    # Pad to 4 coaches with blank placeholder slots
+    default_roles = ['HEAD COACH', 'ASSISTANT', 'ASSISTANT', 'GOALTENDING']
+    while len(coaches) < 4:
+        coaches.append({'name': '', 'role': default_roles[len(coaches)] if len(coaches) < len(default_roles) else 'COACH', 'headshot_url': ''})
+
+    return coaches[:4]
 
 def extract_roster_from_screenshot(image_file):
     """Refined for Number Entry method to avoid stat-noise in names"""
