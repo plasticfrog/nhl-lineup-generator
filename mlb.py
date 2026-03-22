@@ -125,7 +125,19 @@ def fetch_team_data(team_slug, team_id):
     while len(all_pitchers) < 13:
         all_pitchers.insert(-1, {'name': '', 'number': '', 'throw_l': '', 'image': ''})
 
+    # Sort each position group alphabetically by last name
+    def by_last_name(p):
+        parts = p['name'].split()
+        return parts[-1] if parts else ''
+    infield.sort(key=by_last_name)
+    outfield.sort(key=by_last_name)
+    catchers.sort(key=by_last_name)
+
     all_pos = (infield + outfield + catchers)[:13]
+    # Calculate actual displayed counts (after 13-cap)
+    shown_if = min(len(infield), 13)
+    shown_of = min(len(outfield), 13 - shown_if)
+    shown_c = min(len(catchers), 13 - shown_if - shown_of)
     while len(all_pos) < 13:
         all_pos.append({'name': '', 'number': '', 'bat_l': '', 'image': ''})
 
@@ -136,5 +148,6 @@ def fetch_team_data(team_slug, team_id):
         'logo': f"https://www.mlbstatic.com/team-logos/team-cap-on-light/{team_id}.svg",
         'coaches': coaches,
         'pitchers': all_pitchers,
-        'pos_players': all_pos
+        'pos_players': all_pos,
+        'pos_counts': {'infield': shown_if, 'outfield': shown_of, 'catchers': shown_c}
     }

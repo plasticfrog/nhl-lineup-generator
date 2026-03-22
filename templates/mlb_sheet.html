@@ -310,8 +310,12 @@
                 pitchersHtml += `</div></div>`;
 
                 // === POSITION PLAYERS ROW ===
+                const pc = t.pos_counts || {infield: 5, outfield: 5, catchers: 3};
+                const nIF = Math.min(pc.infield, 13), nOF = Math.min(pc.outfield, 13 - nIF), nC = Math.min(pc.catchers, 13 - nIF - nOF);
+                const pad = 13 - nIF - nOF - nC;
                 let posHtml = `<div class="row players" style="background: ${c1};">`;
-                posHtml += `<div class="row-header" style="background: ${c1};"><span>INFIELDERS</span><span>OUTFIELDERS</span><span>CATCHERS</span></div>`;
+                posHtml += `<div class="row-header" style="background: ${c1}; display: grid; grid-template-columns: ${nIF}fr ${nOF}fr ${nC + pad}fr; padding: 1px 15px;">`;
+                posHtml += `<span style="text-align:center;">INFIELDERS</span><span style="text-align:center;">OUTFIELDERS</span><span style="text-align:center;">CATCHERS</span></div>`;
                 posHtml += `<div class="grid-container">`;
 
                 t.pos_players.forEach(b => {
