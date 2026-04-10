@@ -75,11 +75,16 @@ def fetch_team_data(team_slug, team_id):
     # 2. Fetch Players + Pitching Stats
     pitchers, infield, outfield, catchers = [], [], [], []
     try:
-        api_url = f"https://statsapi.mlb.com/api/v1/teams/{team_id}/roster/Active?hydrate=person(batSide,pitchHand,stats(type=season,season=2025,group=pitching))"
+        api_url = f"https://statsapi.mlb.com/api/v1/teams/{team_id}/roster/Active?hydrate=person(batSide,pitchHand,stats(type=season,season=2026,group=pitching))"
         data = requests.get(api_url, timeout=10).json()
+        seen_names = set()
         for p in data.get('roster', []):
             person = p['person']
             pos = p['position']['abbreviation']
+            name = person['fullName'].upper()
+            if name in seen_names:
+                continue
+            seen_names.add(name)
             bats = person.get('batSide', {}).get('code', 'R')
             throws = person.get('pitchHand', {}).get('code', 'R')
             starts, saves = 0, 0
@@ -89,7 +94,7 @@ def fetch_team_data(team_slug, team_id):
                     starts = stats_list[0].get('stat', {}).get('gamesStarted', 0)
                     saves = stats_list[0].get('stat', {}).get('saves', 0)
             player_obj = {
-                'name': person['fullName'].upper(),
+                'name': name,
                 'number': p.get('jerseyNumber', '00'),
                 'throw_l': "(L)" if throws == 'L' else "",
                 'bat_l': "(L)" if bats in ['L', 'S'] else "",
@@ -99,7 +104,7 @@ def fetch_team_data(team_slug, team_id):
             }
             if pos == 'P':
                 pitchers.append(player_obj)
-            elif pos in ['1B', '2B', '3B', 'SS', 'IF']:
+            elif pos in ['1B', '2B', '3B', 'SS', 'IF', 'DH', 'TWP']:
                 infield.append(player_obj)
             elif pos in ['LF', 'CF', 'RF', 'OF']:
                 outfield.append(player_obj)
