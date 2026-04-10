@@ -108,27 +108,38 @@ def fetch_team_data(team_slug, team_id):
     except Exception as e:
         print(f"  API Error: {e}")
 
-    # Sort Pitchers: Starters -> Alphabetical Relievers -> Closer
+    def by_last_name(p):
+        parts = p['name'].split()
+        return parts[-1] if parts else ''
+
+    # Sort Pitchers: top 5 starters (alpha) -> relievers (alpha) -> closer in alpha position but styled
     p_by_saves = sorted(pitchers, key=lambda x: x['saves'], reverse=True)
     closer = p_by_saves[0] if p_by_saves else None
     rem_after_c = [p for p in pitchers if p != closer]
     p_by_starts = sorted(rem_after_c, key=lambda x: x['starts'], reverse=True)
-    starters = p_by_starts[:5]
-    relievers = sorted(p_by_starts[5:], key=lambda x: x['name'])
+    starters = sorted(p_by_starts[:5], key=by_last_name)
+    relievers = sorted(p_by_starts[5:], key=by_last_name)
     all_pitchers = starters + relievers
     if closer:
         if closer in all_pitchers:
             all_pitchers.remove(closer)
-        all_pitchers.append(closer)
     all_pitchers = all_pitchers[:12]
-    all_pitchers.append(closer if closer else {'name': '', 'number': '', 'throw_l': '', 'image': ''})
+    # Insert closer in alphabetical position within the full list
+    if closer:
+        closer['is_closer'] = True
+        inserted = False
+        for i, p in enumerate(all_pitchers):
+            if by_last_name(closer) <= by_last_name(p):
+                all_pitchers.insert(i, closer)
+                inserted = True
+                break
+        if not inserted:
+            all_pitchers.append(closer)
+        all_pitchers = all_pitchers[:13]
     while len(all_pitchers) < 13:
-        all_pitchers.insert(-1, {'name': '', 'number': '', 'throw_l': '', 'image': ''})
+        all_pitchers.append({'name': '', 'number': '', 'throw_l': '', 'image': ''})
 
     # Sort each position group alphabetically by last name
-    def by_last_name(p):
-        parts = p['name'].split()
-        return parts[-1] if parts else ''
     infield.sort(key=by_last_name)
     outfield.sort(key=by_last_name)
     catchers.sort(key=by_last_name)

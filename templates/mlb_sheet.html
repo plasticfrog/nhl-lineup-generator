@@ -155,17 +155,9 @@
         }
 
         function setAsCloser(card, grid, c1) {
-            const cards = Array.from(grid.querySelectorAll('.card'));
-            const oldCloser = cards[cards.length - 1];
-            if (card === oldCloser) return;
-            // Swap DOM positions
-            const marker = document.createElement('div');
-            grid.insertBefore(marker, card);
-            grid.insertBefore(card, oldCloser);
-            grid.insertBefore(oldCloser, marker);
-            marker.remove();
-            // Swap styles
-            applyCloserStyle(oldCloser, c1, false);
+            // Remove closer style from current closer (wherever it is)
+            grid.querySelectorAll('.card').forEach(c => applyCloserStyle(c, c1, false));
+            // Apply closer style to new selection
             applyCloserStyle(card, c1, true);
         }
 
@@ -285,11 +277,11 @@
 
                 // === PITCHERS ROW ===
                 let pitchersHtml = `<div class="row players" style="background: ${c1};">`;
-                pitchersHtml += `<div class="row-header" style="background: ${c1};"><span>STARTING PITCHERS</span><span>RELIEF PITCHERS</span><span>CLOSER</span></div>`;
+                pitchersHtml += `<div class="row-header" style="background: ${c1};"><span>STARTING PITCHERS</span><span>RELIEF PITCHERS</span></div>`;
                 pitchersHtml += `<div class="grid-container">`;
 
                 t.pitchers.forEach((p, idx) => {
-                    const isCloser = (idx === 12);
+                    const isCloser = !!p.is_closer;
                     if (p.name) {
                         pitchersHtml += `<div class="card" style="background:#fff; border-color: ${c1}; ${isCloser ? `border: 2px solid ${c1};` : ''}">`;
                         // Closer: inverted number row (team color bg, white text)
