@@ -104,9 +104,9 @@ def fetch_team_data(team_slug, team_id):
             }
             if pos == 'P':
                 pitchers.append(player_obj)
-            elif pos in ['1B', '2B', '3B', 'SS', 'IF', 'DH', 'TWP']:
+            elif pos in ['1B', '2B', '3B', 'SS', 'IF']:
                 infield.append(player_obj)
-            elif pos in ['LF', 'CF', 'RF', 'OF']:
+            elif pos in ['LF', 'CF', 'RF', 'OF', 'DH', 'TWP']:
                 outfield.append(player_obj)
             elif pos == 'C':
                 catchers.append(player_obj)
