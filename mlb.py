@@ -75,7 +75,7 @@ def fetch_team_data(team_slug, team_id):
     # 2. Fetch Players + Pitching Stats
     pitchers, infield, outfield, catchers = [], [], [], []
     try:
-        api_url = f"https://statsapi.mlb.com/api/v1/teams/{team_id}/roster/Active?hydrate=person(batSide,pitchHand,stats(type=season,season=2024,group=pitching))"
+        api_url = f"https://statsapi.mlb.com/api/v1/teams/{team_id}/roster/Active?hydrate=person(batSide,pitchHand,stats(type=season,season=2025,group=pitching))"
         data = requests.get(api_url, timeout=10).json()
         for p in data.get('roster', []):
             person = p['person']
@@ -112,30 +112,33 @@ def fetch_team_data(team_slug, team_id):
         parts = p['name'].split()
         return parts[-1] if parts else ''
 
-    # Sort Pitchers: top 5 starters (alpha) -> relievers (alpha) -> closer in alpha position but styled
+    # Closer = most saves from 2025 season
     p_by_saves = sorted(pitchers, key=lambda x: x['saves'], reverse=True)
-    closer = p_by_saves[0] if p_by_saves else None
-    rem_after_c = [p for p in pitchers if p != closer]
-    p_by_starts = sorted(rem_after_c, key=lambda x: x['starts'], reverse=True)
-    starters = sorted(p_by_starts[:5], key=by_last_name)
-    relievers = sorted(p_by_starts[5:], key=by_last_name)
-    all_pitchers = starters + relievers
-    if closer:
-        if closer in all_pitchers:
-            all_pitchers.remove(closer)
-    all_pitchers = all_pitchers[:12]
-    # Insert closer in alphabetical position within the full list
+    closer = p_by_saves[0] if p_by_saves and p_by_saves[0]['saves'] > 0 else None
     if closer:
         closer['is_closer'] = True
+
+    # Top 5 starters by games started (excluding closer), sorted alphabetically
+    non_closer = [p for p in pitchers if p != closer]
+    p_by_starts = sorted(non_closer, key=lambda x: x['starts'], reverse=True)
+    starters = sorted(p_by_starts[:5], key=by_last_name)
+
+    # Relievers = everyone else (excluding closer and starters), sorted alphabetically
+    starter_set = set(id(p) for p in starters)
+    relievers = sorted([p for p in non_closer if id(p) not in starter_set], key=by_last_name)
+
+    # Insert closer alphabetically within the relievers
+    if closer:
         inserted = False
-        for i, p in enumerate(all_pitchers):
+        for i, p in enumerate(relievers):
             if by_last_name(closer) <= by_last_name(p):
-                all_pitchers.insert(i, closer)
+                relievers.insert(i, closer)
                 inserted = True
                 break
         if not inserted:
-            all_pitchers.append(closer)
-        all_pitchers = all_pitchers[:13]
+            relievers.append(closer)
+
+    all_pitchers = (starters + relievers)[:13]
     while len(all_pitchers) < 13:
         all_pitchers.append({'name': '', 'number': '', 'throw_l': '', 'image': ''})
 
