@@ -43,6 +43,7 @@
 
         .handed { color: #cc0000; margin-left: 1px; font-weight: 900; font-size: 19px; vertical-align: middle; }
         .row-header { width: 100%; color: white; font-weight: 900; font-size: 11px; padding: 1px 15px; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; min-height: 16px; font-family: 'Arial Narrow', sans-serif; }
+        .group-label { color: white; font-weight: 900; font-size: 11px; text-transform: uppercase; font-family: 'Arial Narrow', sans-serif; text-align: center; padding: 2px 0; }
 
         .no-data { color: #aaa; text-align: center; margin-top: 100px; font-size: 1.5em; }
 
@@ -284,9 +285,16 @@
                 coachesHtml += `</div></div>`;
 
                 // === PITCHERS ROW ===
+                // Count starters and relievers for label spans
+                let nSP = 0, nRP = 0;
+                t.pitchers.forEach(p => { if (p.name) { if (p.group === 'starter') nSP++; else nRP++; } });
+                if (nSP + nRP < 13) nRP = 13 - nSP; // pad relievers span to fill row
+
                 let pitchersHtml = `<div class="row players" style="background: ${c1};">`;
-                pitchersHtml += `<div class="row-header" style="background: ${c1};"><span>STARTING PITCHERS</span><span>RELIEF PITCHERS</span></div>`;
-                pitchersHtml += `<div class="grid-container">`;
+                pitchersHtml += `<div class="grid-container" style="grid-template-rows: auto 1fr;">`;
+                // Group label row inside the grid
+                pitchersHtml += `<div class="group-label" style="grid-column: span ${nSP}; background: ${c1};">STARTING PITCHERS</div>`;
+                pitchersHtml += `<div class="group-label" style="grid-column: span ${nRP}; background: ${tintColor(c1, 0.5)};">RELIEF PITCHERS</div>`;
 
                 t.pitchers.forEach((p, idx) => {
                     const isCloser = !!p.is_closer;
@@ -298,7 +306,6 @@
                         const handedColor = isCloser ? '#ffe066' : '#cc0000';
                         pitchersHtml += `<div class="card-top" style="background:${topBg}; color:${topColor}; border-color: ${c1};" contenteditable="true">${escapeHtml(p.number)}<span class="handed" style="color:${handedColor};">${escapeHtml(p.throw_l)}</span></div>`;
                         pitchersHtml += `<div class="img-box player"><img src="${escapeHtml(p.image)}"></div>`;
-                        // Closer: inverted name row too
                         const botBg = isCloser ? c1 : '#fff';
                         const botColor = isCloser ? 'white' : 'inherit';
                         pitchersHtml += `<div class="card-bottom" style="background:${botBg}; color:${botColor}; border-color: ${c1};" contenteditable="true">${escapeHtml(p.name)}</div>`;
@@ -314,9 +321,11 @@
                 const nIF = Math.min(pc.infield, 13), nOF = Math.min(pc.outfield, 13 - nIF), nC = Math.min(pc.catchers, 13 - nIF - nOF);
                 const pad = 13 - nIF - nOF - nC;
                 let posHtml = `<div class="row players" style="background: ${c1};">`;
-                posHtml += `<div class="row-header" style="background: ${c1}; display: grid; grid-template-columns: ${nIF}fr ${nOF}fr ${nC + pad}fr; padding: 1px 15px;">`;
-                posHtml += `<span style="text-align:center;">INFIELDERS</span><span style="text-align:center;">OUTFIELDERS</span><span style="text-align:center;">CATCHERS</span></div>`;
-                posHtml += `<div class="grid-container">`;
+                posHtml += `<div class="grid-container" style="grid-template-rows: auto 1fr;">`;
+                // Group label row inside grid
+                posHtml += `<div class="group-label" style="grid-column: span ${nIF}; background: ${c1};">INFIELDERS</div>`;
+                posHtml += `<div class="group-label" style="grid-column: span ${nOF}; background: ${tintColor(c1, 0.5)};">OUTFIELDERS</div>`;
+                posHtml += `<div class="group-label" style="grid-column: span ${nC + pad}; background: ${c1};">CATCHERS</div>`;
 
                 t.pos_players.forEach(b => {
                     if (b.name) {
