@@ -127,10 +127,14 @@ def fetch_team_data(team_slug, team_id):
     non_closer = [p for p in pitchers if p != closer]
     p_by_starts = sorted(non_closer, key=lambda x: x['starts'], reverse=True)
     starters = sorted(p_by_starts[:5], key=by_last_name)
+    for p in starters:
+        p['group'] = 'starter'
 
     # Relievers = everyone else (excluding closer and starters), sorted alphabetically
     starter_set = set(id(p) for p in starters)
     relievers = sorted([p for p in non_closer if id(p) not in starter_set], key=by_last_name)
+    for p in relievers:
+        p['group'] = 'reliever'
 
     # Insert closer alphabetically within the relievers
     if closer:
@@ -147,10 +151,16 @@ def fetch_team_data(team_slug, team_id):
     while len(all_pitchers) < 13:
         all_pitchers.append({'name': '', 'number': '', 'throw_l': '', 'image': ''})
 
-    # Sort each position group alphabetically by last name
+    # Sort each position group alphabetically by last name and tag group
     infield.sort(key=by_last_name)
+    for p in infield:
+        p['group'] = 'infield'
     outfield.sort(key=by_last_name)
+    for p in outfield:
+        p['group'] = 'outfield'
     catchers.sort(key=by_last_name)
+    for p in catchers:
+        p['group'] = 'catcher'
 
     all_pos = (infield + outfield + catchers)[:13]
     # Calculate actual displayed counts (after 13-cap)
