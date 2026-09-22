@@ -1,6 +1,6 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageOps
 import requests
 import os
 import time
@@ -292,7 +292,7 @@ def get_coaches_from_nhl(team_abbrev):
     photos when the team site has them) scraped from the team's NHL.com staff page."""
     cached = COACH_CACHE.get(team_abbrev)
     if cached and time.time() - cached[0] < COACH_CACHE_SECONDS:
-        return [dict(c) for c in cached[1]]
+        return with_saved_photos(cached[1])
 
     head_coach = ''
     try:
@@ -348,7 +348,32 @@ def get_coaches_from_nhl(team_abbrev):
         coaches.append({'name': '', 'role': 'COACH', 'headshot_url': ''})
 
     COACH_CACHE[team_abbrev] = (time.time(), coaches)
-    return [dict(c) for c in coaches]
+    return with_saved_photos(coaches)
+
+# Coach photos uploaded from the sheet, shared by everyone. On Railway this lives on a
+# volume (Railway sets RAILWAY_VOLUME_MOUNT_PATH when one is attached) so it survives deploys.
+COACH_PHOTO_DIR = os.environ.get('COACH_PHOTO_DIR') or os.path.join(
+    os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or os.path.dirname(os.path.abspath(__file__)), 'coach_photos')
+os.makedirs(COACH_PHOTO_DIR, exist_ok=True)
+
+def coach_photo_slug(name):
+    import unicodedata
+    name = unicodedata.normalize('NFKD', name or '').encode('ascii', 'ignore').decode()
+    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+
+def saved_coach_photo_url(name):
+    slug = coach_photo_slug(name)
+    path = os.path.join(COACH_PHOTO_DIR, f'{slug}.webp')
+    if slug and os.path.exists(path):
+        return f'/coach_photos/{slug}.webp?v={int(os.path.getmtime(path))}'
+    return None
+
+def with_saved_photos(coaches):
+    """Uploaded photos win over the ones found on team sites."""
+    out = [dict(c) for c in coaches]
+    for c in out:
+        c['headshot_url'] = saved_coach_photo_url(c['name']) or c['headshot_url']
+    return out
 
 def extract_roster_from_screenshot(image_file):
     """Refined for Number Entry method to avoid stat-noise in names"""
@@ -516,6 +541,41 @@ def process_numbers():
         elapsed = round(time.time() - start, 2)
         logger.error(f"NHL NUMBERS FAIL | team: {team} | {elapsed}s | error: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/coach_photos', methods=['GET'])
+def list_coach_photos():
+    photos = {}
+    for f in os.listdir(COACH_PHOTO_DIR):
+        if f.endswith('.webp'):
+            slug = f[:-5]
+            photos[slug] = f'/coach_photos/{f}?v={int(os.path.getmtime(os.path.join(COACH_PHOTO_DIR, f)))}'
+    return jsonify(photos)
+
+@app.route('/coach_photos/<slug>.webp')
+def coach_photo(slug):
+    if not re.fullmatch(r'[a-z0-9-]+', slug):
+        abort(404)
+    return send_from_directory(COACH_PHOTO_DIR, f'{slug}.webp', max_age=3600)
+
+@app.route('/coach_photos', methods=['POST'])
+def upload_coach_photo():
+    """Save a coach photo for everyone. Form fields: name, photo (image file)."""
+    name = (request.form.get('name') or '').strip()
+    file = request.files.get('photo')
+    slug = coach_photo_slug(name)
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if not slug or not file:
+        return jsonify({'error': 'Need a coach name and a photo'}), 400
+    try:
+        # Re-encoding through Pillow also guarantees we only ever store a plain image
+        img = ImageOps.exif_transpose(Image.open(file.stream)).convert('RGBA')
+        img.thumbnail((400, 400))
+        img.save(os.path.join(COACH_PHOTO_DIR, f'{slug}.webp'), 'WEBP', quality=88)
+    except Exception as e:
+        logger.warning(f"COACH PHOTO FAIL | {name} | IP: {ip} | error: {e}")
+        return jsonify({'error': 'That file is not an image we can read'}), 400
+    logger.info(f"COACH PHOTO SAVED | {name} | IP: {ip}")
+    return jsonify({'name': name.upper(), 'url': saved_coach_photo_url(name)})
 
 @app.route('/mlb')
 def mlb_select():

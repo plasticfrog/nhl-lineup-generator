@@ -191,7 +191,7 @@
         const NOTES_KEY = 'notes';
         const NOTE_IMGS_KEY = 'nhl_note_images';
         // Coach memory survives new lineups and resets:
-        const COACH_PHOTOS_KEY = 'nhl_coach_photos';   // { 'COACH NAME': imageDataUrl }
+        const COACH_PHOTOS_KEY = 'nhl_coach_photos';   // { 'COACH NAME': imageDataUrl } (only if the server upload failed)
         const TEAM_COACHES_KEY = 'nhl_team_coaches';   // { TEAM: { staff_Coach_N: { name, role, image } } }
         const KEEP_KEYS = ['lineup_data', COACH_PHOTOS_KEY, TEAM_COACHES_KEY, COACH_TOGGLE_KEY];
 
@@ -202,6 +202,16 @@
             localStorage.clear();
             keep.forEach(([k, v]) => { if (v !== null) localStorage.setItem(k, v); });
             localStorage.setItem(LAST_TEAM_KEY, currentTeam);
+        }
+
+        // Coach photos saved on the server, shared by everyone: { slug: url }
+        let SERVER_PHOTOS = {};
+        function photoSlug(name) {
+            return (name || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        }
+        function coachPhotoFor(name) {
+            if (!name) return null;
+            return SERVER_PHOTOS[photoSlug(name)] || readJSON(COACH_PHOTOS_KEY)[name] || null;
         }
 
         function readJSON(key) { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) { return {}; } }
@@ -278,12 +288,23 @@
             const reader = new FileReader();
             reader.onload = async (e) => {
                 if (coachName !== undefined) {
-                    // Coaches: remember the photo by name so it follows them to every future lineup
+                    // Coaches: save the photo on the server by name so everyone gets it on every future lineup
                     const src = await shrinkImage(e.target.result);
                     if (coachName) {
                         const photos = readJSON(COACH_PHOTOS_KEY);
-                        photos[coachName] = src;
-                        if (!writeJSON(COACH_PHOTOS_KEY, photos)) return;
+                        try {
+                            const form = new FormData();
+                            form.append('name', coachName);
+                            form.append('photo', file);
+                            const res = await fetch('/coach_photos', { method: 'POST', body: form });
+                            if (!res.ok) throw new Error((await res.json()).error || res.status);
+                            delete photos[coachName];
+                            writeJSON(COACH_PHOTOS_KEY, photos);
+                        } catch (err) {
+                            alert(`Couldn't save the photo for everyone (${err.message}). It's saved in this browser only.`);
+                            photos[coachName] = src;
+                            if (!writeJSON(COACH_PHOTOS_KEY, photos)) return;
+                        }
                     } else if (!saveTeamCoach(key, { image: src })) return;
                 } else if(isStaff) {
                     const data = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}');
@@ -447,7 +468,7 @@
             role.onblur = () => saveStaff({ role: role.textContent });
             imgCont.appendChild(role);
 
-            const coachPhoto = isCoach && staffName ? readJSON(COACH_PHOTOS_KEY)[staffName] : null;
+            const coachPhoto = isCoach ? coachPhotoFor(staffName) : null;
             const url = coachPhoto || saved.image || pre.headshot_url || pre.image;
             if (url) {
                 const img = document.createElement('img'); img.src = url; img.className = 'headshot';
@@ -462,7 +483,7 @@
             };
             // Show a remembered photo as soon as a known coach's name is typed in
             if (isCoach) nameInfo.onblur = () => {
-                const photo = readJSON(COACH_PHOTOS_KEY)[nameInfo.textContent.trim().toUpperCase()];
+                const photo = coachPhotoFor(nameInfo.textContent.trim().toUpperCase());
                 if (photo && photo !== url) location.reload();
             };
 
@@ -563,7 +584,9 @@
             document.onmouseup = () => isDragging = false;
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            try { SERVER_PHOTOS = await fetch('/coach_photos').then(r => r.json()); } catch (e) { SERVER_PHOTOS = {}; }
+
             const fGrid = document.getElementById('forwards-grid');
             const dGrid = document.getElementById('defensemen-grid');
             const g1Slot = document.getElementById('g1-slot');
