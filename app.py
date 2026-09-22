@@ -36,7 +36,7 @@ TEAM_NAME_MAP = {
     'LAK': 'kings', 'MIN': 'wild', 'MTL': 'canadiens', 'NJD': 'devils',
     'NSH': 'predators', 'NYI': 'islanders', 'NYR': 'rangers', 'OTT': 'senators',
     'PHI': 'flyers', 'PIT': 'penguins', 'SEA': 'kraken', 'SJS': 'sharks',
-    'STL': 'blues', 'TBL': 'lightning', 'TOR': 'mapleleafs', 'UTA': 'utahhockeyclub',
+    'STL': 'blues', 'TBL': 'lightning', 'TOR': 'mapleleafs', 'UTA': 'utah',
     'VAN': 'canucks', 'VGK': 'goldenknights', 'WPG': 'jets', 'WSH': 'capitals'
 }
 
@@ -130,6 +130,11 @@ def extract_players_from_image(image_file, expected_count, preferred_roster, ful
         return matched[:expected_count]
     except Exception as e: return [f"PLAYER {i+1}" for i in range(expected_count)]
 
+def goalie_label(p):
+    num = p.get('sweaterNumber')
+    last = p['lastName']['default'].upper()
+    return f"#{num} {last}" if num else last
+
 def search_player(player_name):
     if not player_name or "PLAYER" in player_name: return None
     try:
@@ -145,49 +150,205 @@ NHL_TEAM_ID_MAP = {
     8: 'MTL', 9: 'OTT', 10: 'TOR', 12: 'CAR', 13: 'FLA', 14: 'TBL', 15: 'WSH',
     16: 'CHI', 17: 'DET', 18: 'NSH', 19: 'STL', 20: 'CGY', 21: 'COL', 22: 'EDM',
     23: 'VAN', 24: 'ANA', 25: 'DAL', 26: 'LAK', 28: 'SJS', 29: 'CBJ', 30: 'MIN',
-    52: 'WPG', 54: 'VGK', 55: 'SEA', 59: 'UTA'
+    52: 'WPG', 54: 'VGK', 55: 'SEA', 59: 'UTA', 68: 'UTA'
 }
 
+BROWSER_HEADERS = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'}
+
+# Each team site keeps its coaching staff at a different path; checked in this order
+# (pages with photos first).
+STAFF_PAGE_PATHS = ['coaching-staff', 'coaches', 'hockey-operations', 'front-office', 'management',
+                    'staff', 'staff-directory', 'hockey-ops', 'hockey-operations-staff']
+
+# Bench coaches only, in the order they fill the 4 coach slots
+COACH_ROLE_ORDER = [
+    ('HEAD COACH', re.compile(r'^head coach$', re.I)),
+    ('ASSOC. COACH', re.compile(r'^associate (head )?coach$', re.I)),
+    ('ASST. COACH', re.compile(r'^assistant (head )?coach(es)?$', re.I)),
+    ('GOALIE COACH', re.compile(r'^((senior|nhl|director of goaltending,? nhl) )?(goaltending|goalie) coach$', re.I)),
+]
+COACH_WORD = re.compile(r'\bcoach(es)?\b', re.I)
+PERSON_NAME = re.compile(r"^[A-Z][\w'’.\-]+( [A-Z][\w'’.\-]+){1,3}$")
+INLINE_SEP = re.compile(r'\s+[|\-–—:]\s+|:\s+')
+
+COACH_CACHE = {}
+COACH_CACHE_SECONDS = 6 * 60 * 60
+
+def _norm_name(name):
+    import unicodedata
+    name = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode()
+    return re.sub(r'[^a-z]', '', name.lower())
+
+def _same_person(a, b):
+    a, b = _norm_name(a), _norm_name(b)
+    return bool(a) and (a == b or SequenceMatcher(None, a, b).ratio() >= 0.85)
+
+def _coach_slot(role):
+    for i, (label, pattern) in enumerate(COACH_ROLE_ORDER):
+        if pattern.match(role.strip(' :|-')):
+            return i, label
+    return None, None
+
+def _square_photo(url):
+    """Team sites serve NHL media-CDN images in many crops; ask for a square one."""
+    return re.sub(r'(/image/private/)[^/]+/', r'\1t_ratio1_1-size40/', url) if url else ''
+
+def _page_tokens(html):
+    """Flatten a staff page into ordered ('txt', text) and ('img', src) tokens."""
+    soup = BeautifulSoup(html, 'html.parser')
+    root = soup.find('main') or soup.body or soup
+    for tag in root.select('script, style, nav, header, footer'):
+        tag.decompose()
+    tokens = []
+    for el in root.descendants:
+        if getattr(el, 'name', None) == 'img':
+            src = el.get('src') or el.get('data-src') or ''
+            if src.startswith('http') and 'logo' not in src.lower():
+                tokens.append(('img', src))
+        elif isinstance(el, str) and not getattr(el, 'name', None):
+            text = ' '.join(el.split())
+            if len(text) > 1 and not text.startswith('[if'):
+                tokens.append(('txt', text))
+    return tokens
+
+def _parse_staff_page(html, head_coach):
+    """Return [(role, name, photo_url)] for the NHL coaching staff on a team staff page.
+
+    Handles three layouts: "Name" then "Role", "Role" then "Name", and "Role | Name" /
+    "Role - Name" / "Name - Role" on one line. The known head coach (from the Records API)
+    tells us which way names and roles are paired; a second "Head Coach" marks the start
+    of the AHL affiliate's staff.
+    """
+    tokens = _page_tokens(html)
+    inline = _inline_entries(tokens)
+    paired = _paired_entries(tokens, head_coach)
+    bench = lambda es: sum(1 for _, r, _ in es if _coach_slot(r)[0] is not None)
+    entries = inline if bench(inline) >= bench(paired) else paired  # (token_index, role, name)
+
+    # Keep the NHL staff: from the head coach until the next "Head Coach" (the AHL staff)
+    start = next((k for k, (_, r, nm) in enumerate(entries) if _same_person(nm, head_coach)), 0)
+    staff, seen_head = [], False
+    for k in range(start, len(entries)):
+        idx, role, name = entries[k]
+        slot, label = _coach_slot(role)
+        if label == 'HEAD COACH':
+            if seen_head:
+                break
+            seen_head = True
+        # Photo: the image just before this entry, but not past the previous entry
+        prev_idx = entries[k - 1][0] if k > 0 else -1
+        photo = next((tokens[j][1] for j in range(idx - 1, prev_idx, -1) if tokens[j][0] == 'img'), '')
+        staff.append((role, name, photo))
+
+    # A photo shared by several coaches is a placeholder silhouette
+    counts = Counter(p for _, _, p in staff if p)
+    staff = [(r, n, p if counts[p] == 1 else '') for r, n, p in staff]
+    # If only one coach "has" a photo, it's a page banner or someone else's picture
+    if sum(1 for _, _, p in staff if p) < 2:
+        staff = [(r, n, '') for r, n, _ in staff]
+    return staff
+
+def _inline_entries(tokens):
+    """'Role | Name', 'Role - Name', 'Name - Role', 'Role: Name1, Name2' on one line."""
+    entries = []
+    for i, (kind, text) in enumerate(tokens):
+        if kind != 'txt' or len(text) > 90 or not COACH_WORD.search(text):
+            continue
+        parts = INLINE_SEP.split(text, maxsplit=1)
+        if len(parts) != 2:
+            continue
+        left, right = parts[0].strip(), parts[1].strip()
+        role, names = (left, right) if COACH_WORD.search(left) else (right, left)
+        for name in re.split(r',\s*|\s+and\s+', names):
+            if PERSON_NAME.match(name.strip()):
+                entries.append((i, role, name.strip()))
+    return entries
+
+def _paired_entries(tokens, head_coach):
+    """Name and role as separate lines. Which way they pair is read off the head coach."""
+    entries = []
+    texts = [(i, t) for i, (k, t) in enumerate(tokens) if k == 'txt']
+    role_pos = [n for n, (_, t) in enumerate(texts) if len(t) <= 45 and COACH_WORD.search(t)]
+    direction = None
+    for n, (_, t) in enumerate(texts):
+        if head_coach and _same_person(t, head_coach):
+            if n + 1 < len(texts) and _coach_slot(texts[n + 1][1])[1] == 'HEAD COACH':
+                direction = -1  # name comes before its role
+            elif n > 0 and _coach_slot(texts[n - 1][1])[1] == 'HEAD COACH':
+                direction = 1   # role comes before its name
+            break
+    if direction is None:
+        before = sum(1 for n in role_pos if n > 0 and PERSON_NAME.match(texts[n - 1][1]))
+        after = sum(1 for n in role_pos if n + 1 < len(texts) and PERSON_NAME.match(texts[n + 1][1]))
+        direction = -1 if before >= after else 1
+    for n in role_pos:
+        m = n + direction
+        if 0 <= m < len(texts) and PERSON_NAME.match(texts[m][1]) and not COACH_WORD.search(texts[m][1]):
+            entries.append((min(texts[n][0], texts[m][0]), texts[n][1], texts[m][1]))
+    return entries
+
 def get_coaches_from_nhl(team_abbrev):
-    """Fetch head coach name from NHL Records API, return with blank assistant slots."""
-    coaches = []
+    """Head coach from the NHL Records API, plus associate/assistant/goalie coaches (with
+    photos when the team site has them) scraped from the team's NHL.com staff page."""
+    cached = COACH_CACHE.get(team_abbrev)
+    if cached and time.time() - cached[0] < COACH_CACHE_SECONDS:
+        return [dict(c) for c in cached[1]]
+
+    head_coach = ''
     try:
         res = requests.get('https://records.nhl.com/site/api/coach?cayenneExp=isActive=true',
-                           headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                           headers=BROWSER_HEADERS, timeout=10)
         if res.status_code == 200:
             for c in res.json().get('data', []):
-                tid = c.get('teamId')
-                if NHL_TEAM_ID_MAP.get(tid) == team_abbrev:
-                    coaches.append({'name': c['fullName'].upper(), 'role': 'HEAD COACH', 'headshot_url': ''})
+                if NHL_TEAM_ID_MAP.get(c.get('teamId')) == team_abbrev:
+                    head_coach = c['fullName']
                     break
     except Exception as e:
         logger.warning(f"NHL coach API error: {e}")
 
-    # Also try scraping NHL.com management page for assistant coaches (works for some teams)
-    try:
-        slug = TEAM_NAME_MAP.get(team_abbrev, team_abbrev.lower())
-        res = requests.get(f"https://www.nhl.com/{slug}/team/management",
-                           headers={'User-Agent': 'Mozilla/5.0'}, timeout=8)
-        if res.status_code == 200 and len(res.text) > 1000:
-            for match in re.finditer(
-                r'(Assistant Coach(?:es)?|Associate Coach|Goaltending Coach)\s*\|\s*([^\n\\<]+)', res.text):
-                role = match.group(1).strip().upper()
-                names = match.group(2).strip()
-                # "Assistant Coaches | Name1, Name2, Name3" -> split
-                for name in names.split(','):
-                    name = name.strip()
-                    if name and len(coaches) < 4:
-                        short_role = role.replace('ASSISTANT COACHES', 'ASSISTANT').replace('ASSISTANT COACH', 'ASSISTANT')
-                        short_role = short_role.replace(' COACH', '')
-                        coaches.append({'name': name.upper(), 'role': short_role, 'headshot_url': ''})
-    except Exception as e:
-        logger.warning(f"NHL management page scrape error: {e}")
+    staff = []
+    slug = TEAM_NAME_MAP.get(team_abbrev, team_abbrev.lower())
 
-    # Pad to 4 coaches with blank placeholder slots
+    def fetch(path):
+        try:
+            r = requests.get(f"https://www.nhl.com/{slug}/team/{path}", headers=BROWSER_HEADERS, timeout=8)
+            if r.status_code == 200 and 'not-found' not in r.url:
+                return r.content
+        except Exception:
+            pass
+        return None
+
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(len(STAFF_PAGE_PATHS)) as pool:
+            pages = list(pool.map(fetch, STAFF_PAGE_PATHS))
+        for path, html in zip(STAFF_PAGE_PATHS, pages):
+            if not html:
+                continue
+            found = [s for s in _parse_staff_page(html, head_coach) if _coach_slot(s[0])[0] is not None]
+            if len(found) >= 2:
+                staff = found
+                logger.info(f"NHL COACHES | {team_abbrev} | {path} | {len(found)} coaches")
+                break
+    except Exception as e:
+        logger.warning(f"NHL staff page scrape error: {e}")
+
+    coaches = []
+    if head_coach:
+        photo = next((p for r, n, p in staff if _same_person(n, head_coach)), '')
+        coaches.append({'name': head_coach.upper(), 'role': 'HEAD COACH', 'headshot_url': _square_photo(photo)})
+    for role, name, photo in sorted(staff, key=lambda s: _coach_slot(s[0])[0]):
+        slot, label = _coach_slot(role)
+        if label == 'HEAD COACH' or any(_same_person(name, c['name']) for c in coaches):
+            continue
+        coaches.append({'name': name.upper(), 'role': label, 'headshot_url': _square_photo(photo)})
+
+    coaches = coaches[:4]
     while len(coaches) < 4:
         coaches.append({'name': '', 'role': 'COACH', 'headshot_url': ''})
 
-    return coaches[:4]
+    COACH_CACHE[team_abbrev] = (time.time(), coaches)
+    return [dict(c) for c in coaches]
 
 def extract_roster_from_screenshot(image_file):
     """Refined for Number Entry method to avoid stat-noise in names"""
@@ -248,9 +409,9 @@ def process_lineup():
             for p in r_json.get(pos_key, []):
                 name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
                 if pos_key == 'goalies':
-                    goalies.append({'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'id': p['id'], 'last': p['lastName']['default'].upper()})
+                    goalies.append({'name': goalie_label(p), 'id': p['id'], 'last': p['lastName']['default'].upper()})
                 else:
-                    roster_data_full[name] = {'id': p['id'], 'number': str(p['sweaterNumber']), 'is_forward': pos_key=='forwards'}
+                    roster_data_full[name] = {'id': p['id'], 'number': str(p.get('sweaterNumber', '')), 'is_forward': pos_key=='forwards'}
 
         f_names = [n for n, d in roster_data_full.items() if d['is_forward']]
         d_names = [n for n, d in roster_data_full.items() if not d['is_forward']]
@@ -324,6 +485,7 @@ def process_numbers():
         for pos in ['forwards', 'defensemen']:
             for p in api.get(pos, []):
                 name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
+                if 'sweaterNumber' not in p: continue  # unsigned/camp players have no number yet
                 valid_skaters[str(p['sweaterNumber'])] = {'id': p['id'], 'name': name, 'is_forward': pos == 'forwards'}
         
         # Filter: Only keep numbers that actually belong to an active player on the team
@@ -347,7 +509,7 @@ def process_numbers():
         logger.info(f"NHL NUMBERS OK | team: {team} | {elapsed}s | players: {len(f_out)}F+{len(d_out)}D")
         return jsonify({
             'forwards': f_out, 'defensemen': d_out,
-            'goalies': [{'name': f"#{p['sweaterNumber']} {p['lastName']['default'].upper()}", 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{p['id']}.png"} for p in api.get('goalies', [])][:2],
+            'goalies': [{'name': goalie_label(p), 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{p['id']}.png"} for p in api.get('goalies', [])][:2],
             'coaches': get_coaches_from_nhl(team), 'team': team
         })
     except Exception as e:

@@ -25,27 +25,42 @@
         }
         
         .forwards-section { height: 55%; width: 100%; display: flex; flex-direction: column; }
-        .defensemen-section { height: 45%; display: flex; border-top: 5px solid black; }
+        .defensemen-section { height: 45%; display: flex; border-top: var(--group-rule) solid black; }
         
-        .forwards-grid { display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(2, 1fr); height: 100%; }
-        .forwards-grid .player:nth-child(3), .forwards-grid .player:nth-child(9) { border-right: 5px solid black; }
-        
+        :root {
+            --mug: 280px;      /* one headshot size for every card so faces match across sections */
+            --rule: 1px;       /* line between cards */
+            --group-rule: 5px; /* line between groups */
+        }
+
+        /* Cards are spaced by one rule width and outlined, so neighbors share a single line
+           (and an unfilled slot stays white) */
+        .player, .staff-member, .notes-area { outline: var(--rule) solid #000; }
+        .forwards-grid {
+            display: grid; height: 100%; gap: var(--rule);
+            grid-template-columns: repeat(3, 1fr) calc(var(--group-rule) - 2 * var(--rule)) repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+        }
+        .forwards-grid .player:nth-child(6n+4) { grid-column-start: 5; }
+        /* Thick line between the two lines in each row */
+        .forwards-grid .player:nth-child(6n+3) { box-shadow: calc(var(--group-rule) - var(--rule)) 0 0 #000; }
+
         .defensemen-grid {
             display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr);
-            width: 40%; height: 100%;
+            width: 40%; height: 100%; gap: var(--rule);
         }
         
         .staff-grid {
             display: flex; flex-direction: column;
-            width: 60%; height: 100%; border-left: 5px solid black;
+            width: 60%; height: 100%; border-left: var(--group-rule) solid black;
         }
-        
-        .staff-row { display: flex; height: 50%; width: 100%; }
-        .coach-row { border-top: 5px solid black; flex: 1; }
-        
-        .staff-member { 
-            flex: 1; display: flex; flex-direction: column; 
-            border-right: 1px solid black; overflow: hidden; position: relative; 
+
+        .staff-row { display: flex; height: 50%; width: 100%; gap: var(--rule); }
+        .coach-row { border-top: var(--group-rule) solid black; flex: 1; }
+
+        .staff-member {
+            flex: 1; display: flex; flex-direction: column;
+            overflow: hidden; position: relative;
             min-width: 0; height: 100%;
         }
         .staff-member.hidden-coach { display: none !important; }
@@ -64,7 +79,7 @@
         .handle { position: absolute; width: 12px; height: 12px; background: #FFD700; border: 1px solid #000; display: none; }
         .note-image-wrapper.selected .handle { display: block; }
 
-        .player { display: flex; flex-direction: column; height: 100%; border: 0.1px solid #eee; overflow: hidden; }
+        .player { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
         .img-container { flex: 1; position: relative; background: #eee; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         
         .info-bar {
@@ -105,9 +120,13 @@
         .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         
-        .forwards-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.09) translateY(1%); }
-        .defensemen-grid .headshot { width: 100%; height: 110%; object-fit: cover; transform: scale(1.4) translateY(2%); }
-        .staff-member .headshot { width: 100%; height: 110%; object-fit: cover; transform: translateY(0); }
+        /* Same size in every card. Face (~40% down the NHL mug) is centered in the card,
+           but the image never leaves a gap at the top or bottom. */
+        .headshot {
+            position: absolute; width: var(--mug); height: var(--mug); object-fit: cover;
+            left: calc(50% - var(--mug) / 2);
+            top: clamp(calc(100% - var(--mug)), calc(50% - var(--mug) * 0.4), 0px);
+        }
 
         .role-label {
             position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
@@ -171,24 +190,56 @@
         const LAST_TEAM_KEY = 'nhl_last_team_id';
         const NOTES_KEY = 'notes';
         const NOTE_IMGS_KEY = 'nhl_note_images';
+        // Coach memory survives new lineups and resets:
+        const COACH_PHOTOS_KEY = 'nhl_coach_photos';   // { 'COACH NAME': imageDataUrl }
+        const TEAM_COACHES_KEY = 'nhl_team_coaches';   // { TEAM: { staff_Coach_N: { name, role, image } } }
+        const KEEP_KEYS = ['lineup_data', COACH_PHOTOS_KEY, TEAM_COACHES_KEY, COACH_TOGGLE_KEY];
 
         const currentTeam = lineupData.team || 'Unknown';
 
-        const STAFF_REGISTRY = {
-            'SJS': {
-                'staff_Coach_1': { name: 'RYAN WARSOFSKY', role: 'HEAD COACH', image: 'https://assets.nhle.com/mugs/nhl/coach/ryan.warsofsky.png' },
-                'staff_Coach_2': { name: 'BRIAN WISEMAN', role: 'PP COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/8458951.png' },
-                'staff_Coach_3': { name: 'DOUG HOUDA', role: 'D/PK COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/8447971.png' },
-                'staff_Coach_4': { name: 'JEFF ULMER', role: 'ASST COACH', image: 'https://assets.nhle.com/mugs/nhl/latest/SJS/8467931.png' }
-            }
-        };
-
-        if (localStorage.getItem(LAST_TEAM_KEY) !== currentTeam) {
-            const backup = localStorage.getItem('lineup_data');
+        function resetLineupStorage() {
+            const keep = KEEP_KEYS.map(k => [k, localStorage.getItem(k)]);
             localStorage.clear();
-            localStorage.setItem('lineup_data', backup);
+            keep.forEach(([k, v]) => { if (v !== null) localStorage.setItem(k, v); });
             localStorage.setItem(LAST_TEAM_KEY, currentTeam);
         }
+
+        function readJSON(key) { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) { return {}; } }
+        function writeJSON(key, value) {
+            try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+            catch (e) { alert('Browser storage is full. Remove some custom photos and try again.'); return false; }
+        }
+
+        function getTeamCoach(key) { return (readJSON(TEAM_COACHES_KEY)[currentTeam] || {})[key] || {}; }
+        function saveTeamCoach(key, fields) {
+            const all = readJSON(TEAM_COACHES_KEY);
+            all[currentTeam] = all[currentTeam] || {};
+            all[currentTeam][key] = Object.assign(all[currentTeam][key] || {}, fields);
+            return writeJSON(TEAM_COACHES_KEY, all);
+        }
+
+        // Shrink dropped photos so dozens of coaches fit in browser storage
+        function shrinkImage(dataUrl, maxSide = 400) {
+            return new Promise(resolve => {
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                    const c = document.createElement('canvas');
+                    c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+                    const ctx = c.getContext('2d');
+                    ctx.drawImage(img, 0, 0, c.width, c.height);
+                    const webp = c.toDataURL('image/webp', 0.9);
+                    if (webp.startsWith('data:image/webp')) return resolve(webp);
+                    ctx.globalCompositeOperation = 'destination-over';
+                    ctx.fillStyle = '#eee'; ctx.fillRect(0, 0, c.width, c.height);
+                    resolve(c.toDataURL('image/jpeg', 0.9));
+                };
+                img.onerror = () => resolve(dataUrl);
+                img.src = dataUrl;
+            });
+        }
+
+        if (localStorage.getItem(LAST_TEAM_KEY) !== currentTeam) resetLineupStorage();
 
         let draggedElement = null;
 
@@ -210,11 +261,8 @@
         }
 
         function clearAllData() {
-            if(confirm('Reset all changes?')) {
-                const backup = localStorage.getItem('lineup_data');
-                localStorage.clear();
-                localStorage.setItem('lineup_data', backup);
-                localStorage.setItem(LAST_TEAM_KEY, currentTeam);
+            if(confirm('Reset all changes? (Saved coach names and photos are kept.)')) {
+                resetLineupStorage();
                 location.reload();
             }
         }
@@ -225,11 +273,19 @@
             location.reload();
         }
 
-        function handleImageUpload(file, playerName, isStaff, key) {
+        function handleImageUpload(file, playerName, isStaff, key, coachName) {
             if(!file || !file.type.startsWith('image/')) return;
             const reader = new FileReader();
-            reader.onload = (e) => {
-                if(isStaff) {
+            reader.onload = async (e) => {
+                if (coachName !== undefined) {
+                    // Coaches: remember the photo by name so it follows them to every future lineup
+                    const src = await shrinkImage(e.target.result);
+                    if (coachName) {
+                        const photos = readJSON(COACH_PHOTOS_KEY);
+                        photos[coachName] = src;
+                        if (!writeJSON(COACH_PHOTOS_KEY, photos)) return;
+                    } else if (!saveTeamCoach(key, { image: src })) return;
+                } else if(isStaff) {
                     const data = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}');
                     data[key] = data[key] || {}; data[key].image = e.target.result;
                     localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(data));
@@ -341,17 +397,21 @@
         function createStaffMember(type, index) {
             const staffData = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}');
             const key = `staff_${type}_${index}`;
-            const saved = staffData[key] || {};
+            const isCoach = type === 'Coach';
+            // Coach edits are remembered per team; goalie edits last for this lineup only
+            const saved = isCoach ? getTeamCoach(key) : (staffData[key] || {});
             const pre = type === 'Goalie' ? (lineupData.goalies[index-1] || {}) : (lineupData.coaches[index-1] || {});
-            
-            const isSharks = currentTeam === 'SJS';
-            const sharksDefault = (isSharks && type === 'Coach') ? STAFF_REGISTRY['SJS'][key] : null;
+            const saveStaff = fields => {
+                if (isCoach) return saveTeamCoach(key, fields);
+                const d = readJSON(STAFF_STORAGE_KEY); d[key] = Object.assign(d[key] || {}, fields);
+                return writeJSON(STAFF_STORAGE_KEY, d);
+            };
 
             const member = document.createElement('div'); member.className = 'staff-member';
             member.draggable = true; // COACH DRAGGING ENABLED
 
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
-            const staffName = saved.name || (sharksDefault ? sharksDefault.name : (pre.name || ""));
+            const staffName = saved.name !== undefined ? saved.name : (pre.name || "");
             
             let isStarter = type === 'Goalie' && badges[staffName] === 'Starter';
             if (isStarter) member.classList.add('starter-active');
@@ -381,23 +441,29 @@
 
             const role = document.createElement('div');
             role.className = 'role-label'; role.contentEditable = "true";
-            role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || (sharksDefault ? sharksDefault.role : pre.role) || type.toUpperCase());
+            role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || pre.role || type.toUpperCase());
             role.addEventListener('mousedown', e => e.stopPropagation());
             role.addEventListener('click', e => e.stopPropagation());
-            role.onblur = () => { const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].role = role.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); };
+            role.onblur = () => saveStaff({ role: role.textContent });
             imgCont.appendChild(role);
 
-            const url = saved.image || (sharksDefault ? sharksDefault.image : (pre.headshot_url || pre.image));
+            const coachPhoto = isCoach && staffName ? readJSON(COACH_PHOTOS_KEY)[staffName] : null;
+            const url = coachPhoto || saved.image || pre.headshot_url || pre.image;
             if (url) {
-                const img = document.createElement('img'); img.src = url; img.className = 'headshot'; img.style.transform = 'none';
+                const img = document.createElement('img'); img.src = url; img.className = 'headshot';
                 imgCont.appendChild(img);
             } else { imgCont.innerHTML += '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
             const nameInfo = document.createElement('div'); nameInfo.className = 'info-bar'; nameInfo.contentEditable = 'true';
             nameInfo.textContent = staffName;
-            nameInfo.oninput = () => { 
-                const d = JSON.parse(localStorage.getItem(STAFF_STORAGE_KEY) || '{}'); d[key] = d[key] || {}; d[key].name = nameInfo.textContent; localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(d)); 
+            nameInfo.oninput = () => {
+                saveStaff({ name: nameInfo.textContent.trim().toUpperCase() });
                 fitText(nameInfo);
+            };
+            // Show a remembered photo as soon as a known coach's name is typed in
+            if (isCoach) nameInfo.onblur = () => {
+                const photo = readJSON(COACH_PHOTOS_KEY)[nameInfo.textContent.trim().toUpperCase()];
+                if (photo && photo !== url) location.reload();
             };
 
             const fBtn = document.createElement('div'); fBtn.className = 'find-btn'; fBtn.textContent = "🔍 FIND";
@@ -406,9 +472,10 @@
 
             addBadgeSelector(imgCont, staffName, type === 'Goalie');
             
-            imgCont.onclick = (e) => { if(e.target.tagName==='SELECT' || e.target.classList.contains('role-label') || e.target.classList.contains('find-btn')) return; const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key); f.click(); };
+            const coachName = () => isCoach ? nameInfo.textContent.trim().toUpperCase() : undefined;
+            imgCont.onclick = (e) => { if(e.target.tagName==='SELECT' || e.target.classList.contains('role-label') || e.target.classList.contains('find-btn')) return; const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key, coachName()); f.click(); };
             imgCont.ondragover = e => e.preventDefault();
-            imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key); };
+            imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key, coachName()); };
 
             member.appendChild(imgCont); member.appendChild(nameInfo);
             setTimeout(() => fitText(nameInfo), 10);
