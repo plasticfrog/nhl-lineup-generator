@@ -65,8 +65,8 @@
             min-width: 0; height: 100%;
         }
         .staff-member.hidden-coach { display: none !important; }
-        /* Optional team-color stripe along the bottom of every name bar (inside the bar, no extra space) */
-        body.team-stripe .info-bar { box-shadow: inset 0 -3px 0 var(--team-color, #666) !important; padding-bottom: 3px; }
+        /* Name bars in the team color, like the MLB sheet (the "Black Name Bars" button turns this off) */
+        body.team-fill .info-bar { background: var(--team-color, #000) !important; color: var(--team-text, #fff) !important; }
         .player.dragging, .staff-member.dragging { opacity: 0.35; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
@@ -168,7 +168,7 @@
         <button onclick="window.scrollTo(0,0); window.print();">Print</button>
         <button onclick="toggleFourthCoach()">Add/Remove 4th Coach</button>
         <button onclick="clearAllData()">Reset to Original</button>
-        <button id="stripe-btn" onclick="toggleTeamStripe()">Team Color Stripe: On</button>
+        <button id="name-bar-btn" onclick="toggleNameBars()">Black Name Bars</button>
         <div class="legend">
             <b>Double-click</b> photo to replace<br>
             <b>Drag & drop</b> an image onto a photo<br>
@@ -252,8 +252,8 @@
         // Coach memory survives new lineups and resets:
         const COACH_PHOTOS_KEY = 'nhl_coach_photos';   // { 'COACH NAME': imageDataUrl } (only if the server upload failed)
         const TEAM_COACHES_KEY = 'nhl_team_coaches';   // { TEAM: { staff_Coach_N: { name, role, image } } }
-        const STRIPE_KEY = 'nhl_team_stripe';          // 'off' hides the team-color stripe
-        const KEEP_KEYS = ['lineup_data', COACH_PHOTOS_KEY, TEAM_COACHES_KEY, COACH_TOGGLE_KEY, STRIPE_KEY];
+        const NAME_BARS_KEY = 'nhl_name_bars';         // 'black' for plain black name bars; team color otherwise
+        const KEEP_KEYS = ['lineup_data', COACH_PHOTOS_KEY, TEAM_COACHES_KEY, COACH_TOGGLE_KEY, NAME_BARS_KEY];
 
         const currentTeam = lineupData.team || 'Unknown';
 
@@ -337,7 +337,7 @@
             }
         }
 
-        // Stripe color per team: the primary color, or a secondary one where the primary is black
+        // Name bar color per team: the primary color, or a secondary one where the primary is black
         const TEAM_COLORS = {
             ANA: '#F47A38', BOS: '#FFB81C', BUF: '#003087', CAR: '#CE1126', CBJ: '#002654', CGY: '#C8102E',
             CHI: '#CF0A2C', COL: '#6F263D', DAL: '#006847', DET: '#CE1126', EDM: '#FF4C00', FLA: '#C8102E',
@@ -347,16 +347,25 @@
             WPG: '#004C97', WSH: '#C8102E'
         };
 
-        function applyTeamStripe() {
-            const on = localStorage.getItem(STRIPE_KEY) !== 'off';
-            document.body.classList.toggle('team-stripe', on);
-            document.body.style.setProperty('--team-color', TEAM_COLORS[currentTeam] || '#666');
-            document.getElementById('stripe-btn').textContent = `Team Color Stripe: ${on ? 'On' : 'Off'}`;
+        // Black text on light team colors (gold, silver, ice blue), white on the rest
+        function textColorFor(hex) {
+            const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+                .map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.3 ? '#000' : '#fff';
         }
 
-        function toggleTeamStripe() {
-            localStorage.setItem(STRIPE_KEY, localStorage.getItem(STRIPE_KEY) === 'off' ? 'on' : 'off');
-            applyTeamStripe();
+        function applyNameBars() {
+            const black = localStorage.getItem(NAME_BARS_KEY) === 'black';
+            const color = TEAM_COLORS[currentTeam] || '#666666';
+            document.body.classList.toggle('team-fill', !black);
+            document.body.style.setProperty('--team-color', color);
+            document.body.style.setProperty('--team-text', textColorFor(color));
+            document.getElementById('name-bar-btn').textContent = black ? 'Team Color Name Bars' : 'Black Name Bars';
+        }
+
+        function toggleNameBars() {
+            localStorage.setItem(NAME_BARS_KEY, localStorage.getItem(NAME_BARS_KEY) === 'black' ? 'team' : 'black');
+            applyNameBars();
         }
 
         // Chrome's default drag preview snapshots everything the oversized photo overlaps, so it
@@ -387,8 +396,8 @@
             const bar = card.querySelector('.info-bar');
             if (bar) {
                 const b = bar.getBoundingClientRect(), st = getComputedStyle(bar);
-                ctx.fillStyle = '#000'; ctx.fillRect(b.left - box.left, b.top - box.top, b.width, b.height);
-                ctx.fillStyle = '#fff'; ctx.font = `${st.fontWeight} ${st.fontSize} ${st.fontFamily}`;
+                ctx.fillStyle = st.backgroundColor; ctx.fillRect(b.left - box.left, b.top - box.top, b.width, b.height);
+                ctx.fillStyle = st.color; ctx.font = `${st.fontWeight} ${st.fontSize} ${st.fontFamily}`;
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(bar.textContent.toUpperCase(), b.left - box.left + b.width / 2, b.top - box.top + b.height / 2 + 1, b.width - 4);
             }
@@ -785,7 +794,7 @@
             cCont.appendChild(createStaffMember('Coach', 4));
 
             restoreCardOrder();
-            applyTeamStripe();
+            applyNameBars();
             initDraggable();
             initNotesObjects();
         });
