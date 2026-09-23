@@ -65,6 +65,9 @@
             min-width: 0; height: 100%;
         }
         .staff-member.hidden-coach { display: none !important; }
+        /* Optional team-color stripe along the bottom of every name bar (inside the bar, no extra space) */
+        body.team-stripe .info-bar { box-shadow: inset 0 -3px 0 var(--team-color, #666) !important; padding-bottom: 3px; }
+        .player.dragging, .staff-member.dragging { opacity: 0.35; }
         .staff-member.starter-active { box-shadow: inset 0 0 0 8px #FFD700 !important; z-index: 50; }
 
         .notes-area { flex: 1.5; height: 100%; position: relative; overflow: hidden; background: #fff; }
@@ -165,6 +168,7 @@
         <button onclick="window.scrollTo(0,0); window.print();">Print</button>
         <button onclick="toggleFourthCoach()">Add/Remove 4th Coach</button>
         <button onclick="clearAllData()">Reset to Original</button>
+        <button id="stripe-btn" onclick="toggleTeamStripe()">Team Color Stripe: On</button>
         <div class="legend">
             <b>Double-click</b> photo to replace<br>
             <b>Drag & drop</b> an image onto a photo<br>
@@ -248,7 +252,8 @@
         // Coach memory survives new lineups and resets:
         const COACH_PHOTOS_KEY = 'nhl_coach_photos';   // { 'COACH NAME': imageDataUrl } (only if the server upload failed)
         const TEAM_COACHES_KEY = 'nhl_team_coaches';   // { TEAM: { staff_Coach_N: { name, role, image } } }
-        const KEEP_KEYS = ['lineup_data', COACH_PHOTOS_KEY, TEAM_COACHES_KEY, COACH_TOGGLE_KEY];
+        const STRIPE_KEY = 'nhl_team_stripe';          // 'off' hides the team-color stripe
+        const KEEP_KEYS = ['lineup_data', COACH_PHOTOS_KEY, TEAM_COACHES_KEY, COACH_TOGGLE_KEY, STRIPE_KEY];
 
         const currentTeam = lineupData.team || 'Unknown';
 
@@ -330,6 +335,67 @@
                 resetLineupStorage();
                 location.reload();
             }
+        }
+
+        // Stripe color per team: the primary color, or a secondary one where the primary is black
+        const TEAM_COLORS = {
+            ANA: '#F47A38', BOS: '#FFB81C', BUF: '#003087', CAR: '#CE1126', CBJ: '#002654', CGY: '#C8102E',
+            CHI: '#CF0A2C', COL: '#6F263D', DAL: '#006847', DET: '#CE1126', EDM: '#FF4C00', FLA: '#C8102E',
+            LAK: '#A2AAAD', MIN: '#154734', MTL: '#AF1E2D', NJD: '#CE1126', NSH: '#FFB81C', NYI: '#00539B',
+            NYR: '#0038A8', OTT: '#DA1A32', PHI: '#F74902', PIT: '#FCB514', SEA: '#99D9D9', SJS: '#006D75',
+            STL: '#002F87', TBL: '#002868', TOR: '#00205B', UTA: '#71AFE5', VAN: '#00843D', VGK: '#B4975A',
+            WPG: '#004C97', WSH: '#C8102E'
+        };
+
+        function applyTeamStripe() {
+            const on = localStorage.getItem(STRIPE_KEY) !== 'off';
+            document.body.classList.toggle('team-stripe', on);
+            document.body.style.setProperty('--team-color', TEAM_COLORS[currentTeam] || '#666');
+            document.getElementById('stripe-btn').textContent = `Team Color Stripe: ${on ? 'On' : 'Off'}`;
+        }
+
+        function toggleTeamStripe() {
+            localStorage.setItem(STRIPE_KEY, localStorage.getItem(STRIPE_KEY) === 'off' ? 'on' : 'off');
+            applyTeamStripe();
+        }
+
+        // Chrome's default drag preview snapshots everything the oversized photo overlaps, so it
+        // shows neighboring players too. Draw the preview ourselves: just this card, as it looks.
+        function startCardDrag(e, card) {
+            if (e.dataTransfer.files.length) return;
+            draggedElement = card;
+            card.classList.add('dragging');
+            card.addEventListener('dragend', () => card.classList.remove('dragging'), { once: true });
+
+            const box = card.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            const canvas = document.createElement('canvas');
+            canvas.width = box.width * dpr; canvas.height = box.height * dpr;
+            canvas.style.cssText = `position:fixed; left:-10000px; top:0; width:${box.width}px; height:${box.height}px;`;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            const photoBox = card.querySelector('.img-container').getBoundingClientRect();
+            ctx.fillStyle = '#eee'; ctx.fillRect(0, 0, box.width, box.height);
+            const img = card.querySelector('.headshot');
+            if (img && img.complete && img.naturalWidth) {
+                const r = img.getBoundingClientRect();
+                ctx.save();
+                ctx.beginPath(); ctx.rect(0, 0, box.width, photoBox.bottom - box.top); ctx.clip();
+                ctx.drawImage(img, r.left - box.left, r.top - box.top, r.width, r.height);
+                ctx.restore();
+            }
+            const bar = card.querySelector('.info-bar');
+            if (bar) {
+                const b = bar.getBoundingClientRect(), st = getComputedStyle(bar);
+                ctx.fillStyle = '#000'; ctx.fillRect(b.left - box.left, b.top - box.top, b.width, b.height);
+                ctx.fillStyle = '#fff'; ctx.font = `${st.fontWeight} ${st.fontSize} ${st.fontFamily}`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(bar.textContent.toUpperCase(), b.left - box.left + b.width / 2, b.top - box.top + b.height / 2 + 1, b.width - 4);
+            }
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.strokeRect(1, 1, box.width - 2, box.height - 2);
+            document.body.appendChild(canvas);
+            e.dataTransfer.setDragImage(canvas, e.clientX - box.left, e.clientY - box.top);
+            setTimeout(() => canvas.remove(), 0);
         }
 
         function toggleFourthCoach() {
@@ -496,7 +562,7 @@
             card.appendChild(imgCont); card.appendChild(info);
             setTimeout(() => fitText(info), 10);
 
-            card.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = card; };
+            card.ondragstart = e => startCardDrag(e, card);
             card.ondragover = e => e.preventDefault();
             card.ondrop = e => {
                 if (e.dataTransfer.files.length) return;
@@ -614,7 +680,7 @@
             setTimeout(() => fitText(nameInfo), 10);
 
             // STAFF DRAG SWAP LOGIC
-            member.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = member; };
+            member.ondragstart = e => startCardDrag(e, member);
             member.ondragover = e => e.preventDefault();
             member.ondrop = e => {
                 if (e.dataTransfer.files.length) return;
@@ -719,6 +785,7 @@
             cCont.appendChild(createStaffMember('Coach', 4));
 
             restoreCardOrder();
+            applyTeamStripe();
             initDraggable();
             initNotesObjects();
         });
