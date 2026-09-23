@@ -208,6 +208,43 @@
         const NOTES_KEY = 'notes';
         const NOTE_IMGS_KEY = 'nhl_note_images';
         const PHOTO_ADJUST_KEY = 'nhl_photo_adjust';   // { cardKey: { s, x, y } } zoom/position per photo
+        const CARD_ORDER_KEY = 'nhl_card_order';       // where each card was dragged to, for this lineup
+
+        // Identifies this exact lineup, so a saved order is never applied to a newly generated one
+        const lineupSig = () => JSON.stringify([currentTeam, (lineupData.forwards || []).map(p => p.name), (lineupData.defensemen || []).map(p => p.name)]);
+        const ORDER_SLOTS = { forwards: 'forwards-grid', defensemen: 'defensemen-grid', goalies: ['g1-slot', 'g2-slot'], coaches: 'coach-container' };
+        const cardsIn = slot => Array.isArray(slot)
+            ? slot.map(id => document.getElementById(id).firstElementChild).filter(Boolean)
+            : [...document.getElementById(slot).children];
+
+        function saveCardOrder() {
+            const order = { sig: lineupSig() };
+            for (const [name, slot] of Object.entries(ORDER_SLOTS)) order[name] = cardsIn(slot).map(c => c.dataset.key);
+            writeJSON(CARD_ORDER_KEY, order);
+        }
+
+        function restoreCardOrder() {
+            const order = readJSON(CARD_ORDER_KEY);
+            if (order.sig !== lineupSig()) return;
+            const byKey = {};
+            for (const slot of Object.values(ORDER_SLOTS)) cardsIn(slot).forEach(c => byKey[c.dataset.key] = c);
+            for (const [name, slot] of Object.entries(ORDER_SLOTS)) {
+                const keys = (order[name] || []).filter(k => byKey[k]);
+                if (Array.isArray(slot)) keys.forEach((k, i) => slot[i] && document.getElementById(slot[i]).appendChild(byKey[k]));
+                else keys.forEach(k => document.getElementById(slot).appendChild(byKey[k]));
+            }
+        }
+
+        // Swap two cards anywhere on the sheet (forward <-> D, goalie <-> goalie, coach <-> coach)
+        function swapCards(a, b) {
+            if (!a || !b || a === b || a.dataset.group !== b.dataset.group) return;
+            const marker = document.createElement('div');
+            a.parentNode.insertBefore(marker, a);
+            b.parentNode.insertBefore(a, b);
+            marker.parentNode.insertBefore(b, marker);
+            marker.remove();
+            saveCardOrder();
+        }
         // Coach memory survives new lineups and resets:
         const COACH_PHOTOS_KEY = 'nhl_coach_photos';   // { 'COACH NAME': imageDataUrl } (only if the server upload failed)
         const TEAM_COACHES_KEY = 'nhl_team_coaches';   // { TEAM: { staff_Coach_N: { name, role, image } } }
@@ -404,6 +441,7 @@
         function createPlayerCard(player) {
             const card = document.createElement('div');
             card.className = 'player'; card.draggable = true;
+            card.dataset.key = player.name; card.dataset.group = 'skater';
             const imgCont = document.createElement('div');
             imgCont.className = 'img-container';
             const customImgs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
@@ -461,10 +499,8 @@
             card.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = card; };
             card.ondragover = e => e.preventDefault();
             card.ondrop = e => {
-                if (e.dataTransfer.files.length || !draggedElement || draggedElement === card) return;
-                const p = card.parentElement;
-                const temp = document.createElement('div');
-                p.insertBefore(temp, draggedElement); p.insertBefore(draggedElement, card); p.insertBefore(card, temp); p.removeChild(temp);
+                if (e.dataTransfer.files.length) return;
+                swapCards(draggedElement, card);
             };
             return card;
         }
@@ -503,6 +539,7 @@
             };
 
             const member = document.createElement('div'); member.className = 'staff-member';
+            member.dataset.key = key; member.dataset.group = type;
             member.draggable = true; // COACH DRAGGING ENABLED
 
             const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY) || '{}');
@@ -580,10 +617,8 @@
             member.ondragstart = e => { if(!e.dataTransfer.files.length) draggedElement = member; };
             member.ondragover = e => e.preventDefault();
             member.ondrop = e => {
-                if (e.dataTransfer.files.length || !draggedElement || draggedElement === member) return;
-                const p = member.parentElement;
-                const temp = document.createElement('div');
-                p.insertBefore(temp, draggedElement); p.insertBefore(draggedElement, member); p.insertBefore(member, temp); p.removeChild(temp);
+                if (e.dataTransfer.files.length) return;
+                swapCards(draggedElement, member);
             };
 
             return member;
@@ -683,6 +718,7 @@
             cCont.appendChild(createStaffMember('Coach', 3));
             cCont.appendChild(createStaffMember('Coach', 4));
 
+            restoreCardOrder();
             initDraggable();
             initNotesObjects();
         });
