@@ -575,7 +575,8 @@ def upload_coach_photo():
         logger.warning(f"COACH PHOTO FAIL | {name} | IP: {ip} | error: {e}")
         return jsonify({'error': 'That file is not an image we can read'}), 400
     logger.info(f"COACH PHOTO SAVED | {name} | IP: {ip}")
-    return jsonify({'name': name.upper(), 'url': saved_coach_photo_url(name)})
+    return jsonify({'name': name.upper(), 'url': saved_coach_photo_url(name),
+                    'persistent': bool(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or os.environ.get('COACH_PHOTO_DIR'))})
 
 @app.route('/mlb')
 def mlb_select():
