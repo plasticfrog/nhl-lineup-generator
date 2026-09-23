@@ -21,14 +21,15 @@
         .container {
             background: white; width: 8.5in; height: 11in;
             display: flex; flex-direction: column; position: relative;
-            flex-shrink: 0; overflow: hidden; padding-bottom: 3mm;
+            flex-shrink: 0; overflow: hidden;
         }
         
-        .forwards-section { height: 55%; width: 100%; display: flex; flex-direction: column; }
-        .defensemen-section { height: 45%; display: flex; border-top: var(--group-rule) solid black; }
+        .forwards-section { height: 48%; width: 100%; display: flex; flex-direction: column; }
+        .defensemen-section { height: 52%; display: flex; border-top: var(--group-rule) solid black; }
         
         :root {
-            --mug: 280px;      /* one headshot size for every card so faces match across sections */
+            --mug: 300px;      /* one headshot size for every card so faces match across sections */
+            --headroom: 15px;  /* space between the top of every card and the top of the hair */
             --rule: 1px;       /* line between cards */
             --group-rule: 5px; /* line between groups */
         }
@@ -120,12 +121,13 @@
         .img-container:hover .find-btn, .img-container:hover .badge-selector { opacity: 1; }
         .badge-selector { position: absolute; top: 2px; right: 2px; z-index: 30; opacity: 0; }
         
-        /* Same size in every card. Face (~40% down the NHL mug) is centered in the card,
-           but the image never leaves a gap at the top or bottom. */
+        /* Same size in every card, hair (~17% down the NHL mug) pinned just below the top of
+           the card, and never a gap at the top or bottom. Option+scroll/drag adjusts via transform. */
         .headshot {
             position: absolute; width: var(--mug); height: var(--mug); object-fit: cover;
             left: calc(50% - var(--mug) / 2);
-            top: clamp(calc(100% - var(--mug)), calc(50% - var(--mug) * 0.4), 0px);
+            top: clamp(calc(100% - var(--mug)), calc(var(--headroom) - var(--mug) * 0.17), 0px);
+            transform-origin: 50% 40%;
         }
 
         .role-label {
@@ -143,6 +145,11 @@
         }
         .controls button { padding: 6px 10px; font-size: 12px; font-weight: 900; cursor: pointer; border: 1px solid black; background: #fff; text-transform: uppercase; }
         .controls button:hover { background: #000; color: #fff; }
+        .controls .legend {
+            margin-top: 4px; padding-top: 6px; border-top: 1px solid #ccc;
+            font-family: Arial, sans-serif; font-size: 10px; line-height: 1.6; color: #444;
+        }
+        .controls .legend b { color: #000; }
 
         @media print {
             body, html { background: white !important; overflow: hidden !important; height: 11in !important; }
@@ -158,6 +165,16 @@
         <button onclick="window.scrollTo(0,0); window.print();">Print</button>
         <button onclick="toggleFourthCoach()">Add/Remove 4th Coach</button>
         <button onclick="clearAllData()">Reset to Original</button>
+        <div class="legend">
+            <b>Double-click</b> photo to replace<br>
+            <b>Drag & drop</b> an image onto a photo<br>
+            <b>Option + scroll</b> over photo to zoom<br>
+            <b>Option + drag</b> photo to move it<br>
+            <b>Option + double-click</b> to reset photo<br>
+            <b>Drag</b> a card onto another to swap<br>
+            <b>Click</b> a name or title to edit<br>
+            <b>Hover</b> photo for badges &amp; 🔍 Find
+        </div>
     </div>
 
     <div class="container" id="lineup-content">
@@ -190,6 +207,7 @@
         const LAST_TEAM_KEY = 'nhl_last_team_id';
         const NOTES_KEY = 'notes';
         const NOTE_IMGS_KEY = 'nhl_note_images';
+        const PHOTO_ADJUST_KEY = 'nhl_photo_adjust';   // { cardKey: { s, x, y } } zoom/position per photo
         // Coach memory survives new lineups and resets:
         const COACH_PHOTOS_KEY = 'nhl_coach_photos';   // { 'COACH NAME': imageDataUrl } (only if the server upload failed)
         const TEAM_COACHES_KEY = 'nhl_team_coaches';   // { TEAM: { staff_Coach_N: { name, role, image } } }
@@ -283,10 +301,65 @@
             location.reload();
         }
 
+        // Option+scroll zooms, Option+drag moves, Option+double-click resets. Saved per card.
+        function enablePhotoAdjust(imgCont, card, adjustKey) {
+            const img = imgCont.querySelector('.headshot');
+            if (!img) return;
+            img.draggable = false;
+            let adj = Object.assign({ s: 1, x: 0, y: 0 }, readJSON(PHOTO_ADJUST_KEY)[adjustKey]);
+            const apply = () => { img.style.transform = `translate(${adj.x}px, ${adj.y}px) scale(${adj.s})`; };
+            const save = () => { const all = readJSON(PHOTO_ADJUST_KEY); all[adjustKey] = adj; writeJSON(PHOTO_ADJUST_KEY, all); };
+            apply();
+
+            imgCont.addEventListener('wheel', e => {
+                if (!e.altKey) return;
+                e.preventDefault();
+                adj.s = Math.max(0.5, Math.min(4, adj.s + (e.deltaY > 0 ? -0.03 : 0.03)));
+                apply(); save();
+            }, { passive: false });
+
+            imgCont.addEventListener('mousedown', e => {
+                if (!e.altKey || e.button !== 0) return;
+                e.preventDefault(); e.stopPropagation();
+                card.draggable = false;  // don't start a card swap while moving the photo
+                imgCont.style.cursor = 'grabbing';
+                const start = { mx: e.clientX, my: e.clientY, x: adj.x, y: adj.y };
+                const move = ev => { adj.x = start.x + ev.clientX - start.mx; adj.y = start.y + ev.clientY - start.my; apply(); };
+                const up = () => {
+                    window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up);
+                    card.draggable = true; imgCont.style.cursor = ''; save();
+                };
+                window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+            });
+
+            imgCont.addEventListener('dblclick', e => {
+                if (!e.altKey) return;
+                e.stopImmediatePropagation();
+                adj = { s: 1, x: 0, y: 0 }; apply();
+                const all = readJSON(PHOTO_ADJUST_KEY); delete all[adjustKey]; writeJSON(PHOTO_ADJUST_KEY, all);
+            });
+        }
+
+        // Double-click (not single click) opens the file picker
+        function enableDoubleClickUpload(imgCont, onFile) {
+            imgCont.addEventListener('dblclick', e => {
+                if (e.altKey || e.target.closest('select, .find-btn, .role-label, .text-badge')) return;
+                const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*';
+                f.onchange = ev => onFile(ev.target.files[0]);
+                f.click();
+            });
+        }
+
+        function clearPhotoAdjust(adjustKey) {
+            const all = readJSON(PHOTO_ADJUST_KEY);
+            if (adjustKey in all) { delete all[adjustKey]; writeJSON(PHOTO_ADJUST_KEY, all); }
+        }
+
         function handleImageUpload(file, playerName, isStaff, key, coachName) {
             if(!file || !file.type.startsWith('image/')) return;
             const reader = new FileReader();
             reader.onload = async (e) => {
+                clearPhotoAdjust(playerName || key);  // a new photo starts un-zoomed
                 if (coachName !== undefined) {
                     // Coaches: save the photo on the server by name so everyone gets it on every future lineup
                     const src = await shrinkImage(e.target.result);
@@ -377,7 +450,8 @@
             imgCont.appendChild(fBtn);
 
             addBadgeSelector(imgCont, player.name);
-            imgCont.onclick = (e) => { if(e.target.tagName==='SELECT' || e.target.classList.contains('find-btn')) return; const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], player.name); f.click(); };
+            enablePhotoAdjust(imgCont, card, player.name);
+            enableDoubleClickUpload(imgCont, file => handleImageUpload(file, player.name));
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], player.name); };
             
@@ -494,7 +568,8 @@
             addBadgeSelector(imgCont, staffName, type === 'Goalie');
             
             const coachName = () => isCoach ? nameInfo.textContent.trim().toUpperCase() : undefined;
-            imgCont.onclick = (e) => { if(e.target.tagName==='SELECT' || e.target.classList.contains('role-label') || e.target.classList.contains('find-btn')) return; const f = document.createElement('input'); f.type = 'file'; f.onchange = ev => handleImageUpload(ev.target.files[0], null, true, key, coachName()); f.click(); };
+            enablePhotoAdjust(imgCont, member, key);
+            enableDoubleClickUpload(imgCont, file => handleImageUpload(file, null, true, key, coachName()));
             imgCont.ondragover = e => e.preventDefault();
             imgCont.ondrop = e => { e.preventDefault(); if(e.dataTransfer.files[0]) handleImageUpload(e.dataTransfer.files[0], null, true, key, coachName()); };
 
