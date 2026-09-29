@@ -35,6 +35,16 @@ img { display: block; }
 .sport-tab:hover { color: #fff; }
 .sport-tab.on { background: #fff; color: #0e1013; }
 
+/* ---------- NHL / MLB switch ---------- */
+.league-switch { display: inline-flex; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 5px; gap: 4px; margin-bottom: 22px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.league-switch a { display: flex; align-items: center; gap: 12px; padding: 10px 26px 10px 16px; border-radius: 10px; text-decoration: none; color: var(--ink-2); transition: background .12s, color .12s; }
+.league-switch a img { width: 34px; height: 34px; object-fit: contain; }
+.league-switch a .l-name { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1; letter-spacing: .02em; }
+.league-switch a .l-sub { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.league-switch a:hover { background: var(--paper); color: var(--ink); }
+.league-switch a.on { background: #0e1013; color: #fff; }
+.league-switch a.on .l-sub { color: rgba(255,255,255,.65); }
+
 /* ---------- Page ---------- */
 .page { max-width: 1180px; margin: 0 auto; padding: 36px 20px 64px; }
 .hero { margin-bottom: 28px; max-width: 720px; }
@@ -190,6 +200,11 @@ kbd { font-family: var(--body); font-size: 12px; border: 1px solid var(--line-2)
     .topbar-inner { padding: 0 14px; gap: 12px; }
     .wordmark { font-size: 19px; }
     .sport-tab { padding: 5px 12px; font-size: 16px; }
+    .league-switch { display: flex; }
+    .league-switch a { flex: 1; justify-content: center; padding: 10px 12px; gap: 8px; }
+    .league-switch a img { width: 28px; height: 28px; }
+    .league-switch a .l-name { font-size: 22px; }
+    .league-switch a .l-sub { display: none; }
     .step { padding: 18px 14px; }
     .go { padding: 16px 14px 18px; }
     .team-grid { grid-template-columns: repeat(6, 1fr); gap: 5px; }

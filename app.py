@@ -169,7 +169,45 @@ def fetch_nhl_roster(team):
     ROSTER_CACHE[team] = (time.time(), data)
     return data
 
-def headshot_url(player_id):
+# The NHL's 2026-27 headshots ("latest") are heavily smoothed and look artificial. When a
+# player was on the same team last season, use last season's real photo instead (same
+# jersey); otherwise fall back to "latest", the only photo showing his current team.
+def _previous_season():
+    now = datetime.now()
+    start = now.year if now.month >= 7 else now.year - 1
+    return f"{start - 1}{start}"
+
+PREV_PHOTO_CACHE = {}
+PREV_PHOTO_CACHE_SECONDS = 12 * 60 * 60
+
+def _prev_season_photo_ids(team):
+    """Player ids on this team's roster last season that have a real photo from that season."""
+    cached = PREV_PHOTO_CACHE.get(team)
+    if cached and time.time() - cached[0] < PREV_PHOTO_CACHE_SECONDS:
+        return cached[1]
+    season, ids = _previous_season(), set()
+    try:
+        data = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/{season}", timeout=8).json()
+        candidates = [p['id'] for g in ['forwards', 'defensemen', 'goalies'] for p in data.get(g, [])]
+
+        def has_photo(pid):  # a missing photo redirects to the default silhouette
+            try:
+                r = requests.head(f"https://assets.nhle.com/mugs/nhl/{season}/{team}/{pid}.png", timeout=5, allow_redirects=False)
+                return r.status_code == 200
+            except Exception:
+                return False
+
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(16) as pool:
+            ids = {pid for pid, ok in zip(candidates, pool.map(has_photo, candidates)) if ok}
+    except Exception as e:
+        logger.warning(f"PREV SEASON PHOTOS | {team} | {e}")
+    PREV_PHOTO_CACHE[team] = (time.time(), ids)
+    return ids
+
+def headshot_url(player_id, team=None):
+    if team and player_id in _prev_season_photo_ids(team):
+        return f"https://assets.nhle.com/mugs/nhl/{_previous_season()}/{team}/{player_id}.png"
     return f"https://assets.nhle.com/mugs/nhl/latest/{player_id}.png"
 
 def friendly_error(e):
@@ -475,7 +513,7 @@ def api_nhl_roster(team):
         out[group] = [{
             'number': str(p['sweaterNumber']) if p.get('sweaterNumber') is not None else '',
             'first': p['firstName']['default'], 'last': p['lastName']['default'],
-            'pos': p.get('positionCode', ''), 'headshot': headshot_url(p['id']),
+            'pos': p.get('positionCode', ''), 'headshot': headshot_url(p['id'], team),
         } for p in data.get(group, [])]
     return jsonify(out)
 
@@ -564,10 +602,10 @@ def process_lineup():
         final_f, final_d = [], []
         for n in forwards_raw:
             info = roster_data_full.get(n, {'id': None, 'number': ''})
-            final_f.append({'name': n, 'number': info['number'], 'is_forward': True, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{info['id']}.png" if info['id'] else None})
+            final_f.append({'name': n, 'number': info['number'], 'is_forward': True, 'headshot_url': headshot_url(info['id'], team) if info['id'] else None})
         for n in defense_raw:
             info = roster_data_full.get(n, {'id': None, 'number': ''})
-            final_d.append({'name': n, 'number': info['number'], 'is_forward': False, 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{info['id']}.png" if info['id'] else None})
+            final_d.append({'name': n, 'number': info['number'], 'is_forward': False, 'headshot_url': headshot_url(info['id'], team) if info['id'] else None})
 
         elapsed = round(time.time() - start, 2)
         matched_f = sum(1 for p in final_f if 'PLAYER' not in p['name'])
@@ -575,7 +613,7 @@ def process_lineup():
         logger.info(f"NHL PROCESS OK | team: {team} | method: {method} | {elapsed}s | matched: {matched_f}F+{matched_d}D of {len(final_f)}F+{len(final_d)}D")
         activity.record('nhl_screenshot', team, True, elapsed,
                         f"{matched_f + matched_d}/{len(final_f) + len(final_d)} players matched · {'one' if method == 'combined' else 'two'} screenshot{'s' if method != 'combined' else ''}")
-        return jsonify({'forwards': final_f, 'defensemen': final_d, 'goalies': [{'name': g['name'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{g['id']}.png"} for g in goalies[:2]], 'coaches': get_coaches_from_nhl(team), 'team': team,
+        return jsonify({'forwards': final_f, 'defensemen': final_d, 'goalies': [{'name': g['name'], 'headshot_url': headshot_url(g['id'], team)} for g in goalies[:2]], 'coaches': get_coaches_from_nhl(team), 'team': team,
                         'matched': matched_f + matched_d, 'total': len(final_f) + len(final_d)})
     except Exception as e:
         elapsed = round(time.time() - start, 2)
@@ -628,7 +666,7 @@ def process_numbers():
             name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
             scr_name = ref_roster.get(n, {}).get('name', '')
             return {'name': scr_name if scr_name and not scr_name.isdigit() else name, 'number': n,
-                    'is_forward': is_forward, 'headshot_url': headshot_url(p['id'])}
+                    'is_forward': is_forward, 'headshot_url': headshot_url(p['id'], team)}
 
         f_out = [card(n, i + 1, True) for i, n in enumerate(f_nums)]
         d_out = [card(n, i + 13, False) for i, n in enumerate(d_nums)]
@@ -644,7 +682,7 @@ def process_numbers():
         activity.record('nhl_numbers', team, True, elapsed, f"{filled} players from jersey numbers")
         return jsonify({
             'forwards': f_out, 'defensemen': d_out,
-            'goalies': [{'name': goalie_label(p), 'headshot_url': headshot_url(p['id'])} for p in goalies[:2]],
+            'goalies': [{'name': goalie_label(p), 'headshot_url': headshot_url(p['id'], team)} for p in goalies[:2]],
             'coaches': get_coaches_from_nhl(team), 'team': team, 'matched': filled, 'total': len(f_out) + len(d_out)
         })
     except Exception as e:
