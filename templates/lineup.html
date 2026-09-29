@@ -798,6 +798,14 @@
             initDraggable();
             initNotesObjects();
         });
+        // Report prints to the activity log (fires for the Print button and for Cmd+P)
+        let lastPrintReport = 0;
+        window.addEventListener('beforeprint', () => {
+            if (Date.now() - lastPrintReport < 5000) return;
+            lastPrintReport = Date.now();
+            const f = new FormData(); f.append('kind', 'print_nhl'); f.append('summary', currentTeam);
+            navigator.sendBeacon('/activity/event', f);
+        });
     </script>
 </body>
 </html>

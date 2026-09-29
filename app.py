@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort, Response
 import pytesseract
 from PIL import Image, ImageOps
 import requests
@@ -12,6 +12,7 @@ from collections import Counter
 from difflib import SequenceMatcher
 from bs4 import BeautifulSoup
 from mlb import MLB_TEAMS, fetch_team_data as mlb_fetch_team_data
+import activity
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -27,6 +28,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+activity.init()
+app.after_request(activity.ensure_visitor_cookie)
 
 # ALL ORIGINAL TEAM MAPPINGS PRESERVED
 TEAM_NAME_MAP = {
@@ -484,10 +488,13 @@ def process_lineup():
         matched_f = sum(1 for p in final_f if 'PLAYER' not in p['name'])
         matched_d = sum(1 for p in final_d if 'PLAYER' not in p['name'])
         logger.info(f"NHL PROCESS OK | team: {team} | method: {method} | {elapsed}s | matched: {matched_f}F+{matched_d}D of {len(final_f)}F+{len(final_d)}D")
+        activity.record('nhl_screenshot', team, True, elapsed,
+                        f"{matched_f + matched_d}/{len(final_f) + len(final_d)} players matched · {'one' if method == 'combined' else 'two'} screenshot{'s' if method != 'combined' else ''}")
         return jsonify({'forwards': final_f, 'defensemen': final_d, 'goalies': [{'name': g['name'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{g['id']}.png"} for g in goalies[:2]], 'coaches': get_coaches_from_nhl(team), 'team': team})
     except Exception as e:
         elapsed = round(time.time() - start, 2)
         logger.error(f"NHL PROCESS FAIL | method: {method} | {elapsed}s | error: {e}")
+        activity.record('nhl_screenshot', 'Unknown team', False, elapsed, str(e)[:300])
         return jsonify({'error': str(e)}), 500
 
 @app.route('/process_numbers', methods=['POST'])
@@ -495,6 +502,7 @@ def process_numbers():
     """Improved to strictly use Official API names and ignore stat-noise digits"""
     start = time.time()
     ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    team = None
     try:
         team = request.form.get('team'); roster_img = request.files.get('roster_screenshot')
         logger.info(f"NHL NUMBERS | team: {team} | IP: {ip}")
@@ -532,6 +540,7 @@ def process_numbers():
             
         elapsed = round(time.time() - start, 2)
         logger.info(f"NHL NUMBERS OK | team: {team} | {elapsed}s | players: {len(f_out)}F+{len(d_out)}D")
+        activity.record('nhl_numbers', team, True, elapsed, f"{len(f_out) + len(d_out)} players from jersey numbers")
         return jsonify({
             'forwards': f_out, 'defensemen': d_out,
             'goalies': [{'name': goalie_label(p), 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{p['id']}.png"} for p in api.get('goalies', [])][:2],
@@ -540,6 +549,7 @@ def process_numbers():
     except Exception as e:
         elapsed = round(time.time() - start, 2)
         logger.error(f"NHL NUMBERS FAIL | team: {team} | {elapsed}s | error: {e}")
+        activity.record('nhl_numbers', team or 'Unknown team', False, elapsed, str(e)[:300])
         return jsonify({'error': str(e)}), 500
 
 @app.route('/coach_photos', methods=['GET'])
@@ -573,8 +583,10 @@ def upload_coach_photo():
         img.save(os.path.join(COACH_PHOTO_DIR, f'{slug}.webp'), 'WEBP', quality=88)
     except Exception as e:
         logger.warning(f"COACH PHOTO FAIL | {name} | IP: {ip} | error: {e}")
+        activity.record('coach_photo', name.upper(), False, None, 'Not a readable image')
         return jsonify({'error': 'That file is not an image we can read'}), 400
     logger.info(f"COACH PHOTO SAVED | {name} | IP: {ip}")
+    activity.record('coach_photo', name.upper(), True, None, 'Photo saved for everyone')
     return jsonify({'name': name.upper(), 'url': saved_coach_photo_url(name),
                     'persistent': bool(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or os.environ.get('COACH_PHOTO_DIR'))})
 
@@ -599,20 +611,63 @@ def mlb_generate():
         away_data = mlb_fetch_team_data(away_slug, MLB_TEAMS[away_slug]['id'])
         home_data = mlb_fetch_team_data(home_slug, MLB_TEAMS[home_slug]['id'])
         elapsed = round(time.time() - start, 2)
-        away_players = len(away_data.get('players', []))
-        home_players = len(home_data.get('players', []))
+        count = lambda d: sum(1 for p in d.get('pitchers', []) + d.get('pos_players', []) if p.get('name'))
+        away_players, home_players = count(away_data), count(home_data)
         away_coaches = len(away_data.get('coaches', []))
         home_coaches = len(home_data.get('coaches', []))
         logger.info(f"MLB GENERATE OK | {away_name} @ {home_name} | {elapsed}s | players: {away_players}+{home_players} | coaches: {away_coaches}+{home_coaches}")
+        activity.record('mlb', f"{away_name} @ {home_name}", True, elapsed,
+                        f"{away_players}+{home_players} players · {away_coaches}+{home_coaches} coaches")
         return jsonify({'teams': [away_data, home_data]})
     except Exception as e:
         elapsed = round(time.time() - start, 2)
         logger.error(f"MLB GENERATE FAIL | {away_name} @ {home_name} | {elapsed}s | error: {e}")
+        activity.record('mlb', f"{away_name} @ {home_name}", False, elapsed, str(e)[:300])
         return jsonify({'error': str(e)}), 500
 
 @app.route('/mlb/sheet')
 def mlb_sheet():
     return render_template('mlb_sheet.html')
+
+# ---- Activity dashboard (password: ADMIN_PASSWORD env var; username can be anything) ----
+
+def _admin_ok():
+    password = os.environ.get('ADMIN_PASSWORD')
+    auth = request.authorization
+    return bool(password) and auth is not None and auth.password == password
+
+def _admin_denied():
+    if not os.environ.get('ADMIN_PASSWORD'):
+        return Response('Activity page is off: set ADMIN_PASSWORD in Railway variables to turn it on.', 503)
+    return Response('Password required', 401, {'WWW-Authenticate': 'Basic realm="Lineup activity"'})
+
+@app.route('/activity/event', methods=['POST'])
+def activity_event():
+    """Sheet pages report prints here."""
+    kind = request.form.get('kind')
+    if kind in ('print_nhl', 'print_mlb'):
+        activity.record(kind, (request.form.get('summary') or '')[:80] or 'Sheet', True)
+    return ('', 204)
+
+@app.route('/activity')
+def activity_page():
+    if not _admin_ok():
+        return _admin_denied()
+    return render_template('activity.html')
+
+@app.route('/activity/data')
+def activity_data():
+    if not _admin_ok():
+        return _admin_denied()
+    days = min(int(request.args.get('days', 30)), 365)
+    return jsonify(activity.dashboard_data(days))
+
+@app.route('/activity/name', methods=['POST'])
+def activity_name():
+    if not _admin_ok():
+        return _admin_denied()
+    activity.set_visitor_name(request.form.get('visitor', ''), (request.form.get('name') or '').strip())
+    return ('', 204)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

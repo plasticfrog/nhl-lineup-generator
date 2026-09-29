@@ -378,6 +378,16 @@
         // Run after images load so layout is stable
         window.addEventListener('load', fitCardText);
         setTimeout(fitCardText, 300);
+        // Report prints to the activity log (fires for the Print button and for Cmd+P)
+        let lastPrintReport = 0;
+        window.addEventListener('beforeprint', () => {
+            if (Date.now() - lastPrintReport < 5000) return;
+            lastPrintReport = Date.now();
+            let summary = 'MLB sheet';
+            try { const t = JSON.parse(localStorage.getItem('mlb_sheet_data')).teams; summary = `${t[0].name} @ ${t[1].name}`; } catch (e) {}
+            const f = new FormData(); f.append('kind', 'print_mlb'); f.append('summary', summary);
+            navigator.sendBeacon('/activity/event', f);
+        });
     </script>
 </body>
 </html>
