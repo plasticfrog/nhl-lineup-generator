@@ -80,7 +80,7 @@
 
     <div class="filters" id="filters">
         <button class="chip on" data-f="all">Everything</button>
-        <button class="chip" data-f="nhl">NHL lineups</button>
+        <button class="chip" data-f="nhl">NHL sheets</button>
         <button class="chip" data-f="mlb">MLB sheets</button>
         <button class="chip" data-f="print">Prints</button>
         <button class="chip" data-f="photo">Coach photos</button>
@@ -93,8 +93,8 @@
 <script>
     const NHL_TEAMS = {ANA:'Ducks',BOS:'Bruins',BUF:'Sabres',CAR:'Hurricanes',CBJ:'Blue Jackets',CGY:'Flames',CHI:'Blackhawks',COL:'Avalanche',DAL:'Stars',DET:'Red Wings',EDM:'Oilers',FLA:'Panthers',LAK:'Kings',MIN:'Wild',MTL:'Canadiens',NJD:'Devils',NSH:'Predators',NYI:'Islanders',NYR:'Rangers',OTT:'Senators',PHI:'Flyers',PIT:'Penguins',SEA:'Kraken',SJS:'Sharks',STL:'Blues',TBL:'Lightning',TOR:'Maple Leafs',UTA:'Mammoth',VAN:'Canucks',VGK:'Golden Knights',WPG:'Jets',WSH:'Capitals'};
     const KINDS = {
-        nhl_screenshot: { tag: 'NHL', cls: 'nhl', group: 'nhl', label: 'Lineup · screenshot' },
-        nhl_numbers:    { tag: 'NHL', cls: 'nhl', group: 'nhl', label: 'Lineup · jersey numbers' },
+        nhl_screenshot: { tag: 'NHL', cls: 'nhl', group: 'nhl', label: 'Headshot sheet · screenshot' },
+        nhl_numbers:    { tag: 'NHL', cls: 'nhl', group: 'nhl', label: 'Headshot sheet · jersey numbers' },
         mlb:            { tag: 'MLB', cls: 'mlb', group: 'mlb', label: 'Headshot sheet' },
         print_nhl:      { tag: 'PRINT', cls: 'print', group: 'print', label: 'Printed NHL sheet' },
         print_mlb:      { tag: 'PRINT', cls: 'print', group: 'print', label: 'Printed MLB sheet' },
@@ -140,7 +140,7 @@
         const sheets = rows.filter(isSheet);
         const people = new Set(rows.map(r => r.visitor));
         const tiles = [
-            [rows.filter(r => KINDS[r.kind]?.group === 'nhl' && r.ok).length, 'NHL lineups made'],
+            [rows.filter(r => KINDS[r.kind]?.group === 'nhl' && r.ok).length, 'NHL sheets made'],
             [rows.filter(r => r.kind === 'mlb' && r.ok).length, 'MLB sheets made'],
             [rows.filter(r => KINDS[r.kind]?.group === 'print').length, 'Sheets printed'],
             [people.size, 'People'],

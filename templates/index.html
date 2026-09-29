@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NHL Lineup Sheets · Lineup Generator</title>
-    <meta name="description" content="Pick a team, enter tonight's lines, and print a one-page NHL lineup sheet with every player's headshot and number.">
+    <title>NHL Headshot Sheets · Headshot Generator</title>
+    <meta name="description" content="Pick a team, enter tonight's lines, and print a one-page NHL headshot sheet with every player's photo and number.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -15,18 +15,18 @@
         <div class="topbar-inner">
             <a class="wordmark" href="/">
                 <svg class="wordmark-mark" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="5" fill="#fff"/><rect x="5" y="6" width="4" height="14" rx="1" fill="#0e1013"/><rect x="11" y="6" width="4" height="14" rx="1" fill="#0e1013"/><rect x="17" y="6" width="4" height="14" rx="1" fill="#0e1013"/></svg>
-                Lineup Generator
+                Headshot Generator
             </a>
         </div>
     </header>
 
     <main class="page">
         <nav class="league-switch" aria-label="Choose a league">
-            <a class="on" href="/" aria-current="page"><img src="https://assets.nhle.com/logos/nhl/svg/NHL_dark.svg" alt=""><span><span class="l-name">NHL</span><span class="l-sub">Lineup sheets</span></span></a>
-            <a href="/mlb"><img src="https://www.mlbstatic.com/team-logos/league-on-light/1.svg" alt=""><span><span class="l-name">MLB</span><span class="l-sub">Headshot sheets</span></span></a>
+            <a class="on" href="/" aria-current="page"><img src="https://assets.nhle.com/logos/nhl/svg/NHL_dark.svg" alt=""><span><span class="l-name">NHL</span><span class="l-sub">Hockey</span></span></a>
+            <a href="/mlb"><img src="https://www.mlbstatic.com/team-logos/league-on-light/1.svg" alt=""><span><span class="l-name">MLB</span><span class="l-sub">Baseball</span></span></a>
         </nav>
         <div class="hero">
-            <h1>NHL lineup sheets</h1>
+            <h1>NHL headshot sheets</h1>
             <p>Pick a team, enter tonight's lines, and print a one-page sheet with every player's face and number.</p>
         </div>
 
@@ -109,7 +109,7 @@
 
                 <!-- 3. Generate -->
                 <div class="go">
-                    <button type="button" class="go-btn" id="go" disabled>Make the lineup sheet</button>
+                    <button type="button" class="go-btn" id="go" disabled>Make the headshot sheet</button>
                     <div class="go-hint" id="go-hint"></div>
                     <div class="status" id="status" role="status" aria-live="polite"></div>
                 </div>
@@ -118,7 +118,7 @@
             <aside class="aside">
                 <div class="preview-label">What you'll print</div>
                 <div class="sheet-shot">
-                    <img src="{{ url_for('static', filename='img/sample-nhl.webp') }}" width="720" height="932" alt="Example lineup sheet: 12 forwards, 6 defensemen, 2 goalies and the coaching staff, each with a headshot and name bar in team colors">
+                    <img src="{{ url_for('static', filename='img/sample-nhl.webp') }}" width="720" height="932" alt="Example headshot sheet: 12 forwards, 6 defensemen, 2 goalies and the coaching staff, each with a headshot and name bar in team colors">
                 </div>
                 <ul class="facts">
                     <li>Letter size, prints edge to edge on one page</li>
@@ -495,7 +495,7 @@ async function generate() {
 
     // Open the tab now, while we still have the click (browsers block tabs opened later)
     const win = window.open('', '_blank');
-    if (win) win.document.write('<title>Building your sheet…</title><body style="font:16px system-ui;padding:40px;color:#444">Building your lineup sheet…</body>');
+    if (win) win.document.write('<title>Building your sheet…</title><body style="font:16px system-ui;padding:40px;color:#444">Building your headshot sheet…</body>');
 
     const steps = mode === 'shots'
         ? ['Reading the screenshot', 'Matching players to the roster', 'Adding goalies and coaches', 'Building your sheet']
