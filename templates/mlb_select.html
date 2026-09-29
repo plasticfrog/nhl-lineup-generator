@@ -3,316 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MLB Headshot Sheet Generator</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: radial-gradient(circle at center, #1b263b 0%, #0d1b2a 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 40px 20px;
-            color: #e0e1dd;
-        }
-
-        .container {
-            max-width: 1100px;
-            width: 100%;
-        }
-
-        h1 {
-            text-align: center;
-            font-size: 2.8em;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-            color: #ffffff;
-            font-weight: 800;
-            text-transform: uppercase;
-        }
-
-        .subtitle {
-            text-align: center;
-            font-size: 1.1em;
-            margin-bottom: 40px;
-            color: #778da9;
-            font-weight: 400;
-        }
-
-        .sport-toggle {
-            display: flex;
-            justify-content: center;
-            border-bottom: 2px solid rgba(255,255,255,0.12);
-            margin-bottom: 30px;
-        }
-
-        .sport-btn {
-            padding: 14px 48px;
-            font-size: 1.25em;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            border: none;
-            border-bottom: 4px solid transparent;
-            margin-bottom: -2px;
-            background: transparent;
-            color: rgba(255,255,255,0.38);
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .sport-btn.nhl-btn.active {
-            background: rgba(91,142,196,0.13);
-            border-bottom-color: #5b8ec4;
-            color: #fff;
-            cursor: default;
-        }
-
-        .sport-btn.mlb-btn.active {
-            background: rgba(210,40,40,0.13);
-            border-bottom-color: #e05555;
-            color: #fff;
-            cursor: default;
-        }
-
-        .upload-section {
-            background: rgba(13, 27, 42, 0.8);
-            border-radius: 8px;
-            padding: 40px;
-            margin-bottom: 30px;
-            border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-
-        .team-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-
-        .team-box {
-            background: rgba(255,255,255,0.02);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 6px;
-            padding: 20px;
-        }
-
-        .team-label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: 700;
-            font-size: 0.85em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #778da9;
-        }
-
-        select {
-            width: 100%;
-            padding: 12px;
-            font-size: 1em;
-            border-radius: 4px;
-            background: #0d1b2a;
-            color: white;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        .generate-btn {
-            width: 100%;
-            padding: 18px;
-            font-size: 1.1em;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            background: #415a77;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .generate-btn:hover:not(:disabled) {
-            background: #778da9;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-
-        .generate-btn:disabled {
-            background: #1b263b;
-            color: #415a77;
-            cursor: not-allowed;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            margin: 20px 0;
-        }
-
-        .spinner {
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top: 3px solid #778da9;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .error {
-            background: rgba(230, 57, 70, 0.1);
-            border: 1px solid #e63946;
-            color: #f1faee;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-            display: none;
-            font-size: 0.9em;
-        }
-
-        .instructions {
-            background: rgba(255,255,255,0.03);
-            border-radius: 6px;
-            padding: 30px;
-            margin-top: 40px;
-            border: 1px solid rgba(255,255,255,0.05);
-        }
-
-        .instructions h3 {
-            margin-bottom: 20px;
-            font-size: 1em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #fff;
-        }
-
-        .instructions li {
-            margin: 12px 0;
-            line-height: 1.6;
-            font-size: 0.95em;
-            color: #778da9;
-        }
-
-        .validation-msg {
-            color: #e63946;
-            font-size: 0.85em;
-            margin-top: 8px;
-            display: none;
-        }
-    </style>
+    <title>MLB Headshot Sheets · Lineup Generator</title>
+    <meta name="description" content="Pick a matchup and print landscape MLB headshot sheets for both teams: pitchers, position players and coaches.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
 </head>
 <body>
-    <div class="container">
-        <h1>MLB Headshot Sheets</h1>
-        <p class="subtitle">Generate Gameday Headshot Sheets for Any Matchup</p>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="wordmark" href="/">
+                <svg class="wordmark-mark" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="5" fill="#fff"/><rect x="5" y="6" width="4" height="14" rx="1" fill="#0e1013"/><rect x="11" y="6" width="4" height="14" rx="1" fill="#0e1013"/><rect x="17" y="6" width="4" height="14" rx="1" fill="#0e1013"/></svg>
+                Lineup Generator
+            </a>
+            <nav class="sport-tabs">
+                <a class="sport-tab" href="/">NHL</a>
+                <a class="sport-tab on" href="/mlb">MLB</a>
+            </nav>
+        </div>
+    </header>
 
-        <div class="sport-toggle">
-            <button class="sport-btn nhl-btn" onclick="window.location.href='/'">NHL</button>
-            <button class="sport-btn mlb-btn active">MLB</button>
+    <main class="page">
+        <div class="hero">
+            <h1>MLB headshot sheets</h1>
+            <p>Pick a matchup and print a landscape sheet for each team: every pitcher, position player and coach.</p>
         </div>
 
-        <div class="upload-section">
-            <div class="team-grid">
-                <div class="team-box">
-                    <label class="team-label">Away Team</label>
-                    <select id="away-team" onchange="checkReady()">
-                        <option value="">Choose Away Team...</option>
-                        {% for slug, info in teams %}
-                        <option value="{{ slug }}">{{ info.name }}</option>
-                        {% endfor %}
-                    </select>
+        <div class="layout">
+            <section class="card">
+                <div class="step">
+                    <div class="step-head">
+                        <span class="step-num">1</span>
+                        <span class="step-title">Matchup</span>
+                    </div>
+                    <div class="matchup">
+                        <div class="side">
+                            <label for="away-team">Away</label>
+                            <div class="pick"><span class="logo-blank" id="away-logo"></span>
+                                <select id="away-team">
+                                    <option value="">Choose a team</option>
+                                    {% for slug, info in teams %}<option value="{{ slug }}">{{ info.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="at">@</div>
+                        <div class="side">
+                            <label for="home-team">Home</label>
+                            <div class="pick"><span class="logo-blank" id="home-logo"></span>
+                                <select id="home-team">
+                                    <option value="">Choose a team</option>
+                                    {% for slug, info in teams %}<option value="{{ slug }}">{{ info.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="linkish swap" id="swap">⇄ Swap home and away</button>
                 </div>
 
-                <div class="team-box">
-                    <label class="team-label">Home Team</label>
-                    <select id="home-team" onchange="checkReady()">
-                        <option value="">Choose Home Team...</option>
-                        {% for slug, info in teams %}
-                        <option value="{{ slug }}">{{ info.name }}</option>
-                        {% endfor %}
-                    </select>
+                <div class="go">
+                    <button type="button" class="go-btn" id="go" disabled>Make the headshot sheets</button>
+                    <div class="go-hint" id="go-hint"></div>
+                    <div class="status" id="status" role="status" aria-live="polite"></div>
                 </div>
-            </div>
+            </section>
 
-            <div class="validation-msg" id="same-team-msg">Away and Home teams must be different.</div>
-
-            <button class="generate-btn" id="generate-btn" onclick="generateSheet()" disabled>
-                Generate Headshot Sheets
-            </button>
+            <aside class="aside">
+                <div class="preview-label">What you'll print</div>
+                <div class="sheet-shot">
+                    <img src="{{ url_for('static', filename='img/sample-mlb.webp') }}" width="720" height="557" alt="Example MLB headshot sheet with rows of pitchers, position players and coaches">
+                </div>
+                <ul class="facts">
+                    <li>One landscape page per team, in team colors</li>
+                    <li>Starters and relievers split out, with the closer marked</li>
+                    <li>Edit names, swap photos and assign roles before you print</li>
+                </ul>
+            </aside>
         </div>
+    </main>
 
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Fetching roster data from MLB...</p>
-        </div>
+    <footer class="foot">
+        <span>Rosters and headshots from MLB.com</span>
+        <a href="/">Making NHL sheets? →</a>
+    </footer>
 
-        <div class="error" id="error"></div>
+<script>
+const TEAMS = Object.fromEntries({{ teams|tojson }});
+const PREFS_KEY = 'mlb_landing';
+const $ = id => document.getElementById(id);
+let busy = false;
 
-        <div class="instructions">
-            <h3>How It Works</h3>
-            <ol>
-                <li>Select the Away and Home teams for the matchup.</li>
-                <li>Click Generate to fetch current rosters and coaching staffs.</li>
-                <li>Two printable landscape headshot sheets will be created (one per team).</li>
-                <li>Edit names, swap headshots, and print directly from the output page.</li>
-            </ol>
-        </div>
-    </div>
+function textOn(hex) {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.3 ? '#121417' : '#ffffff';
+}
 
-    <script>
-        function checkReady() {
-            const away = document.getElementById('away-team').value;
-            const home = document.getElementById('home-team').value;
-            const msg = document.getElementById('same-team-msg');
+function showLogo(side) {
+    const slug = $(`${side}-team`).value, el = $(`${side}-logo`);
+    const img = slug ? Object.assign(document.createElement('img'), { src: `https://www.mlbstatic.com/team-logos/${TEAMS[slug].id}.svg`, alt: '' }) : null;
+    const blank = Object.assign(document.createElement('span'), { className: 'logo-blank' });
+    const node = img || blank; node.id = `${side}-logo`;
+    el.replaceWith(node);
+}
 
-            if (away && home && away === home) {
-                msg.style.display = 'block';
-                document.getElementById('generate-btn').disabled = true;
-            } else {
-                msg.style.display = 'none';
-                document.getElementById('generate-btn').disabled = !(away && home);
-            }
-        }
+function refresh() {
+    const away = $('away-team').value, home = $('home-team').value;
+    showLogo('away'); showLogo('home');
+    const color = (TEAMS[home] || TEAMS[away] || {}).colors?.primary;
+    document.documentElement.style.setProperty('--accent', color || '#121417');
+    document.documentElement.style.setProperty('--accent-ink', color ? textOn(color) : '#fff');
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ away, home })); } catch (e) {}
+    if (busy) return;
+    let hint = '';
+    if (!away || !home) hint = 'Pick both teams';
+    else if (away === home) hint = 'Pick two different teams';
+    else hint = `${TEAMS[away].name} at ${TEAMS[home].name}`;
+    $('go').disabled = !away || !home || away === home;
+    $('go-hint').textContent = hint;
+}
 
-        async function generateSheet() {
-            const away = document.getElementById('away-team').value;
-            const home = document.getElementById('home-team').value;
+$('away-team').addEventListener('change', refresh);
+$('home-team').addEventListener('change', refresh);
+$('swap').addEventListener('click', () => {
+    const a = $('away-team').value; $('away-team').value = $('home-team').value; $('home-team').value = a; refresh();
+});
 
-            const formData = new FormData();
-            formData.append('away_team', away);
-            formData.append('home_team', home);
+function showStatus(kind, html) { const s = $('status'); s.className = `status show ${kind}`; s.innerHTML = html; }
 
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('error').style.display = 'none';
-            document.getElementById('generate-btn').disabled = true;
+$('go').addEventListener('click', async () => {
+    const away = $('away-team').value, home = $('home-team').value;
+    if (!away || !home || away === home || busy) return;
+    busy = true; $('go').disabled = true; $('go-hint').textContent = '';
 
-            try {
-                const response = await fetch('/mlb/generate', { method: 'POST', body: formData });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Processing failed');
-                localStorage.setItem('mlb_sheet_data', JSON.stringify(data));
-                window.open('/mlb/sheet', '_blank');
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('generate-btn').disabled = false;
-            } catch (error) {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
-                document.getElementById('error').textContent = 'Error: ' + error.message;
-                document.getElementById('generate-btn').disabled = false;
-            }
-        }
-    </script>
+    const win = window.open('', '_blank');   // open during the click so it isn't blocked as a pop-up
+    if (win) win.document.write('<title>Building your sheets…</title><body style="font:16px system-ui;padding:40px;color:#444">Building your headshot sheets…</body>');
+
+    const steps = [`Loading the ${TEAMS[away].name} roster`, `Loading the ${TEAMS[home].name} roster`, 'Adding coaching staffs', 'Building your sheets'];
+    let step = 0;
+    const draw = () => showStatus('working', `<ul class="steps-list">${steps.map((s, i) => `<li class="${i < step ? 'done' : i === step ? 'now' : ''}">${s}</li>`).join('')}</ul>`);
+    draw();
+    const timer = setInterval(() => { if (step < steps.length - 1) { step++; draw(); } }, 700);
+
+    const form = new FormData(); form.append('away_team', away); form.append('home_team', home);
+    try {
+        const res = await fetch('/mlb/generate', { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't build those sheets. Try again in a minute.");
+        localStorage.setItem('mlb_sheet_data', JSON.stringify(data));
+        clearInterval(timer); step = steps.length; draw();
+        if (win) win.location.href = '/mlb/sheet'; else window.location.href = '/mlb/sheet';
+        showStatus('ok', `Your ${TEAMS[away].name} at ${TEAMS[home].name} sheets are open in a new tab. <a href="/mlb/sheet" target="_blank">Open them again</a>`);
+    } catch (e) {
+        clearInterval(timer);
+        if (win) win.close();
+        showStatus('err', e.message);
+    } finally {
+        busy = false; refresh();
+    }
+});
+
+try {
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY)) || {};
+    if (TEAMS[saved.away]) $('away-team').value = saved.away;
+    if (TEAMS[saved.home]) $('home-team').value = saved.home;
+} catch (e) {}
+refresh();
+</script>
 </body>
 </html>

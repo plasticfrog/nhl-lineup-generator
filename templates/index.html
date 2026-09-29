@@ -3,406 +3,554 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NHL Lineup Generator</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: radial-gradient(circle at center, #1b263b 0%, #0d1b2a 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 40px 20px;
-            color: #e0e1dd;
-        }
-        
-        .container {
-            max-width: 1100px;
-            width: 100%;
-        }
-        
-        h1 {
-            text-align: center;
-            font-size: 2.8em;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-            color: #ffffff;
-            font-weight: 800;
-            text-transform: uppercase;
-        }
-        
-        .subtitle {
-            text-align: center;
-            font-size: 1.1em;
-            margin-bottom: 40px;
-            color: #778da9;
-            font-weight: 400;
-        }
-        
-        .method-toggle {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 40px;
-        }
-        
-        .method-btn {
-            padding: 12px 24px;
-            font-size: 0.9em;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 4px;
-            background: rgba(255,255,255,0.05);
-            color: #fff;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .method-btn:hover {
-            background: rgba(255,255,255,0.1);
-        }
-        
-        .method-btn.active {
-            background: #415a77;
-            border-color: #778da9;
-        }
-        
-        .upload-section {
-            background: rgba(13, 27, 42, 0.8);
-            border-radius: 8px;
-            padding: 40px;
-            margin-bottom: 30px;
-            border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-        
-        .upload-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-        
-        .upload-box {
-            background: rgba(255,255,255,0.02);
-            border: 1px dashed rgba(255,255,255,0.2);
-            border-radius: 6px;
-            padding: 40px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            min-height: 220px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .upload-box:hover {
-            border-color: #778da9;
-            background: rgba(255, 255, 255, 0.05);
-        }
-        
-        .upload-box.has-file {
-            border-color: #52b788;
-            background: rgba(82, 183, 136, 0.05);
-        }
-        
-        .upload-box.dragover {
-            border-color: #3a86ff;
-            background: rgba(58, 134, 255, 0.1);
-            transform: scale(1.01);
-        }
-        
-        .upload-label {
-            font-size: 1.2em;
-            font-weight: 700;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #fff;
-        }
-        
-        .upload-hint {
-            color: #778da9;
-            font-size: 0.85em;
-        }
-        
-        .file-name {
-            margin-top: 15px;
-            color: #52b788;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
-        
-        input[type="file"] {
-            display: none;
-        }
-        
-        .generate-btn {
-            width: 100%;
-            padding: 18px;
-            font-size: 1.1em;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            background: #415a77;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .generate-btn:hover:not(:disabled) {
-            background: #778da9;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        
-        .generate-btn:disabled {
-            background: #1b263b;
-            color: #415a77;
-            cursor: not-allowed;
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            margin: 20px 0;
-        }
-        
-        .spinner {
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top: 3px solid #778da9;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .error {
-            background: rgba(230, 57, 70, 0.1);
-            border: 1px solid #e63946;
-            color: #f1faee;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-            display: none;
-            font-size: 0.9em;
-        }
-        
-        .instructions {
-            background: rgba(255,255,255,0.03);
-            border-radius: 6px;
-            padding: 30px;
-            margin-top: 40px;
-            border: 1px solid rgba(255,255,255,0.05);
-        }
-        
-        .instructions h3 {
-            margin-bottom: 20px;
-            font-size: 1em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #fff;
-        }
-        
-        .instructions ol {
-            margin-left: 20px;
-        }
-        
-        .instructions li {
-            margin: 12px 0;
-            line-height: 1.6;
-            font-size: 0.95em;
-            color: #778da9;
-        }
-    </style>
+    <title>NHL Lineup Sheets · Lineup Generator</title>
+    <meta name="description" content="Pick a team, enter tonight's lines, and print a one-page NHL lineup sheet with every player's headshot and number.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
 </head>
 <body>
-    <div class="container">
-        <h1>NHL Lineup Generator</h1>
-        <p class="subtitle">Generate Gameday Lineup Headshot Sheets</p>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="wordmark" href="/">
+                <svg class="wordmark-mark" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="5" fill="#fff"/><rect x="5" y="6" width="4" height="14" rx="1" fill="#0e1013"/><rect x="11" y="6" width="4" height="14" rx="1" fill="#0e1013"/><rect x="17" y="6" width="4" height="14" rx="1" fill="#0e1013"/></svg>
+                Lineup Generator
+            </a>
+            <nav class="sport-tabs">
+                <a class="sport-tab on" href="/">NHL</a>
+                <a class="sport-tab" href="/mlb">MLB</a>
+            </nav>
+        </div>
+    </header>
 
-        <div style="display: flex; justify-content: center; border-bottom: 2px solid rgba(255,255,255,0.12); margin-bottom: 30px;">
-            <button style="padding: 14px 48px; font-size: 1.25em; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: none; border-bottom: 4px solid #5b8ec4; margin-bottom: -2px; background: rgba(91,142,196,0.13); color: #fff; cursor: default;">NHL</button>
-            <button onclick="window.location.href='/mlb'" style="padding: 14px 48px; font-size: 1.25em; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; border: none; border-bottom: 4px solid transparent; margin-bottom: -2px; background: transparent; color: rgba(255,255,255,0.38); cursor: pointer; transition: all 0.2s;">MLB</button>
+    <main class="page">
+        <div class="hero">
+            <h1>NHL lineup sheets</h1>
+            <p>Pick a team, enter tonight's lines, and print a one-page sheet with every player's face and number.</p>
         </div>
 
-        <div class="method-toggle">
-            <button class="method-btn active">Screenshot Method</button>
-            <button class="method-btn" onclick="window.location.href='/numbers'">Number Entry Method</button>
-        </div>
-        
-        <div class="upload-section">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <label style="font-size: 0.9em; font-weight: 700; margin-right: 15px; text-transform: uppercase; letter-spacing: 1px;">Layout Mode:</label>
-                <select id="upload-method" onchange="toggleUploadMethod()" style="padding: 8px 12px; font-size: 0.9em; border-radius: 4px; background: #0d1b2a; color: white; border: 1px solid rgba(255,255,255,0.2);">
-                    <option value="separate">Separate Images (Forwards + Defense)</option>
-                    <option value="combined">Combined Image (Full Lineup)</option>
-                </select>
-            </div>
-            
-            <div id="separate-uploads">
-                <div class="upload-grid">
-                    <div class="upload-box" id="forwards-box" onclick="document.getElementById('forwards-input').click()">
-                        <div class="upload-label">Forwards</div>
-                        <div class="upload-hint">Upload 3x4 grid of forwards</div>
-                        <div class="file-name" id="forwards-name"></div>
+        <div class="layout">
+            <section class="card">
+                <!-- 1. Team -->
+                <div class="step">
+                    <div class="step-head">
+                        <span class="step-num">1</span>
+                        <span class="step-title">Team</span>
+                        <span class="step-note" id="team-note"></span>
                     </div>
-                    
-                    <div class="upload-box" id="defense-box" onclick="document.getElementById('defense-input').click()">
-                        <div class="upload-label">Defense</div>
-                        <div class="upload-hint">Upload 2x3 grid of defensemen</div>
-                        <div class="file-name" id="defense-name"></div>
+                    <div class="team-grid" id="team-grid">
+                        {% for t in teams %}
+                        <button type="button" class="team-btn" data-team="{{ t.abbr }}" title="{{ t.city }} {{ t.name }}" aria-label="{{ t.city }} {{ t.name }}">
+                            <img src="https://assets.nhle.com/logos/nhl/svg/{{ t.abbr }}_light.svg" alt="" loading="lazy">
+                        </button>
+                        {% endfor %}
                     </div>
+                    <div class="picked" id="picked">No team picked yet.</div>
                 </div>
-                <input type="file" id="forwards-input" accept="image/*" onchange="handleFileSelect('forwards', this)">
-                <input type="file" id="defense-input" accept="image/*" onchange="handleFileSelect('defense', this)">
-            </div>
-            
-            <div id="combined-upload" style="display: none;">
-                <div class="upload-box" id="combined-box" onclick="document.getElementById('combined-input').click()">
-                    <div class="upload-label">Full Lineup</div>
-                    <div class="upload-hint">Upload single combined screenshot</div>
-                    <div class="file-name" id="combined-name"></div>
+
+                <!-- 2. Lines -->
+                <div class="step">
+                    <div class="step-head">
+                        <span class="step-num">2</span>
+                        <span class="step-title">Lines</span>
+                        <span class="spacer"></span>
+                        <div class="segmented" role="tablist">
+                            <button type="button" data-mode="numbers" role="tab">Type numbers</button>
+                            <button type="button" data-mode="shots" role="tab">Screenshots</button>
+                        </div>
+                    </div>
+
+                    <!-- Numbers: live lineup builder -->
+                    <div id="mode-numbers" hidden>
+                        <div class="locked" id="builder">
+                            <div class="lock-note">Pick a team first</div>
+
+                            <div class="group-title">Forwards</div>
+                            <div class="lines" id="fwd-lines">
+                                <span></span><span class="col-head">LW</span><span class="col-head">C</span><span class="col-head">RW</span>
+                            </div>
+
+                            <div class="group-title">Defense</div>
+                            <div class="lines pairs" id="d-lines">
+                                <span></span><span class="col-head">Left</span><span class="col-head">Right</span>
+                            </div>
+
+                            <div class="group-title">Goalies <small>leave blank to use the roster's top two</small></div>
+                            <div class="lines pairs" id="g-lines">
+                                <span></span><span class="col-head">Starter</span><span class="col-head">Backup</span>
+                            </div>
+
+                            <div class="builder-tools">
+                                <button type="button" class="linkish" id="read-shot">Read numbers from a screenshot</button>
+                                <button type="button" class="linkish" id="clear-all">Clear all</button>
+                                <span>Tip: paste a list like <b>71-73-77, 92-21-27</b> into any box to fill the rest.</span>
+                            </div>
+
+                            <details class="roster" id="roster" open>
+                                <summary>Roster <span id="roster-count"></span></summary>
+                                <div id="roster-body"></div>
+                            </details>
+                        </div>
+                    </div>
+
+                    <!-- Screenshots -->
+                    <div id="mode-shots" hidden>
+                        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Add screenshots">
+                            <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>
+                            <div class="drop-title">Drop screenshots here, or click to choose</div>
+                            <div class="drop-note">You can also paste one with <kbd>⌘</kbd> <kbd>V</kbd>. Use one image of the whole lineup, or two: forwards and defense.</div>
+                        </div>
+                        <div class="thumbs" id="thumbs"></div>
+                    </div>
+                    <input type="file" id="shot-input" accept="image/*" multiple hidden>
+                    <input type="file" id="read-input" accept="image/*" hidden>
                 </div>
-                <input type="file" id="combined-input" accept="image/*" onchange="handleFileSelect('combined', this)">
+
+                <!-- 3. Generate -->
+                <div class="go">
+                    <button type="button" class="go-btn" id="go" disabled>Make the lineup sheet</button>
+                    <div class="go-hint" id="go-hint"></div>
+                    <div class="status" id="status" role="status" aria-live="polite"></div>
+                </div>
+            </section>
+
+            <aside class="aside">
+                <div class="preview-label">What you'll print</div>
+                <div class="sheet-shot">
+                    <img src="{{ url_for('static', filename='img/sample-nhl.webp') }}" width="720" height="932" alt="Example lineup sheet: 12 forwards, 6 defensemen, 2 goalies and the coaching staff, each with a headshot and name bar in team colors">
+                </div>
+                <ul class="facts">
+                    <li>Letter size, prints edge to edge on one page</li>
+                    <li>All 18 skaters, both goalies and the coaches, in team colors</li>
+                    <li>Tweak anything before you print: swap players, add C and A, zoom photos</li>
+                </ul>
+            </aside>
+        </div>
+    </main>
+
+    <footer class="foot">
+        <span>Rosters and headshots from NHL.com</span>
+        <a href="/mlb">Making MLB sheets? →</a>
+    </footer>
+
+<script>
+const TEAMS = {{ teams|tojson }};
+const TEAM = Object.fromEntries(TEAMS.map(t => [t.abbr, t]));
+const PREFS_KEY = 'nhl_landing';   // last team, mode and typed lineup per team
+
+const $ = id => document.getElementById(id);
+const prefs = (() => { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch (e) { return {}; } })();
+const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} };
+
+let team = null, roster = null, byNum = {}, rosterReq = 0;
+let mode = new URLSearchParams(location.search).get('mode') === 'numbers' ? 'numbers' : (prefs.mode || 'shots');
+let shots = [];   // { file, url, role: 'whole' | 'forwards' | 'defense' }
+let busy = false;
+
+/* ---------- Team colors ---------- */
+function textOn(hex) {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.3 ? '#121417' : '#ffffff';
+}
+function setAccent(hex) {
+    document.documentElement.style.setProperty('--accent', hex || '#121417');
+    document.documentElement.style.setProperty('--accent-ink', hex ? textOn(hex) : '#ffffff');
+}
+
+/* ---------- Team picker ---------- */
+document.querySelectorAll('.team-btn').forEach(b => b.addEventListener('click', () => {
+    pickTeam(team === b.dataset.team && mode === 'shots' ? null : b.dataset.team);
+}));
+
+async function pickTeam(abbr) {
+    team = abbr;
+    prefs.team = abbr; savePrefs();
+    document.querySelectorAll('.team-btn').forEach(b => b.classList.toggle('on', b.dataset.team === abbr));
+    $('team-grid').classList.toggle('has-pick', !!abbr);
+    setAccent(abbr ? TEAM[abbr].color : null);
+    roster = null; byNum = {};
+    loadSlots();
+    renderPicked();
+    renderBuilder();
+    refresh();
+    if (!abbr) return;
+    const req = ++rosterReq;
+    try {
+        const res = await fetch(`/api/nhl/roster/${abbr}`);
+        const data = await res.json();
+        if (req !== rosterReq) return;
+        if (!res.ok) throw new Error(data.error);
+        roster = data;
+        for (const [group, list] of [['F', data.forwards], ['D', data.defensemen], ['G', data.goalies]])
+            list.forEach(p => { if (p.number) byNum[p.number] = { ...p, group }; });
+    } catch (e) {
+        if (req !== rosterReq) return;
+        roster = { error: e.message || "Couldn't load the roster." };
+    }
+    renderPicked();
+    renderBuilder();
+    renderRoster();
+    refresh();
+}
+
+function renderPicked() {
+    const el = $('picked');
+    if (!team) {
+        el.innerHTML = mode === 'shots' ? 'Optional for screenshots — we\'ll work out the team from the image.' : 'No team picked yet.';
+        return;
+    }
+    const t = TEAM[team];
+    let extra = '';
+    if (!roster) extra = ' · loading roster…';
+    else if (roster.error) extra = ` · <span style="color:var(--bad)">${roster.error}</span>`;
+    else extra = ` · ${roster.forwards.length + roster.defensemen.length + roster.goalies.length} players on the roster`;
+    el.innerHTML = `<b>${t.city} ${t.name}</b>${extra}` +
+        (mode === 'shots' ? ` · <button type="button" class="linkish" id="auto-team">detect from screenshot instead</button>` : '');
+    const auto = $('auto-team'); if (auto) auto.onclick = () => pickTeam(null);
+}
+
+/* ---------- Mode ---------- */
+document.querySelectorAll('.segmented button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+function setMode(m) {
+    mode = m; prefs.mode = m; savePrefs();
+    document.querySelectorAll('.segmented button').forEach(b => { b.classList.toggle('on', b.dataset.mode === m); b.setAttribute('aria-selected', b.dataset.mode === m); });
+    $('mode-numbers').hidden = m !== 'numbers';
+    $('mode-shots').hidden = m !== 'shots';
+    $('team-note').textContent = m === 'shots' ? 'optional' : '';
+    renderPicked();
+    refresh();
+}
+
+/* ---------- Lineup builder ---------- */
+const SLOTS = { forwards: 12, defense: 6, goalies: 2 };
+let slots = { forwards: Array(12).fill(''), defense: Array(6).fill(''), goalies: Array(2).fill('') };
+const slotEls = [];   // { group, i, el, input }
+
+function place(group, i) {
+    if (group === 'forwards') return `line ${Math.floor(i / 3) + 1}`;
+    if (group === 'defense') return `pair ${Math.floor(i / 2) + 1}`;
+    return i === 0 ? 'starter' : 'backup';
+}
+
+function buildSlots() {
+    const rows = [['fwd-lines', 'forwards', 3, ['1st', '2nd', '3rd', '4th']], ['d-lines', 'defense', 2, ['1', '2', '3']], ['g-lines', 'goalies', 2, ['']]];
+    for (const [id, group, per, heads] of rows) {
+        const wrap = $(id);
+        heads.forEach((h, r) => {
+            const rh = document.createElement('span'); rh.className = 'row-head'; rh.textContent = h; wrap.appendChild(rh);
+            for (let c = 0; c < per; c++) {
+                const i = r * per + c;
+                const el = document.createElement('label'); el.className = 'slot empty';
+                el.innerHTML = `<input inputmode="numeric" maxlength="2" placeholder="#" aria-label="${group} ${place(group, i)} slot ${c + 1}"><span class="face"></span><span class="meta"></span><span class="last"></span>`;
+                wrap.appendChild(el);
+                const input = el.querySelector('input');
+                const entry = { group, i, el, input };
+                slotEls.push(entry);
+                input.addEventListener('input', () => onSlotInput(entry));
+                input.addEventListener('keydown', e => onSlotKey(e, entry));
+                input.addEventListener('paste', e => onSlotPaste(e, entry));
+            }
+        });
+    }
+}
+
+function onSlotInput(entry) {
+    const v = entry.input.value.replace(/\D/g, '').slice(0, 2);
+    entry.input.value = v;
+    slots[entry.group][entry.i] = v;
+    saveSlots();
+    renderBuilder();
+    refresh();
+    // Move on once the number can't get any longer
+    const couldGrow = v.length === 1 && Object.keys(byNum).some(n => n.length === 2 && n.startsWith(v));
+    if (v.length === 2 || (v.length === 1 && byNum[v] && !couldGrow)) focusNext(entry);
+}
+
+function onSlotKey(e, entry) {
+    const idx = slotEls.indexOf(entry);
+    if (['Enter', ' ', ',', '-', 'ArrowRight'].includes(e.key) && !(e.key === 'ArrowRight' && entry.input.selectionStart < entry.input.value.length)) {
+        e.preventDefault(); focusNext(entry);
+    } else if (e.key === 'Backspace' && !entry.input.value && idx > 0) {
+        e.preventDefault(); slotEls[idx - 1].input.focus();
+    } else if (e.key === 'ArrowLeft' && entry.input.selectionStart === 0 && idx > 0) {
+        e.preventDefault(); slotEls[idx - 1].input.focus();
+    }
+}
+
+function focusNext(entry) {
+    const next = slotEls[slotEls.indexOf(entry) + 1];
+    if (next) { next.input.focus(); next.input.select(); }
+}
+
+// Pasting "71-73-77, 92-21-27 ..." fills from this box onward
+function onSlotPaste(e, entry) {
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    const nums = (text.match(/\d{1,2}/g) || []);
+    if (nums.length < 2) return;
+    e.preventDefault();
+    fillFrom(slotEls.indexOf(entry), nums);
+}
+
+function fillFrom(start, nums) {
+    let k = start;
+    for (const n of nums) {
+        if (k >= slotEls.length) break;
+        const s = slotEls[k++];
+        slots[s.group][s.i] = n;
+    }
+    saveSlots(); renderBuilder(); refresh();
+    const last = slotEls[Math.min(k, slotEls.length - 1)]; if (last) last.input.focus();
+}
+
+function renderBuilder() {
+    $('builder').classList.toggle('is-locked', !team);
+    const counts = {};
+    slotEls.forEach(({ group, i }) => { const v = slots[group][i]; if (v) counts[v] = (counts[v] || 0) + 1; });
+    const first = {};   // number -> first slot it appears in
+    slotEls.forEach(s => { const v = slots[s.group][s.i]; if (v && !(v in first)) first[v] = s; });
+    for (const entry of slotEls) {
+        const { group, i, el, input } = entry;
+        const v = slots[group][i];
+        if (document.activeElement !== input || input.value !== v) input.value = v;
+        const p = byNum[v];
+        const last = el.querySelector('.last'), meta = el.querySelector('.meta'), face = el.querySelector('.face');
+        el.className = 'slot';
+        if (!v) { el.classList.add('empty'); last.textContent = ''; meta.textContent = ''; continue; }
+        if (!roster || roster.error) { el.classList.add('empty'); last.textContent = ''; meta.textContent = ''; continue; }
+        if (!p) {
+            el.classList.add('bad'); face.style.backgroundImage = ''; last.textContent = `#${v}`; meta.textContent = 'Not on roster';
+        } else if (counts[v] > 1 && first[v] !== entry) {
+            el.classList.add('dupe'); face.style.backgroundImage = `url(${p.headshot})`; last.textContent = p.last; meta.textContent = `Also on ${place(first[v].group, first[v].i)}`;
+        } else {
+            el.classList.add('filled'); face.style.backgroundImage = `url(${p.headshot})`; last.textContent = p.last; meta.textContent = `${p.first} · ${p.pos}`;
+        }
+    }
+    renderRosterUsed();
+}
+
+function renderRoster() {
+    const body = $('roster-body');
+    if (!roster || roster.error) { body.innerHTML = ''; $('roster-count').textContent = ''; return; }
+    const groups = [['Forwards', roster.forwards, 'forwards'], ['Defense', roster.defensemen, 'defense'], ['Goalies', roster.goalies, 'goalies']];
+    body.innerHTML = groups.map(([title, list, target]) => {
+        const withNum = list.filter(p => p.number).sort((a, b) => a.last.localeCompare(b.last));
+        return `<div class="roster-group"><h4>${title}</h4><div class="chips">${withNum.map(p =>
+            `<button type="button" class="chip" data-num="${p.number}" data-target="${target}" title="Add ${p.first} ${p.last}"><img src="${p.headshot}" alt="" loading="lazy"><b>${p.number}</b>${p.last}</button>`).join('')}</div></div>`;
+    }).join('');
+    const noNum = [...roster.forwards, ...roster.defensemen, ...roster.goalies].filter(p => !p.number).length;
+    $('roster-count').textContent = `· click a player to add him to the next open spot${noNum ? ` · ${noNum} without a number yet not shown` : ''}`;
+    body.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => addFromRoster(c.dataset.num, c.dataset.target)));
+    renderRosterUsed();
+}
+
+function renderRosterUsed() {
+    const used = new Set(Object.values(slots).flat().filter(Boolean));
+    document.querySelectorAll('#roster-body .chip').forEach(c => c.classList.toggle('used', used.has(c.dataset.num)));
+}
+
+function addFromRoster(num, target) {
+    const order = target === 'goalies' ? ['goalies'] : [target, target === 'forwards' ? 'defense' : 'forwards'];
+    for (const g of order) {
+        const i = slots[g].indexOf('');
+        if (i !== -1) { slots[g][i] = num; saveSlots(); renderBuilder(); refresh(); return; }
+    }
+    setHint('Every spot is full — clear one first.');
+}
+
+$('clear-all').addEventListener('click', () => {
+    slots = { forwards: Array(12).fill(''), defense: Array(6).fill(''), goalies: Array(2).fill('') };
+    saveSlots(); renderBuilder(); refresh();
+    slotEls[0].input.focus();
+});
+
+// OCR a lines screenshot into the builder: forwards first, then defense, in reading order
+$('read-shot').addEventListener('click', () => $('read-input').click());
+$('read-input').addEventListener('change', e => { if (e.target.files[0]) readNumbersFrom(e.target.files[0]); e.target.value = ''; });
+async function readNumbersFrom(file) {
+    if (!team) return;
+    setHint('Reading numbers from the screenshot…');
+    const form = new FormData(); form.append('image', file);
+    try {
+        const res = await fetch('/api/nhl/read_numbers', { method: 'POST', body: form });
+        const data = await res.json();
+        const nums = (data.numbers || []).filter(n => byNum[n] && byNum[n].group !== 'G');
+        if (!nums.length) { setHint("Couldn't find any of this team's numbers in that image."); return; }
+        slots.forwards = Array(12).fill(''); slots.defense = Array(6).fill('');
+        fillFrom(0, nums.slice(0, 18));
+        setHint(`Filled ${Math.min(nums.length, 18)} spots from the screenshot. Check them before you generate.`);
+    } catch (e) {
+        setHint("Couldn't read that image. Try typing the numbers instead.");
+    }
+}
+
+function saveSlots() {
+    if (!team) return;
+    prefs.lineups = prefs.lineups || {};
+    prefs.lineups[team] = slots;
+    savePrefs();
+}
+function loadSlots() {
+    const saved = team && prefs.lineups && prefs.lineups[team];
+    slots = { forwards: Array(12).fill(''), defense: Array(6).fill(''), goalies: Array(2).fill('') };
+    if (saved) for (const g of Object.keys(SLOTS)) (saved[g] || []).slice(0, SLOTS[g]).forEach((v, i) => slots[g][i] = v || '');
+}
+
+/* ---------- Screenshots ---------- */
+const drop = $('drop');
+drop.addEventListener('click', () => $('shot-input').click());
+drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('shot-input').click(); } });
+$('shot-input').addEventListener('change', e => { addShots([...e.target.files]); e.target.value = ''; });
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addShots([...e.dataTransfer.files]));
+
+// Paste an image anywhere on the page
+document.addEventListener('paste', e => {
+    const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    e.preventDefault();
+    if (mode === 'numbers' && team) { readNumbersFrom(files[0]); return; }
+    setMode('shots');
+    addShots(files);
+});
+
+function addShots(files) {
+    files = files.filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    for (const f of files) {
+        if (shots.length >= 2) { setHint('Two screenshots at most — remove one to add another.'); break; }
+        shots.push({ file: f, url: URL.createObjectURL(f) });
+    }
+    assignRoles(); renderShots(); refresh();
+}
+function assignRoles() {
+    if (shots.length === 1) shots[0].role = 'whole';
+    if (shots.length === 2 && (shots[0].role === 'whole' || !shots[0].role || shots[0].role === shots[1].role)) { shots[0].role = 'forwards'; shots[1].role = 'defense'; }
+}
+const ROLE_NAMES = { whole: 'Whole lineup', forwards: 'Forwards', defense: 'Defense' };
+function renderShots() {
+    $('thumbs').innerHTML = shots.map((s, i) => `
+        <div class="thumb">
+            <img src="${s.url}" alt="">
+            <div class="thumb-bar">
+                <b>${ROLE_NAMES[s.role]}</b>
+                ${shots.length === 2 && i === 0 ? '<button type="button" class="icon-btn" data-act="swap">⇄ Swap</button>' : ''}
+                <button type="button" class="icon-btn" data-act="remove" data-i="${i}" aria-label="Remove">✕</button>
             </div>
-            
-            <button class="generate-btn" id="generate-btn" onclick="generateLineup()" disabled>
-                Generate Lineup
-            </button>
-        </div>
-        
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Processing image data...</p>
-        </div>
-        
-        <div class="error" id="error"></div>
-        
-        <div class="instructions">
-            <h3>Usage Instructions</h3>
-            <ol>
-                <li>Capture screenshots of your team's current lines (usually from gameday broadcast or official site).</li>
-                <li>Upload the images to the designated areas above.</li>
-                <li>Click Generate to build the interactive lineup sheet.</li>
-                <li>Customize names, add badges, or upload custom headshots on the final page.</li>
-            </ol>
-        </div>
-    </div>
-    
-    <script>
-        let forwardsFile = null;
-        let defenseFile = null;
-        let combinedFile = null;
-        
-        function toggleUploadMethod() {
-            const method = document.getElementById('upload-method').value;
-            const separateDiv = document.getElementById('separate-uploads');
-            const combinedDiv = document.getElementById('combined-upload');
-            
-            if (method === 'combined') {
-                separateDiv.style.display = 'none';
-                combinedDiv.style.display = 'block';
-                setTimeout(() => setupDragAndDrop('combined-box', 'combined'), 100);
-            } else {
-                separateDiv.style.display = 'block';
-                combinedDiv.style.display = 'none';
-            }
-            
-            forwardsFile = null;
-            defenseFile = null;
-            combinedFile = null;
-            document.getElementById('generate-btn').disabled = true;
+        </div>`).join('');
+    $('thumbs').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        if (b.dataset.act === 'swap') { [shots[0].role, shots[1].role] = [shots[1].role, shots[0].role]; shots.reverse(); }
+        else { URL.revokeObjectURL(shots[+b.dataset.i].url); shots.splice(+b.dataset.i, 1); shots.forEach(s => s.role = null); assignRoles(); }
+        renderShots(); refresh();
+    }));
+    drop.querySelector('.drop-title').textContent = shots.length ? (shots.length === 1 ? 'Add the defense screenshot too, if it\'s separate' : 'Both screenshots added') : 'Drop screenshots here, or click to choose';
+}
+
+/* ---------- Generate ---------- */
+function setHint(t) { $('go-hint').textContent = t; }
+
+function readiness() {
+    if (mode === 'shots') {
+        if (!shots.length) return [false, 'Add a screenshot of the lines'];
+        return [true, team ? `Using the ${TEAM[team].name} roster` : 'We\'ll detect the team from the screenshot'];
+    }
+    if (!team) return [false, 'Pick a team'];
+    if (!roster) return [false, 'Loading the roster…'];
+    if (roster.error) return [false, roster.error];
+    const skaters = [...slots.forwards, ...slots.defense];
+    const good = skaters.filter(v => byNum[v]).length;
+    const bad = [...skaters, ...slots.goalies].filter(v => v && !byNum[v]).length;
+    if (!good) return [false, 'Type at least one jersey number, or click players in the roster'];
+    const open = 18 - good - skaters.filter(v => v && !byNum[v]).length;
+    const all = Object.values(slots).flat().filter(v => byNum[v]);
+    const twice = all.length - new Set(all).size;
+    const notes = [];
+    if (twice) notes.push(`${twice} player${twice > 1 ? 's are' : ' is'} in two spots`);
+    if (bad) notes.push(`${bad} number${bad > 1 ? 's aren\'t' : ' isn\'t'} on the roster and will be left blank`);
+    else if (open) notes.push(`${open} open spot${open > 1 ? 's' : ''} will be left blank`);
+    return [true, notes.join(' · ') || 'All 18 spots filled'];
+}
+
+function refresh() {
+    if (busy) return;
+    const [ok, hint] = readiness();
+    $('go').disabled = !ok;
+    setHint(hint);
+}
+
+function showStatus(kind, html) {
+    const s = $('status');
+    s.className = `status show ${kind}`;
+    s.innerHTML = html;
+}
+
+$('go').addEventListener('click', generate);
+
+async function generate() {
+    const [ok] = readiness();
+    if (!ok || busy) return;
+    busy = true; $('go').disabled = true; setHint('');
+
+    // Open the tab now, while we still have the click (browsers block tabs opened later)
+    const win = window.open('', '_blank');
+    if (win) win.document.write('<title>Building your sheet…</title><body style="font:16px system-ui;padding:40px;color:#444">Building your lineup sheet…</body>');
+
+    const steps = mode === 'shots'
+        ? ['Reading the screenshot', 'Matching players to the roster', 'Adding goalies and coaches', 'Building your sheet']
+        : ['Checking the roster', 'Adding goalies and coaches', 'Building your sheet'];
+    let step = 0;
+    const drawSteps = () => showStatus('working', `<ul class="steps-list">${steps.map((s, i) => `<li class="${i < step ? 'done' : i === step ? 'now' : ''}">${s}</li>`).join('')}</ul>`);
+    drawSteps();
+    const timer = setInterval(() => { if (step < steps.length - 1) { step++; drawSteps(); } }, mode === 'shots' ? 2200 : 900);
+
+    const form = new FormData();
+    let url;
+    if (mode === 'shots') {
+        url = '/process';
+        if (team) form.append('team', team);
+        if (shots.length === 1) form.append('combined', shots[0].file);
+        else shots.forEach(s => form.append(s.role, s.file));
+    } else {
+        url = '/process_numbers';
+        form.append('team', team);
+        form.append('slots', JSON.stringify(slots));
+    }
+
+    try {
+        const res = await fetch(url, { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Something went wrong building that sheet. Try again.');
+        localStorage.removeItem('nhl_lineup_staff');
+        localStorage.setItem('lineup_data', JSON.stringify(data));
+        clearInterval(timer); step = steps.length; drawSteps();
+
+        if (win) win.location.href = '/lineup'; else window.location.href = '/lineup';
+        const name = TEAM[data.team] ? TEAM[data.team].name : data.team;
+        if (mode === 'shots' && !team && TEAM[data.team]) pickTeam(data.team);   // show which team was detected
+        const missing = (data.total || 0) - (data.matched || 0);
+        const again = `<a href="/lineup" target="_blank">Open it again</a>`;
+        if (mode === 'shots' && missing > 0) {
+            showStatus('warn', `Your ${name} sheet is open in a new tab. We found ${data.matched} of ${data.total} players — click the empty spots on the sheet to fill them in. ${again}`);
+        } else {
+            showStatus('ok', `Your ${name} sheet is open in a new tab. ${again}`);
         }
-        
-        function handleFileSelect(type, input) {
-            const file = input.files[0];
-            if (!file) return;
-            
-            if (type === 'forwards') {
-                forwardsFile = file;
-                document.getElementById('forwards-name').textContent = file.name;
-                document.getElementById('forwards-box').classList.add('has-file');
-            } else if (type === 'defense') {
-                defenseFile = file;
-                document.getElementById('defense-name').textContent = file.name;
-                document.getElementById('defense-box').classList.add('has-file');
-            } else if (type === 'combined') {
-                combinedFile = file;
-                document.getElementById('combined-name').textContent = file.name;
-                document.getElementById('combined-box').classList.add('has-file');
-            }
-            
-            const method = document.getElementById('upload-method').value;
-            if (method === 'combined') {
-                document.getElementById('generate-btn').disabled = !combinedFile;
-            } else {
-                document.getElementById('generate-btn').disabled = !(forwardsFile && defenseFile);
-            }
-        }
-        
-        function setupDragAndDrop(boxId, type) {
-            const box = document.getElementById(boxId);
-            box.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); box.classList.add('dragover'); });
-            box.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); box.classList.remove('dragover'); });
-            box.addEventListener('drop', (e) => {
-                e.preventDefault(); e.stopPropagation(); box.classList.remove('dragover');
-                const files = e.dataTransfer.files;
-                if (files.length > 0 && files[0].type.startsWith('image/')) {
-                    const input = document.getElementById(type + '-input');
-                    input.files = files;
-                    handleFileSelect(type, input);
-                }
-            });
-        }
-        
-        setupDragAndDrop('forwards-box', 'forwards');
-        setupDragAndDrop('defense-box', 'defense');
-        setupDragAndDrop('combined-box', 'combined');
-        
-        async function generateLineup() {
-            const method = document.getElementById('upload-method').value;
-            const formData = new FormData();
-            if (method === 'combined') { formData.append('combined', combinedFile); } 
-            else { formData.append('forwards', forwardsFile); formData.append('defense', defenseFile); }
-            
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('error').style.display = 'none';
-            document.getElementById('generate-btn').disabled = true;
-            
-            try {
-                const response = await fetch('/process', { method: 'POST', body: formData });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'Processing failed');
-                localStorage.removeItem('nhl_lineup_staff');
-                localStorage.setItem('lineup_data', JSON.stringify(data));
-                window.open('/lineup', '_blank');
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('generate-btn').disabled = false;
-            } catch (error) {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
-                document.getElementById('error').textContent = 'Error: ' + error.message;
-                document.getElementById('generate-btn').disabled = false;
-            }
-        }
-    </script>
+    } catch (e) {
+        clearInterval(timer);
+        if (win) win.close();
+        showStatus('err', e.message);
+    } finally {
+        busy = false; refresh();
+    }
+}
+
+/* ---------- Start ---------- */
+buildSlots();
+if (window.matchMedia('(max-width: 640px)').matches) $('roster').open = false;   // long list on phones
+setMode(mode);
+const urlTeam = (new URLSearchParams(location.search).get('team') || '').toUpperCase();   // e.g. /?team=SJS
+pickTeam(TEAM[urlTeam] ? urlTeam : (prefs.team && TEAM[prefs.team] ? prefs.team : null));
+</script>
 </body>
 </html>

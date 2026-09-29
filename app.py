@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort, Response
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort, Response, redirect
 import pytesseract
 from PIL import Image, ImageOps
 import requests
 import os
 import time
 import re
+import json
 import sys
 import logging
 from datetime import datetime, timezone
@@ -133,6 +134,52 @@ def extract_players_from_image(image_file, expected_count, preferred_roster, ful
             if m: used.add(m)
         return matched[:expected_count]
     except Exception as e: return [f"PLAYER {i+1}" for i in range(expected_count)]
+
+# Picker order, names and colors (color: primary, or secondary where primary is black)
+NHL_TEAM_INFO = {
+    'ANA': ('Anaheim', 'Ducks', '#F47A38'), 'BOS': ('Boston', 'Bruins', '#FFB81C'),
+    'BUF': ('Buffalo', 'Sabres', '#003087'), 'CGY': ('Calgary', 'Flames', '#C8102E'),
+    'CAR': ('Carolina', 'Hurricanes', '#CE1126'), 'CHI': ('Chicago', 'Blackhawks', '#CF0A2C'),
+    'COL': ('Colorado', 'Avalanche', '#6F263D'), 'CBJ': ('Columbus', 'Blue Jackets', '#002654'),
+    'DAL': ('Dallas', 'Stars', '#006847'), 'DET': ('Detroit', 'Red Wings', '#CE1126'),
+    'EDM': ('Edmonton', 'Oilers', '#FF4C00'), 'FLA': ('Florida', 'Panthers', '#C8102E'),
+    'LAK': ('Los Angeles', 'Kings', '#A2AAAD'), 'MIN': ('Minnesota', 'Wild', '#154734'),
+    'MTL': ('Montréal', 'Canadiens', '#AF1E2D'), 'NSH': ('Nashville', 'Predators', '#FFB81C'),
+    'NJD': ('New Jersey', 'Devils', '#CE1126'), 'NYI': ('New York', 'Islanders', '#00539B'),
+    'NYR': ('New York', 'Rangers', '#0038A8'), 'OTT': ('Ottawa', 'Senators', '#DA1A32'),
+    'PHI': ('Philadelphia', 'Flyers', '#F74902'), 'PIT': ('Pittsburgh', 'Penguins', '#FCB514'),
+    'SJS': ('San Jose', 'Sharks', '#006D75'), 'SEA': ('Seattle', 'Kraken', '#99D9D9'),
+    'STL': ('St. Louis', 'Blues', '#002F87'), 'TBL': ('Tampa Bay', 'Lightning', '#002868'),
+    'TOR': ('Toronto', 'Maple Leafs', '#00205B'), 'UTA': ('Utah', 'Mammoth', '#71AFE5'),
+    'VAN': ('Vancouver', 'Canucks', '#00843D'), 'VGK': ('Vegas', 'Golden Knights', '#B4975A'),
+    'WSH': ('Washington', 'Capitals', '#C8102E'), 'WPG': ('Winnipeg', 'Jets', '#004C97'),
+}
+
+ROSTER_CACHE = {}
+ROSTER_CACHE_SECONDS = 10 * 60
+
+def fetch_nhl_roster(team):
+    """Current roster from the NHL API, cached briefly (the live lineup builder asks often)."""
+    cached = ROSTER_CACHE.get(team)
+    if cached and time.time() - cached[0] < ROSTER_CACHE_SECONDS:
+        return cached[1]
+    res = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current", timeout=10)
+    res.raise_for_status()
+    data = res.json()
+    ROSTER_CACHE[team] = (time.time(), data)
+    return data
+
+def headshot_url(player_id):
+    return f"https://assets.nhle.com/mugs/nhl/latest/{player_id}.png"
+
+def friendly_error(e):
+    """Plain-English message for errors shown to visitors (the raw error goes to the logs)."""
+    text = str(e)
+    if isinstance(e, requests.RequestException) or 'Expecting value' in text or 'JSON' in text:
+        return "Couldn't reach the NHL's roster service. Give it a minute and try again."
+    if 'cannot identify image file' in text:
+        return "That file isn't an image we can read. Try a PNG or JPG screenshot."
+    return "Something went wrong building that sheet. Try again, and if it keeps happening, try the other method."
 
 def goalie_label(p):
     num = p.get('sweaterNumber')
@@ -405,10 +452,40 @@ def extract_line_numbers(text=None, image_file=None):
     return []
 
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    teams = [{'abbr': a, 'city': c, 'name': n, 'color': col} for a, (c, n, col) in NHL_TEAM_INFO.items()]
+    return render_template('index.html', teams=teams)
 
 @app.route('/numbers')
-def numbers_page(): return render_template('index_numbers.html')
+def numbers_page():
+    return redirect('/?mode=numbers')
+
+@app.route('/api/nhl/roster/<team>')
+def api_nhl_roster(team):
+    team = team.upper()
+    if team not in NHL_TEAM_INFO:
+        return jsonify({'error': 'Unknown team'}), 404
+    try:
+        data = fetch_nhl_roster(team)
+    except Exception as e:
+        logger.warning(f"NHL ROSTER FAIL | {team} | {e}")
+        return jsonify({'error': friendly_error(e)}), 502
+    out = {}
+    for group in ['forwards', 'defensemen', 'goalies']:
+        out[group] = [{
+            'number': str(p['sweaterNumber']) if p.get('sweaterNumber') is not None else '',
+            'first': p['firstName']['default'], 'last': p['lastName']['default'],
+            'pos': p.get('positionCode', ''), 'headshot': headshot_url(p['id']),
+        } for p in data.get(group, [])]
+    return jsonify(out)
+
+@app.route('/api/nhl/read_numbers', methods=['POST'])
+def api_read_numbers():
+    """Read jersey numbers off a screenshot (for the lineup builder)."""
+    image = request.files.get('image')
+    if not image:
+        return jsonify({'error': 'No image'}), 400
+    return jsonify({'numbers': extract_line_numbers(image_file=image)})
 
 @app.route('/lineup')
 def lineup(): return render_template('lineup.html')
@@ -423,16 +500,24 @@ def process_lineup():
         comb = request.files.get('combined')
         f_file, d_file = request.files.get('forwards'), request.files.get('defense')
         sample = comb if comb else f_file
-        sample.seek(0); img_full = Image.open(sample)
-        test_data = pytesseract.image_to_string(img_full)
-        found_teams = []
-        for word in test_data.split():
-            if len(word) > 4:
-                res = search_player(word)
-                if res and res['team']: found_teams.append(res['team'])
-        team = Counter(found_teams).most_common(1)[0][0] if found_teams else 'SJS'
+        chosen = (request.form.get('team') or '').upper()
+        if chosen in NHL_TEAM_INFO:
+            team = chosen
+        else:
+            sample.seek(0); img_full = Image.open(sample)
+            test_data = pytesseract.image_to_string(img_full)
+            found_teams = []
+            for word in test_data.split():
+                if len(word) > 4:
+                    res = search_player(word)
+                    if res and res['team']: found_teams.append(res['team'])
+            if not found_teams:
+                elapsed = round(time.time() - start, 2)
+                activity.record('nhl_screenshot', 'Unknown team', False, elapsed, 'Could not detect the team')
+                return jsonify({'error': "We couldn't tell which team this is. Pick the team above and try again."}), 422
+            team = Counter(found_teams).most_common(1)[0][0]
         
-        r_json = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
+        r_json = fetch_nhl_roster(team)
         roster_data_full, goalies = {}, []
         for pos_key in ['forwards', 'defensemen', 'goalies']:
             for p in r_json.get(pos_key, []):
@@ -490,67 +575,83 @@ def process_lineup():
         logger.info(f"NHL PROCESS OK | team: {team} | method: {method} | {elapsed}s | matched: {matched_f}F+{matched_d}D of {len(final_f)}F+{len(final_d)}D")
         activity.record('nhl_screenshot', team, True, elapsed,
                         f"{matched_f + matched_d}/{len(final_f) + len(final_d)} players matched · {'one' if method == 'combined' else 'two'} screenshot{'s' if method != 'combined' else ''}")
-        return jsonify({'forwards': final_f, 'defensemen': final_d, 'goalies': [{'name': g['name'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{g['id']}.png"} for g in goalies[:2]], 'coaches': get_coaches_from_nhl(team), 'team': team})
+        return jsonify({'forwards': final_f, 'defensemen': final_d, 'goalies': [{'name': g['name'], 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{g['id']}.png"} for g in goalies[:2]], 'coaches': get_coaches_from_nhl(team), 'team': team,
+                        'matched': matched_f + matched_d, 'total': len(final_f) + len(final_d)})
     except Exception as e:
         elapsed = round(time.time() - start, 2)
         logger.error(f"NHL PROCESS FAIL | method: {method} | {elapsed}s | error: {e}")
         activity.record('nhl_screenshot', 'Unknown team', False, elapsed, str(e)[:300])
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': friendly_error(e)}), 500
 
 @app.route('/process_numbers', methods=['POST'])
 def process_numbers():
-    """Improved to strictly use Official API names and ignore stat-noise digits"""
+    """Build a lineup from jersey numbers. Names always come from the official NHL roster.
+
+    New form: slots = JSON {"forwards": [12 numbers], "defense": [6], "goalies": [2]} where
+    blanks ("") keep their place on the sheet. Old form: lines_text / lines_screenshot, read in
+    order (first 12 forwards, next 6 D); roster_screenshot is optional and only overrides names.
+    """
     start = time.time()
     ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     team = None
     try:
-        team = request.form.get('team'); roster_img = request.files.get('roster_screenshot')
+        team = (request.form.get('team') or '').upper()
         logger.info(f"NHL NUMBERS | team: {team} | IP: {ip}")
-        l_text, l_img = request.form.get('lines_text'), request.files.get('lines_screenshot')
-        
-        ref_roster, _ = extract_roster_from_screenshot(roster_img)
-        raw_nums = extract_line_numbers(text=l_text, image_file=l_img)
-        
-        api = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current").json()
-        
-        # Build a valid skater map to filter out stat-noise digits (like Age, GP)
-        valid_skaters = {}
-        for pos in ['forwards', 'defensemen']:
+        if team not in NHL_TEAM_INFO:
+            activity.record('nhl_numbers', team or 'No team', False, round(time.time() - start, 2), 'No team picked')
+            return jsonify({'error': 'Pick a team first.'}), 400
+        api = fetch_nhl_roster(team)
+
+        by_number = {}
+        for pos in ['forwards', 'defensemen', 'goalies']:
             for p in api.get(pos, []):
-                name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
-                if 'sweaterNumber' not in p: continue  # unsigned/camp players have no number yet
-                valid_skaters[str(p['sweaterNumber'])] = {'id': p['id'], 'name': name, 'is_forward': pos == 'forwards'}
-        
-        # Filter: Only keep numbers that actually belong to an active player on the team
-        nums = [n for n in raw_nums if n in valid_skaters]
-        
-        f_out, d_out = [], []
-        for i, n in enumerate(nums[:18]):
-            player = valid_skaters[n]
-            # Use Official Name if screenshot name is missing or just digits
+                if p.get('sweaterNumber') is None: continue  # unsigned/camp players have no number yet
+                by_number[str(p['sweaterNumber'])] = p
+
+        slots = request.form.get('slots')
+        if slots:
+            slots = json.loads(slots)
+            f_nums = [str(n).strip() for n in slots.get('forwards', [])][:12]
+            d_nums = [str(n).strip() for n in slots.get('defense', [])][:6]
+            g_nums = [str(n).strip() for n in slots.get('goalies', [])][:2]
+            ref_roster = {}
+        else:
+            ref_roster, _ = extract_roster_from_screenshot(request.files.get('roster_screenshot'))
+            raw = extract_line_numbers(text=request.form.get('lines_text'), image_file=request.files.get('lines_screenshot'))
+            nums = [n for n in raw if n in by_number and by_number[n] not in api.get('goalies', [])][:18]
+            f_nums, d_nums, g_nums = nums[:12], nums[12:18], []
+
+        def card(n, slot_no, is_forward):
+            p = by_number.get(n)
+            if not p:
+                return {'name': f"PLAYER {slot_no}", 'number': '', 'is_forward': is_forward, 'headshot_url': None}
+            name = f"{p['firstName']['default']} {p['lastName']['default']}".upper()
             scr_name = ref_roster.get(n, {}).get('name', '')
-            display_name = player['name'] if not scr_name or scr_name.isdigit() else scr_name
-            
-            obj = {
-                'name': display_name, 'number': n, 'is_forward': i < 12,
-                'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{player['id']}.png"
-            }
-            if i < 12: f_out.append(obj)
-            else: d_out.append(obj)
-            
+            return {'name': scr_name if scr_name and not scr_name.isdigit() else name, 'number': n,
+                    'is_forward': is_forward, 'headshot_url': headshot_url(p['id'])}
+
+        f_out = [card(n, i + 1, True) for i, n in enumerate(f_nums)]
+        d_out = [card(n, i + 13, False) for i, n in enumerate(d_nums)]
+
+        goalies = [by_number[n] for n in g_nums if n in by_number]
+        for p in api.get('goalies', []):  # fill any open goalie slot from the roster
+            if len(goalies) >= 2: break
+            if p not in goalies: goalies.append(p)
+
+        filled = sum(1 for c in f_out + d_out if c['number'])
         elapsed = round(time.time() - start, 2)
         logger.info(f"NHL NUMBERS OK | team: {team} | {elapsed}s | players: {len(f_out)}F+{len(d_out)}D")
-        activity.record('nhl_numbers', team, True, elapsed, f"{len(f_out) + len(d_out)} players from jersey numbers")
+        activity.record('nhl_numbers', team, True, elapsed, f"{filled} players from jersey numbers")
         return jsonify({
             'forwards': f_out, 'defensemen': d_out,
-            'goalies': [{'name': goalie_label(p), 'headshot_url': f"https://assets.nhle.com/mugs/nhl/latest/{p['id']}.png"} for p in api.get('goalies', [])][:2],
-            'coaches': get_coaches_from_nhl(team), 'team': team
+            'goalies': [{'name': goalie_label(p), 'headshot_url': headshot_url(p['id'])} for p in goalies[:2]],
+            'coaches': get_coaches_from_nhl(team), 'team': team, 'matched': filled, 'total': len(f_out) + len(d_out)
         })
     except Exception as e:
         elapsed = round(time.time() - start, 2)
         logger.error(f"NHL NUMBERS FAIL | team: {team} | {elapsed}s | error: {e}")
         activity.record('nhl_numbers', team or 'Unknown team', False, elapsed, str(e)[:300])
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': friendly_error(e)}), 500
 
 @app.route('/coach_photos', methods=['GET'])
 def list_coach_photos():
@@ -623,7 +724,7 @@ def mlb_generate():
         elapsed = round(time.time() - start, 2)
         logger.error(f"MLB GENERATE FAIL | {away_name} @ {home_name} | {elapsed}s | error: {e}")
         activity.record('mlb', f"{away_name} @ {home_name}", False, elapsed, str(e)[:300])
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': "Couldn't build those sheets. MLB's roster service may be slow; give it a minute and try again."}), 500
 
 @app.route('/mlb/sheet')
 def mlb_sheet():
