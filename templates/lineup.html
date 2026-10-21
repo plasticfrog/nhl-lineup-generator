@@ -132,6 +132,10 @@
             top: clamp(calc(100% - var(--mug)), calc(var(--headroom) - var(--mug) * 0.17), 0px);
             transform-origin: 50% 40%;
         }
+        /* PWHL photos are tight crops (face fills the frame), so fill each card instead */
+        body.league-pwhl .headshot {
+            left: 0; top: 0; width: 100%; height: 100%; object-position: 50% 0%; transform-origin: 50% 30%;
+        }
 
         .role-label {
             position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
@@ -255,7 +259,10 @@
         const NAME_BARS_KEY = 'nhl_name_bars';         // 'black' for plain black name bars; team color otherwise
         const KEEP_KEYS = ['lineup_data', COACH_PHOTOS_KEY, TEAM_COACHES_KEY, COACH_TOGGLE_KEY, NAME_BARS_KEY];
 
-        const currentTeam = lineupData.team || 'Unknown';
+        const LEAGUE = lineupData.league || 'nhl';
+        // PWHL and NHL share abbreviations (BOS, TOR, ...), so PWHL teams get their own key for
+        // everything remembered per team
+        const currentTeam = (LEAGUE === 'nhl' ? '' : `${LEAGUE.toUpperCase()}-`) + (lineupData.team || 'Unknown');
 
         function resetLineupStorage() {
             const keep = KEEP_KEYS.map(k => [k, localStorage.getItem(k)]);
@@ -356,7 +363,7 @@
 
         function applyNameBars() {
             const black = localStorage.getItem(NAME_BARS_KEY) === 'black';
-            const color = TEAM_COLORS[currentTeam] || '#666666';
+            const color = lineupData.team_color || TEAM_COLORS[currentTeam] || '#666666';
             document.body.classList.toggle('team-fill', !black);
             document.body.style.setProperty('--team-color', color);
             document.body.style.setProperty('--team-text', textColorFor(color));
@@ -770,6 +777,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
+            document.body.classList.add(`league-${LEAGUE}`);
+            if (lineupData.team_name) document.title = `${lineupData.team_name} Headshot Sheet`;
             try { SERVER_PHOTOS = await fetch('/coach_photos').then(r => r.json()); } catch (e) { SERVER_PHOTOS = {}; }
 
             const fGrid = document.getElementById('forwards-grid');
@@ -803,7 +812,7 @@
         window.addEventListener('beforeprint', () => {
             if (Date.now() - lastPrintReport < 5000) return;
             lastPrintReport = Date.now();
-            const f = new FormData(); f.append('kind', 'print_nhl'); f.append('summary', currentTeam);
+            const f = new FormData(); f.append('kind', `print_${LEAGUE}`); f.append('summary', lineupData.team || currentTeam);
             navigator.sendBeacon('/activity/event', f);
         });
     </script>

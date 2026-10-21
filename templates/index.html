@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NHL Headshot Sheets · Headshot Generator</title>
-    <meta name="description" content="Pick a team, enter tonight's lines, and print a one-page NHL headshot sheet with every player's photo and number.">
+    <title>{{ league_info.name }} Headshot Sheets · Headshot Generator</title>
+    <meta name="description" content="Pick a team, enter tonight's lines, and print a one-page {{ league_info.name }} headshot sheet with every player's photo and number.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -22,11 +22,12 @@
 
     <main class="page">
         <nav class="league-switch" aria-label="Choose a league">
-            <a class="on" href="/" aria-current="page"><img src="https://assets.nhle.com/logos/nhl/svg/NHL_dark.svg" alt=""><span><span class="l-name">NHL</span><span class="l-sub">Hockey</span></span></a>
+            <a{% if league == 'nhl' %} class="on" aria-current="page"{% endif %} href="/"><img src="https://assets.nhle.com/logos/nhl/svg/{{ 'NHL_dark' if league == 'nhl' else 'NHL_light' }}.svg" alt=""><span><span class="l-name">NHL</span><span class="l-sub">Hockey</span></span></a>
+            <a{% if league == 'pwhl' %} class="on" aria-current="page"{% endif %} href="/pwhl"><img src="https://res.cloudinary.com/pwhl-low/image/upload/{{ 'PWHL_Logo_Lockup_White_z8mr75' if league == 'pwhl' else 'PWHL_Logo_Logotype_Ultra_Violet_cgbt5r' }}" alt=""><span><span class="l-name">PWHL</span><span class="l-sub">Women's hockey</span></span></a>
             <a href="/mlb"><img src="https://www.mlbstatic.com/team-logos/league-on-light/1.svg" alt=""><span><span class="l-name">MLB</span><span class="l-sub">Baseball</span></span></a>
         </nav>
         <div class="hero">
-            <h1>NHL headshot sheets</h1>
+            <h1>{{ league_info.name }} headshot sheets</h1>
             <p>Pick a team, enter tonight's lines, and print a one-page sheet with every player's face and number.</p>
         </div>
 
@@ -39,10 +40,10 @@
                         <span class="step-title">Team</span>
                         <span class="step-note" id="team-note"></span>
                     </div>
-                    <div class="team-grid" id="team-grid">
+                    <div class="team-grid{% if teams|length <= 16 %} few{% endif %}" id="team-grid">
                         {% for t in teams %}
-                        <button type="button" class="team-btn" data-team="{{ t.abbr }}" title="{{ t.city }} {{ t.name }}" aria-label="{{ t.city }} {{ t.name }}">
-                            <img src="https://assets.nhle.com/logos/nhl/svg/{{ t.abbr }}_light.svg" alt="" loading="lazy">
+                        <button type="button" class="team-btn" data-team="{{ t.abbr }}" title="{{ (t.city ~ ' ' ~ t.name)|trim }}" aria-label="{{ (t.city ~ ' ' ~ t.name)|trim }}">
+                            <img src="{{ t.logo }}" alt="" loading="lazy">
                         </button>
                         {% endfor %}
                     </div>
@@ -118,7 +119,7 @@
             <aside class="aside">
                 <div class="preview-label">What you'll print</div>
                 <div class="sheet-shot">
-                    <img src="{{ url_for('static', filename='img/sample-nhl.webp') }}" width="720" height="932" alt="Example headshot sheet: 12 forwards, 6 defensemen, 2 goalies and the coaching staff, each with a headshot and name bar in team colors">
+                    <img src="{{ url_for('static', filename=league_info.sample) }}" width="720" height="932" alt="Example headshot sheet: 12 forwards, 6 defensemen, 2 goalies and the coaching staff, each with a headshot and name bar in team colors">
                 </div>
                 <ul class="facts">
                     <li>Letter size, prints edge to edge on one page</li>
@@ -130,14 +131,19 @@
     </main>
 
     <footer class="foot">
-        <span>Rosters and headshots from NHL.com</span>
+        <span>Rosters and headshots from {{ league_info.source }}</span>
+        {% if league != 'nhl' %}<a href="/">Making NHL sheets? →</a>{% endif %}
+        {% if league != 'pwhl' %}<a href="/pwhl">Making PWHL sheets? →</a>{% endif %}
         <a href="/mlb">Making MLB sheets? →</a>
     </footer>
 
 <script>
 const TEAMS = {{ teams|tojson }};
+const LEAGUE = {{ league|tojson }};
+const CAN_DETECT = {{ league_info.detect|tojson }};   // only NHL can work out the team from a screenshot
+const fullName = t => `${t.city ? t.city + ' ' : ''}${t.name}`;
 const TEAM = Object.fromEntries(TEAMS.map(t => [t.abbr, t]));
-const PREFS_KEY = 'nhl_landing';   // last team, mode and typed lineup per team
+const PREFS_KEY = `${LEAGUE}_landing`;   // last team, mode and typed lineup per team
 
 const $ = id => document.getElementById(id);
 const prefs = (() => { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch (e) { return {}; } })();
@@ -161,7 +167,7 @@ function setAccent(hex) {
 
 /* ---------- Team picker ---------- */
 document.querySelectorAll('.team-btn').forEach(b => b.addEventListener('click', () => {
-    pickTeam(team === b.dataset.team && mode === 'shots' ? null : b.dataset.team);
+    pickTeam(team === b.dataset.team && mode === 'shots' && CAN_DETECT ? null : b.dataset.team);
 }));
 
 async function pickTeam(abbr) {
@@ -178,7 +184,7 @@ async function pickTeam(abbr) {
     if (!abbr) return;
     const req = ++rosterReq;
     try {
-        const res = await fetch(`/api/nhl/roster/${abbr}`);
+        const res = await fetch(`/api/${LEAGUE}/roster/${abbr}`);
         const data = await res.json();
         if (req !== rosterReq) return;
         if (!res.ok) throw new Error(data.error);
@@ -198,7 +204,7 @@ async function pickTeam(abbr) {
 function renderPicked() {
     const el = $('picked');
     if (!team) {
-        el.innerHTML = mode === 'shots' ? 'Optional for screenshots — we\'ll work out the team from the image.' : 'No team picked yet.';
+        el.innerHTML = mode === 'shots' && CAN_DETECT ? 'Optional for screenshots — we\'ll work out the team from the image.' : 'No team picked yet.';
         return;
     }
     const t = TEAM[team];
@@ -206,8 +212,8 @@ function renderPicked() {
     if (!roster) extra = ' · loading roster…';
     else if (roster.error) extra = ` · <span style="color:var(--bad)">${roster.error}</span>`;
     else extra = ` · ${roster.forwards.length + roster.defensemen.length + roster.goalies.length} players on the roster`;
-    el.innerHTML = `<b>${t.city} ${t.name}</b>${extra}` +
-        (mode === 'shots' ? ` · <button type="button" class="linkish" id="auto-team">detect from screenshot instead</button>` : '');
+    el.innerHTML = `<b>${fullName(t)}</b>${extra}` +
+        (mode === 'shots' && CAN_DETECT ? ` · <button type="button" class="linkish" id="auto-team">detect from screenshot instead</button>` : '');
     const auto = $('auto-team'); if (auto) auto.onclick = () => pickTeam(null);
 }
 
@@ -218,7 +224,7 @@ function setMode(m) {
     document.querySelectorAll('.segmented button').forEach(b => { b.classList.toggle('on', b.dataset.mode === m); b.setAttribute('aria-selected', b.dataset.mode === m); });
     $('mode-numbers').hidden = m !== 'numbers';
     $('mode-shots').hidden = m !== 'shots';
-    $('team-note').textContent = m === 'shots' ? 'optional' : '';
+    $('team-note').textContent = m === 'shots' && CAN_DETECT ? 'optional' : '';
     renderPicked();
     refresh();
 }
@@ -322,9 +328,9 @@ function renderBuilder() {
         if (!p) {
             el.classList.add('bad'); face.style.backgroundImage = ''; last.textContent = `#${v}`; meta.textContent = 'Not on roster';
         } else if (counts[v] > 1 && first[v] !== entry) {
-            el.classList.add('dupe'); face.style.backgroundImage = `url(${p.headshot})`; last.textContent = p.last; meta.textContent = `Also on ${place(first[v].group, first[v].i)}`;
+            el.classList.add('dupe'); face.style.backgroundImage = p.headshot ? `url(${p.headshot})` : ''; last.textContent = p.last; meta.textContent = `Also on ${place(first[v].group, first[v].i)}`;
         } else {
-            el.classList.add('filled'); face.style.backgroundImage = `url(${p.headshot})`; last.textContent = p.last; meta.textContent = `${p.first} · ${p.pos}`;
+            el.classList.add('filled'); face.style.backgroundImage = p.headshot ? `url(${p.headshot})` : ''; last.textContent = p.last; meta.textContent = `${p.first} · ${p.pos}`;
         }
     }
     renderRosterUsed();
@@ -337,7 +343,7 @@ function renderRoster() {
     body.innerHTML = groups.map(([title, list, target]) => {
         const withNum = list.filter(p => p.number).sort((a, b) => a.last.localeCompare(b.last));
         return `<div class="roster-group"><h4>${title}</h4><div class="chips">${withNum.map(p =>
-            `<button type="button" class="chip" data-num="${p.number}" data-target="${target}" title="Add ${p.first} ${p.last}"><img src="${p.headshot}" alt="" loading="lazy"><b>${p.number}</b>${p.last}</button>`).join('')}</div></div>`;
+            `<button type="button" class="chip" data-num="${p.number}" data-target="${target}" title="Add ${p.first} ${p.last}">${p.headshot ? `<img src="${p.headshot}" alt="" loading="lazy">` : '<span class="no-photo"></span>'}<b>${p.number}</b>${p.last}</button>`).join('')}</div></div>`;
     }).join('');
     const noNum = [...roster.forwards, ...roster.defensemen, ...roster.goalies].filter(p => !p.number).length;
     $('roster-count').textContent = `· click a player to add him to the next open spot${noNum ? ` · ${noNum} without a number yet not shown` : ''}`;
@@ -373,7 +379,7 @@ async function readNumbersFrom(file) {
     setHint('Reading numbers from the screenshot…');
     const form = new FormData(); form.append('image', file);
     try {
-        const res = await fetch('/api/nhl/read_numbers', { method: 'POST', body: form });
+        const res = await fetch(`/api/${LEAGUE}/read_numbers`, { method: 'POST', body: form });
         const data = await res.json();
         const nums = (data.numbers || []).filter(n => byNum[n] && byNum[n].group !== 'G');
         if (!nums.length) { setHint("Couldn't find any of this team's numbers in that image."); return; }
@@ -454,6 +460,7 @@ function setHint(t) { $('go-hint').textContent = t; }
 function readiness() {
     if (mode === 'shots') {
         if (!shots.length) return [false, 'Add a screenshot of the lines'];
+        if (!team && !CAN_DETECT) return [false, 'Pick the team the screenshot is for'];
         return [true, team ? `Using the ${TEAM[team].name} roster` : 'We\'ll detect the team from the screenshot'];
     }
     if (!team) return [false, 'Pick a team'];
@@ -506,6 +513,7 @@ async function generate() {
     const timer = setInterval(() => { if (step < steps.length - 1) { step++; drawSteps(); } }, mode === 'shots' ? 2200 : 900);
 
     const form = new FormData();
+    form.append('league', LEAGUE);
     let url;
     if (mode === 'shots') {
         url = '/process';
