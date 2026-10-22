@@ -13,6 +13,7 @@ from collections import Counter
 from difflib import SequenceMatcher
 from bs4 import BeautifulSoup
 from mlb import MLB_TEAMS, fetch_team_data as mlb_fetch_team_data
+import nba
 import activity
 import pwhl
 
@@ -828,6 +829,34 @@ def mlb_generate():
 def mlb_sheet():
     return render_template('mlb_sheet.html')
 
+@app.route('/nba')
+def nba_select():
+    return render_template('nba_select.html', teams=nba.teams())
+
+@app.route('/nba/generate', methods=['POST'])
+def nba_generate():
+    start = time.time()
+    away, home = request.form.get('away_team'), request.form.get('home_team')
+    if away not in nba.NBA_TEAMS or home not in nba.NBA_TEAMS or away == home:
+        return jsonify({'error': 'Pick two different teams'}), 400
+    summary = f"{nba.NBA_TEAMS[away][2]} @ {nba.NBA_TEAMS[home][2]}"
+    try:
+        teams = [nba.team_data(away), nba.team_data(home)]
+        elapsed = round(time.time() - start, 2)
+        players = '+'.join(str(len(t['players'])) for t in teams)
+        logger.info(f"NBA GENERATE OK | {summary} | {elapsed}s | players: {players}")
+        activity.record('nba', summary, True, elapsed, f"{players} players")
+        return jsonify({'teams': teams})
+    except Exception as e:
+        elapsed = round(time.time() - start, 2)
+        logger.error(f"NBA GENERATE FAIL | {summary} | {elapsed}s | error: {e}")
+        activity.record('nba', summary, False, elapsed, str(e)[:300])
+        return jsonify({'error': "Couldn't build those sheets. NBA.com may be slow; give it a minute and try again."}), 500
+
+@app.route('/nba/sheet')
+def nba_sheet():
+    return render_template('nba_sheet.html')
+
 # ---- Activity dashboard (password: ADMIN_PASSWORD env var; username can be anything) ----
 
 def _admin_ok():
@@ -844,7 +873,7 @@ def _admin_denied():
 def activity_event():
     """Sheet pages report prints here."""
     kind = request.form.get('kind')
-    if kind in ('print_nhl', 'print_pwhl', 'print_mlb'):
+    if kind in ('print_nhl', 'print_pwhl', 'print_mlb', 'print_nba'):
         activity.record(kind, (request.form.get('summary') or '')[:80] or 'Sheet', True)
     return ('', 204)
 

@@ -7,7 +7,7 @@
     <style>
         :root {
             --bg: #f4f5f7; --card: #fff; --text: #16181d; --muted: #6b7280; --line: #e5e7eb;
-            --nhl: #1d4ed8; --pwhl: #6d28d9; --mlb: #b91c1c; --print: #047857; --photo: #7c3aed; --bad: #dc2626;
+            --nhl: #1d4ed8; --pwhl: #6d28d9; --mlb: #b91c1c; --nba: #ea580c; --print: #047857; --photo: #7c3aed; --bad: #dc2626;
         }
         * { box-sizing: border-box; }
         body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
@@ -25,7 +25,7 @@
         .bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; }
         .bar { flex: 1; display: flex; flex-direction: column-reverse; min-width: 4px; }
         .bar span { display: block; }
-        .bar .nhl { background: var(--nhl); } .bar .pwhl { background: var(--pwhl); } .bar .mlb { background: var(--mlb); }
+        .bar .nhl { background: var(--nhl); } .bar .pwhl { background: var(--pwhl); } .bar .mlb { background: var(--mlb); } .bar .nba { background: var(--nba); }
         .bar:hover { opacity: .75; }
         .axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: 6px; }
         .legend { font-size: 12px; color: var(--muted); margin-top: 6px; }
@@ -40,7 +40,7 @@
         tr.day td { background: #f9fafb; font-weight: 600; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
         tr.fail td { background: #fef2f2; }
         .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; color: #fff; white-space: nowrap; }
-        .tag.nhl { background: var(--nhl); } .tag.pwhl { background: var(--pwhl); } .tag.mlb { background: var(--mlb); } .tag.print { background: var(--print); } .tag.photo { background: var(--photo); }
+        .tag.nhl { background: var(--nhl); } .tag.pwhl { background: var(--pwhl); } .tag.mlb { background: var(--mlb); } .tag.nba { background: var(--nba); } .tag.print { background: var(--print); } .tag.photo { background: var(--photo); }
         .what b { display: block; }
         .who .name { font-weight: 600; }
         .who .name.unnamed { color: var(--muted); font-weight: 400; font-style: italic; }
@@ -72,7 +72,7 @@
     <div class="chart">
         <div class="bars" id="bars"></div>
         <div class="axis"><span id="axis-start"></span><span id="axis-end"></span></div>
-        <div class="legend">Sheets made per day <i style="background:var(--nhl)"></i>NHL <i style="background:var(--pwhl)"></i>PWHL <i style="background:var(--mlb)"></i>MLB</div>
+        <div class="legend">Sheets made per day <i style="background:var(--nhl)"></i>NHL <i style="background:var(--pwhl)"></i>PWHL <i style="background:var(--nba)"></i>NBA <i style="background:var(--mlb)"></i>MLB</div>
     </div>
 
     <h2>People</h2>
@@ -82,6 +82,7 @@
         <button class="chip on" data-f="all">Everything</button>
         <button class="chip" data-f="nhl">NHL sheets</button>
         <button class="chip" data-f="pwhl">PWHL sheets</button>
+        <button class="chip" data-f="nba">NBA sheets</button>
         <button class="chip" data-f="mlb">MLB sheets</button>
         <button class="chip" data-f="print">Prints</button>
         <button class="chip" data-f="photo">Coach photos</button>
@@ -99,9 +100,11 @@
         pwhl_screenshot: { tag: 'PWHL', cls: 'pwhl', group: 'pwhl', label: 'Headshot sheet · screenshot' },
         pwhl_numbers:    { tag: 'PWHL', cls: 'pwhl', group: 'pwhl', label: 'Headshot sheet · jersey numbers' },
         mlb:            { tag: 'MLB', cls: 'mlb', group: 'mlb', label: 'Headshot sheet' },
+        nba:            { tag: 'NBA', cls: 'nba', group: 'nba', label: 'Headshot sheet' },
         print_nhl:      { tag: 'PRINT', cls: 'print', group: 'print', label: 'Printed NHL sheet' },
         print_pwhl:     { tag: 'PRINT', cls: 'print', group: 'print', label: 'Printed PWHL sheet' },
         print_mlb:      { tag: 'PRINT', cls: 'print', group: 'print', label: 'Printed MLB sheet' },
+        print_nba:      { tag: 'PRINT', cls: 'print', group: 'print', label: 'Printed NBA sheet' },
         coach_photo:    { tag: 'PHOTO', cls: 'photo', group: 'photo', label: 'Coach photo uploaded' },
     };
     let rows = [], filter = 'all';
@@ -123,7 +126,7 @@
         if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
         return `${Math.floor(s / 86400)}d ago`;
     }
-    const isSheet = r => ['nhl', 'pwhl', 'mlb'].includes((KINDS[r.kind] || {}).group);
+    const isSheet = r => ['nhl', 'pwhl', 'nba', 'mlb'].includes((KINDS[r.kind] || {}).group);
 
     async function load() {
         const res = await fetch(`${location.origin}/activity/data?days=${$('range').value}`);
@@ -146,6 +149,7 @@
         const tiles = [
             [rows.filter(r => KINDS[r.kind]?.group === 'nhl' && r.ok).length, 'NHL sheets made'],
             [rows.filter(r => KINDS[r.kind]?.group === 'pwhl' && r.ok).length, 'PWHL sheets made'],
+            [rows.filter(r => r.kind === 'nba' && r.ok).length, 'NBA sheets made'],
             [rows.filter(r => r.kind === 'mlb' && r.ok).length, 'MLB sheets made'],
             [rows.filter(r => KINDS[r.kind]?.group === 'print').length, 'Sheets printed'],
             [people.size, 'People'],
@@ -157,15 +161,15 @@
         const days = +$('range').value, counts = [];
         for (let i = days - 1; i >= 0; i--) {
             const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
-            counts.push({ d, nhl: 0, pwhl: 0, mlb: 0 });
+            counts.push({ d, nhl: 0, pwhl: 0, nba: 0, mlb: 0 });
         }
         sheets.forEach(r => {
             const c = counts.find(c => c.d.toDateString() === dayKey(r.ts));
             if (c) c[KINDS[r.kind].group]++;
         });
-        const max = Math.max(1, ...counts.map(c => c.nhl + c.pwhl + c.mlb));
-        $('bars').innerHTML = counts.map(c => `<div class="bar" title="${c.d.toLocaleDateString([], {month:'short',day:'numeric'})}: ${c.nhl} NHL, ${c.pwhl} PWHL, ${c.mlb} MLB" style="height:100%">
-            <span class="nhl" style="height:${c.nhl / max * 100}%"></span><span class="pwhl" style="height:${c.pwhl / max * 100}%"></span><span class="mlb" style="height:${c.mlb / max * 100}%"></span></div>`).join('');
+        const max = Math.max(1, ...counts.map(c => c.nhl + c.pwhl + c.nba + c.mlb));
+        $('bars').innerHTML = counts.map(c => `<div class="bar" title="${c.d.toLocaleDateString([], {month:'short',day:'numeric'})}: ${c.nhl} NHL, ${c.pwhl} PWHL, ${c.nba} NBA, ${c.mlb} MLB" style="height:100%">
+            <span class="nhl" style="height:${c.nhl / max * 100}%"></span><span class="pwhl" style="height:${c.pwhl / max * 100}%"></span><span class="nba" style="height:${c.nba / max * 100}%"></span><span class="mlb" style="height:${c.mlb / max * 100}%"></span></div>`).join('');
         $('axis-start').textContent = counts[0].d.toLocaleDateString([], { month: 'short', day: 'numeric' });
         $('axis-end').textContent = 'Today';
 

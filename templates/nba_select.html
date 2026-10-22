@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Headshot Sheets · Headshot Generator</title>
+    <meta name="description" content="Pick a matchup and print one landscape NBA headshot sheet with both teams: players, coaches and a referee spot.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="wordmark" href="/">
+                <svg class="wordmark-mark" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="5" fill="#fff"/><rect x="5" y="6" width="4" height="14" rx="1" fill="#0e1013"/><rect x="11" y="6" width="4" height="14" rx="1" fill="#0e1013"/><rect x="17" y="6" width="4" height="14" rx="1" fill="#0e1013"/></svg>
+                Headshot Generator
+            </a>
+        </div>
+    </header>
+
+    <main class="page">
+        <nav class="league-switch" aria-label="Choose a league">
+            <a href="/"><img src="https://assets.nhle.com/logos/nhl/svg/NHL_light.svg" alt=""><span><span class="l-name">NHL</span><span class="l-sub">Hockey</span></span></a>
+            <a href="/pwhl"><img src="https://res.cloudinary.com/pwhl-low/image/upload/PWHL_Logo_Logotype_Ultra_Violet_cgbt5r" alt=""><span><span class="l-name">PWHL</span><span class="l-sub">Women's hockey</span></span></a>
+            <a class="on" href="/nba" aria-current="page"><img src="https://cdn.nba.com/logos/leagues/logo-nba.svg" alt=""><span><span class="l-name">NBA</span><span class="l-sub">Basketball</span></span></a>
+            <a href="/mlb"><img src="https://www.mlbstatic.com/team-logos/league-on-light/1.svg" alt=""><span><span class="l-name">MLB</span><span class="l-sub">Baseball</span></span></a>
+        </nav>
+        <div class="hero">
+            <h1>NBA headshot sheets</h1>
+            <p>Pick a matchup and print one landscape page with both teams: every player, the coaching staffs and a spot for the referee.</p>
+        </div>
+
+        <div class="layout">
+            <section class="card">
+                <div class="step">
+                    <div class="step-head">
+                        <span class="step-num">1</span>
+                        <span class="step-title">Matchup</span>
+                    </div>
+                    <div class="matchup">
+                        <div class="side">
+                            <label for="away-team">Away · left side</label>
+                            <div class="pick"><span class="logo-blank" id="away-logo"></span>
+                                <select id="away-team">
+                                    <option value="">Choose a team</option>
+                                    {% for t in teams %}<option value="{{ t.abbr }}">{{ t.city }} {{ t.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="at">@</div>
+                        <div class="side">
+                            <label for="home-team">Home · right side</label>
+                            <div class="pick"><span class="logo-blank" id="home-logo"></span>
+                                <select id="home-team">
+                                    <option value="">Choose a team</option>
+                                    {% for t in teams %}<option value="{{ t.abbr }}">{{ t.city }} {{ t.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="linkish swap" id="swap">⇄ Swap home and away</button>
+                </div>
+
+                <div class="go">
+                    <button type="button" class="go-btn" id="go" disabled>Make the headshot sheet</button>
+                    <div class="go-hint" id="go-hint"></div>
+                    <div class="status" id="status" role="status" aria-live="polite"></div>
+                </div>
+            </section>
+
+            <aside class="aside">
+                <div class="preview-label">What you'll print</div>
+                <div class="sheet-shot">
+                    <img src="{{ url_for('static', filename='img/sample-nba.webp') }}" width="720" height="557" alt="Example NBA headshot sheet with both teams side by side">
+                </div>
+                <ul class="facts">
+                    <li>Both teams on one landscape page</li>
+                    <li>Drag players into your order and take out anyone who's not playing; each team remembers it</li>
+                    <li>Coaches fill in automatically; type in the referee and drop in a photo</li>
+                </ul>
+            </aside>
+        </div>
+    </main>
+
+    <footer class="foot">
+        <span>Rosters and headshots from NBA.com</span>
+        <a href="/">Making NHL sheets? →</a>
+    </footer>
+
+<script>
+const TEAMS = Object.fromEntries({{ teams|tojson }}.map(t => [t.abbr, t]));
+const PREFS_KEY = 'nba_landing';
+const $ = id => document.getElementById(id);
+let busy = false;
+
+function textOn(hex) {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.3 ? '#121417' : '#ffffff';
+}
+
+function showLogo(side) {
+    const abbr = $(`${side}-team`).value, el = $(`${side}-logo`);
+    const node = abbr ? Object.assign(document.createElement('img'), { src: TEAMS[abbr].logo, alt: '' })
+                      : Object.assign(document.createElement('span'), { className: 'logo-blank' });
+    node.id = `${side}-logo`;
+    el.replaceWith(node);
+}
+
+const fullName = t => `${t.city} ${t.name}`;
+
+function refresh() {
+    const away = $('away-team').value, home = $('home-team').value;
+    showLogo('away'); showLogo('home');
+    const color = (TEAMS[home] || TEAMS[away] || {}).color;
+    document.documentElement.style.setProperty('--accent', color || '#121417');
+    document.documentElement.style.setProperty('--accent-ink', color ? textOn(color) : '#fff');
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ away, home })); } catch (e) {}
+    if (busy) return;
+    let hint = '';
+    if (!away || !home) hint = 'Pick both teams';
+    else if (away === home) hint = 'Pick two different teams';
+    else hint = `${fullName(TEAMS[away])} at ${fullName(TEAMS[home])}`;
+    $('go').disabled = !away || !home || away === home;
+    $('go-hint').textContent = hint;
+}
+
+$('away-team').addEventListener('change', refresh);
+$('home-team').addEventListener('change', refresh);
+$('swap').addEventListener('click', () => {
+    const a = $('away-team').value; $('away-team').value = $('home-team').value; $('home-team').value = a; refresh();
+});
+
+function showStatus(kind, html) { const s = $('status'); s.className = `status show ${kind}`; s.innerHTML = html; }
+
+$('go').addEventListener('click', async () => {
+    const away = $('away-team').value, home = $('home-team').value;
+    if (!away || !home || away === home || busy) return;
+    busy = true; $('go').disabled = true; $('go-hint').textContent = '';
+
+    const win = window.open('', '_blank');   // open during the click so it isn't blocked as a pop-up
+    if (win) win.document.write('<title>Building your sheet…</title><body style="font:16px system-ui;padding:40px;color:#444">Building your headshot sheet…</body>');
+
+    const steps = [`Loading the ${TEAMS[away].name} roster`, `Loading the ${TEAMS[home].name} roster`, 'Adding coaching staffs', 'Building your sheet'];
+    let step = 0;
+    const draw = () => showStatus('working', `<ul class="steps-list">${steps.map((s, i) => `<li class="${i < step ? 'done' : i === step ? 'now' : ''}">${s}</li>`).join('')}</ul>`);
+    draw();
+    const timer = setInterval(() => { if (step < steps.length - 1) { step++; draw(); } }, 600);
+
+    const form = new FormData(); form.append('away_team', away); form.append('home_team', home);
+    try {
+        const res = await fetch('/nba/generate', { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Couldn't build that sheet. Try again in a minute.");
+        localStorage.setItem('nba_sheet_data', JSON.stringify(data));
+        clearInterval(timer); step = steps.length; draw();
+        if (win) win.location.href = '/nba/sheet'; else window.location.href = '/nba/sheet';
+        showStatus('ok', `Your ${TEAMS[away].name} at ${TEAMS[home].name} sheet is open in a new tab. <a href="/nba/sheet" target="_blank">Open it again</a>`);
+    } catch (e) {
+        clearInterval(timer);
+        if (win) win.close();
+        showStatus('err', e.message);
+    } finally {
+        busy = false; refresh();
+    }
+});
+
+try {
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY)) || {};
+    if (TEAMS[saved.away]) $('away-team').value = saved.away;
+    if (TEAMS[saved.home]) $('home-team').value = saved.home;
+} catch (e) {}
+refresh();
+</script>
+</body>
+</html>

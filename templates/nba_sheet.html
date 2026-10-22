@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <title>NBA Headshot Sheet</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        @page { size: letter landscape; margin: 0; }
+        body { background: #2a2c30; font-family: Arial, Helvetica, sans-serif; color: #000; }
+
+        /* ---------- Sheet ---------- */
+        .sheet { width: 11in; height: 8.5in; background: #fff; margin: 24px 0 40px 24px; padding: 0.14in 0.16in; display: grid; grid-template-columns: minmax(0, 1fr) 2px minmax(0, 1fr); gap: 0.12in; box-shadow: 0 10px 40px rgba(0,0,0,.45); overflow: hidden; }
+        .divider { background: #000; }
+        .half { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+        .head { height: 1.78in; display: grid; grid-template-columns: 1.08in minmax(0, 1fr) 0.95in; gap: 0.08in; margin-bottom: 0.08in; }
+        .head-mid { display: flex; flex-direction: column; min-width: 0; }
+        .team-name { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 21px; line-height: 1; text-transform: uppercase; text-align: center; white-space: nowrap; padding: 0.02in 0 0.05in; outline: none; }
+        .assts { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.05in; min-height: 0; }
+        .logo { display: flex; align-items: center; justify-content: center; }
+        .logo img { width: 100%; max-height: 1.3in; object-fit: contain; }
+
+        /* ---------- Cards (players, coaches, referee) ---------- */
+        .card { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+        .photo { position: relative; flex: 1; overflow: hidden; min-height: 0; }
+        .photo img { position: absolute; left: 50%; top: -3%; height: 116%; width: auto; max-width: none; transform-origin: 50% 25%; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+        .coach .photo img { top: -6%; height: 124%; }
+        .photo img.custom { top: 0; height: 100%; width: 100%; object-fit: cover; object-position: 50% 15%; }
+        .label { font-size: 9px; font-weight: 700; text-transform: uppercase; text-align: center; letter-spacing: .02em; padding-bottom: 2px; outline: none; }
+        .name { height: 0.23in; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; outline: none; }
+        .coach .name { height: 0.3in; font-size: 10px; line-height: 1.1; white-space: normal; }
+        .head-coach .name { font-size: 11px; }
+        .num { position: absolute; left: 0.03in; bottom: -0.02in; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 0.46in; line-height: 1; color: #FFE500; -webkit-text-stroke: 1.6px #000; paint-order: stroke fill; outline: none; z-index: 2; min-width: 0.2in; }
+        [contenteditable]:focus { background: #fff6b0; }
+        .num:focus { background: transparent; color: #fff6b0; }
+
+        .players { flex: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.05in 0.05in; min-height: 0; }
+        .player { cursor: grab; }
+        .player.dragging { opacity: .35; }
+        .drop-on { outline: 3px solid #f5b400; outline-offset: -1px; }
+        .empty { border: 1px dashed transparent; }
+        body.dragging-card .empty { border-color: #ccc; }
+
+        .ref-spot { grid-column: span 2; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.05in; }
+        .league-logo { display: flex; align-items: center; justify-content: center; padding: 0.08in 0.06in 0.27in; }
+        .league-logo img { height: 100%; max-width: 100%; object-fit: contain; }
+        .ref .name { font-size: 12px; }
+
+        .x { position: absolute; top: 2px; right: 2px; z-index: 3; width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(0,0,0,.72); color: #fff; font-size: 12px; line-height: 20px; cursor: pointer; display: none; }
+        .card:hover .x { display: block; }
+        .x:hover { background: #c62828; }
+        .swap-btn { position: absolute; top: 2px; left: 2px; z-index: 3; height: 20px; padding: 0 7px; border-radius: 10px; border: 0; background: rgba(0,0,0,.72); color: #fff; font-size: 10px; font-weight: 700; cursor: pointer; display: none; }
+        .coach:hover .swap-btn { display: block; }
+
+        /* ---------- Side panel ---------- */
+        .panel { position: fixed; top: 24px; right: 20px; width: 250px; background: #fff; border-radius: 10px; padding: 16px; font: 13px/1.45 -apple-system, 'Segoe UI', sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.35); max-height: calc(100vh - 48px); overflow: auto; z-index: 50; }
+        .panel button.big { width: 100%; padding: 11px; border: 0; border-radius: 7px; font-weight: 700; font-size: 14px; cursor: pointer; margin-bottom: 8px; }
+        .print { background: #121417; color: #fff; }
+        .plain { background: #eef0f3; color: #121417; }
+        .panel h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: 14px 0 6px; }
+        .tips { color: #374151; font-size: 12px; }
+        .tips b { color: #111; }
+        .bench-team { font-weight: 700; margin-top: 6px; font-size: 12px; }
+        .bench button { display: block; width: 100%; text-align: left; border: 1px solid #e5e7eb; background: #fafafa; border-radius: 6px; padding: 5px 8px; margin-top: 4px; font-size: 12px; cursor: pointer; }
+        .bench button:hover { border-color: #111; background: #fff; }
+        .bench .none { color: #9ca3af; font-size: 12px; }
+        .menu { position: fixed; z-index: 100; background: #fff; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.35); padding: 6px; font: 13px -apple-system, 'Segoe UI', sans-serif; min-width: 220px; max-height: 70vh; overflow: auto; }
+        .menu div { padding: 7px 10px; border-radius: 5px; cursor: pointer; }
+        .menu div:hover { background: #f1f2f4; }
+        .menu small { color: #6b7280; display: block; font-size: 11px; }
+        .no-data { color: #ddd; font: 18px system-ui; padding: 80px; }
+
+        @media print {
+            body { background: #fff; }
+            .sheet { margin: 0; box-shadow: none; }
+            .panel, .x, .swap-btn, .menu { display: none !important; }
+            [contenteditable]:focus { background: transparent; }
+            .empty { border: 0 !important; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <aside class="panel">
+        <button class="big print" onclick="window.print()">Print sheet</button>
+        <button class="big plain" id="ref-toggle"></button>
+        <button class="big plain" id="reset">Reset order &amp; coaches</button>
+        <h4>How to edit</h4>
+        <div class="tips">
+            <b>Drag</b> a player onto another to swap them<br>
+            <b>✕</b> on a player takes them off the sheet<br>
+            <b>Swap</b> on a coach picks another staff member<br>
+            <b>Click</b> a name or number to edit it<br>
+            <b>Double-click</b> a photo to replace it, or drop an image on it<br>
+            <b>Option + scroll</b> zooms a photo, <b>Option + drag</b> moves it
+        </div>
+        <h4>Not on the sheet</h4>
+        <div class="bench" id="bench"></div>
+    </aside>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function readJSON(key, fallback = {}) { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (e) { return fallback; } }
+function writeJSON(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }
+
+// Remembered per team across new sheets: player order, who's off the sheet, which coaches show
+const PREFS_KEY = 'nba_team_prefs';      // { ABBR: { order: [ids], out: [ids], coaches: [ids|''] } }
+const ADJUST_KEY = 'nba_photo_adjust';   // { photoKey: { s, x, y } }
+const REF_KEY = 'nba_ref';               // { name, number, hidden }
+const SILHOUETTE = 'https://cdn.nba.com/headshots/nba/latest/1040x760/1.png';
+const COACH_SLOTS = 5;
+
+const data = readJSON('nba_sheet_data', null);
+let SERVER_PHOTOS = {};                  // coach and referee photos saved for everyone: { slug: url }
+const custom = {};                       // photos dropped on players this visit: { photoKey: dataUrl }
+const edits = {};                        // typed changes this visit: { 'p:ID:last': text, ... }
+
+const slug = name => (name || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const refPhotoName = name => `NBA REF ${name}`;
+
+function prefsFor(team) {
+    const all = readJSON(PREFS_KEY);
+    const p = Object.assign({ order: [], out: [], coaches: null }, all[team.abbr]);
+    const ids = team.players.map(x => x.id);
+    p.out = p.out.filter(id => ids.includes(id));
+    p.order = p.order.filter(id => ids.includes(id) && !p.out.includes(id));
+    ids.forEach(id => { if (!p.order.includes(id) && !p.out.includes(id)) p.order.push(id); });   // new players go last
+    const staff = team.coaches.map(c => c.id);
+    if (!p.coaches || p.coaches.some(id => id && !staff.includes(id)))
+        p.coaches = Array.from({ length: COACH_SLOTS }, (_, i) => staff[i] || '');
+    return p;
+}
+function savePrefs(team, p) { const all = readJSON(PREFS_KEY); all[team.abbr] = p; writeJSON(PREFS_KEY, all); }
+
+function coachPhoto(c) { return SERVER_PHOTOS[slug(c.name)] || c.headshot || SILHOUETTE; }
+
+function photoHTML(key, src) {
+    const c = custom[key];
+    return `<div class="photo" data-photo="${esc(key)}"><img class="${c ? 'custom' : ''}" src="${esc(c || src || SILHOUETTE)}" alt=""></div>`;
+}
+
+function editable(key, text, cls) {
+    const v = key in edits ? edits[key] : text;
+    return `<div class="${cls}" contenteditable="true" spellcheck="false" data-edit="${esc(key)}">${esc(v)}</div>`;
+}
+
+function coachCard(team, c, slot, isHead) {
+    if (!c) return `<div class="card coach${isHead ? ' head-coach' : ''}" data-team="${team.abbr}" data-slot="${slot}">
+        ${isHead ? '<div class="label">Head Coach</div>' : ''}<div class="photo"></div><div class="name"></div>
+        <button class="swap-btn" type="button">Swap</button></div>`;
+    const [first, ...rest] = c.name.split(' ');
+    return `<div class="card coach${isHead ? ' head-coach' : ''}" data-team="${team.abbr}" data-slot="${slot}" data-coach="${esc(c.name)}">
+        ${isHead ? editable(`c:${c.id}:role`, 'Head Coach', 'label') : ''}
+        ${photoHTML(`c:${c.id}`, coachPhoto(c))}
+        ${editable(`c:${c.id}:name`, `${first}\n${rest.join(' ')}`, 'name').replace(/\n/, '<br>')}
+        <button class="swap-btn" type="button" title="Show a different staff member">Swap</button>
+    </div>`;
+}
+
+function playerCard(team, p) {
+    return `<div class="card player" draggable="true" data-team="${team.abbr}" data-id="${p.id}">
+        <div class="photo-wrap" style="position:relative;flex:1;display:flex;min-height:0">
+            ${photoHTML(`p:${p.id}`, p.headshot)}
+            ${editable(`p:${p.id}:num`, p.number, 'num')}
+        </div>
+        ${editable(`p:${p.id}:last`, p.last, 'name')}
+        <button class="x" type="button" title="Take ${esc(p.first)} ${esc(p.last)} off the sheet">✕</button>
+    </div>`;
+}
+
+function refSpot() {
+    const ref = readJSON(REF_KEY);
+    const src = ref.name && SERVER_PHOTOS[slug(refPhotoName(ref.name))];
+    return `<div class="ref-spot">
+        <div class="league-logo"><img src="https://cdn.nba.com/logos/leagues/logo-nba.svg" alt="NBA"></div>
+        <div class="card ref" data-ref="1">
+            <div class="photo-wrap" style="position:relative;flex:1;display:flex;min-height:0">
+                ${photoHTML('ref', src || SILHOUETTE)}
+                <div class="num" contenteditable="true" spellcheck="false" data-ref-field="number">${esc(ref.number || '')}</div>
+            </div>
+            <div class="name" contenteditable="true" spellcheck="false" data-ref-field="name" data-placeholder="Referee">${esc(ref.name || 'Referee')}</div>
+        </div>
+    </div>`;
+}
+
+function render() {
+    if (!data || !data.teams) { $('root').innerHTML = '<div class="no-data">No sheet found. Go back to the NBA page and pick a matchup.</div>'; return; }
+    const ref = readJSON(REF_KEY);
+    const teams = data.teams.map(t => ({ t, p: prefsFor(t) }));
+    // The referee spot (2 cells) goes on the left team if it has room, else the right, else adds a row on the left
+    let refSide = -1;
+    if (!ref.hidden) refSide = teams[0].p.order.length <= 18 ? 0 : teams[1].p.order.length <= 18 ? 1 : 0;
+    const cells = teams.map(({ p }, i) => p.order.length + (i === refSide ? 2 : 0));
+    const rows = Math.max(4, ...cells.map(n => Math.ceil(n / 5)));
+
+    const halves = teams.map(({ t, p }, i) => {
+        const byId = Object.fromEntries(t.players.map(x => [x.id, x]));
+        const coach = id => t.coaches.find(c => c.id === id);
+        const total = rows * 5;
+        let grid = p.order.map(id => playerCard(t, byId[id])).join('');
+        const used = cells[i];
+        grid += Array.from({ length: total - used }, () => `<div class="empty" data-team="${t.abbr}"></div>`).join('');
+        if (i === refSide) grid += refSpot();
+        return `<section class="half" style="--team:${t.color}">
+            <div class="head">
+                ${coachCard(t, coach(p.coaches[0]), 0, true)}
+                <div class="head-mid">
+                    <div class="team-name" contenteditable="true" spellcheck="false">${esc(`${t.city} ${t.name}`)}</div>
+                    <div class="assts">${[1, 2, 3, 4].map(s => coachCard(t, coach(p.coaches[s]), s, false)).join('')}</div>
+                </div>
+                <div class="logo"><img src="${esc(t.logo)}" alt=""></div>
+            </div>
+            <div class="players" style="grid-template-rows: repeat(${rows}, minmax(0, 1fr))">${grid}</div>
+        </section>`;
+    });
+    $('root').innerHTML = `<div class="sheet">${halves[0]}<div class="divider"></div>${halves[1]}</div>`;
+    document.title = `${data.teams[0].name} @ ${data.teams[1].name} · NBA Headshot Sheet`;
+    $('ref-toggle').textContent = ref.hidden ? 'Show referee' : 'Hide referee';
+    renderBench(teams);
+    wire();
+    requestAnimationFrame(fitNames);
+}
+
+function renderBench(teams) {
+    $('bench').innerHTML = teams.map(({ t, p }) => {
+        const out = p.out.map(id => t.players.find(x => x.id === id));
+        return `<div class="bench-team">${esc(t.name)}</div>` + (out.length
+            ? out.map(x => `<button type="button" data-team="${t.abbr}" data-id="${x.id}">+ #${esc(x.number)} ${esc(x.first)} ${esc(x.last)}</button>`).join('')
+            : '<div class="none">Everyone is on the sheet</div>');
+    }).join('');
+    $('bench').querySelectorAll('button').forEach(b => b.onclick = () => {
+        const t = teamBy(b.dataset.team), p = prefsFor(t);
+        p.out = p.out.filter(id => id !== b.dataset.id); p.order.push(b.dataset.id);
+        savePrefs(t, p); render();
+    });
+}
+
+const teamBy = abbr => data.teams.find(t => t.abbr === abbr);
+
+function fitNames() {
+    document.querySelectorAll('.name, .team-name').forEach(el => {
+        el.style.fontSize = '';
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        while (size > 7 && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) { size -= 0.5; el.style.fontSize = size + 'px'; }
+    });
+}
+
+// ---------- Interactions ----------
+let dragging = null;
+
+function wire() {
+    document.querySelectorAll('[data-edit]').forEach(el => el.addEventListener('input', () => { edits[el.dataset.edit] = el.innerText.trim(); }));
+    document.querySelectorAll('[data-ref-field]').forEach(el => {
+        el.addEventListener('focus', () => { if (el.dataset.refField === 'name' && el.textContent === 'Referee') el.textContent = ''; });
+        el.addEventListener('blur', () => {
+            const ref = readJSON(REF_KEY);
+            const before = ref.name;
+            ref[el.dataset.refField] = el.innerText.trim();
+            writeJSON(REF_KEY, ref);
+            if (el.dataset.refField === 'name' && ref.name !== before) render();   // show that referee's saved photo
+            else if (!el.textContent && el.dataset.refField === 'name') el.textContent = 'Referee';
+        });
+    });
+    document.querySelectorAll('[contenteditable]').forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } }));
+
+    document.querySelectorAll('.player .x').forEach(b => b.onclick = e => {
+        const card = b.closest('.player'), t = teamBy(card.dataset.team), p = prefsFor(t);
+        p.order = p.order.filter(id => id !== card.dataset.id); p.out.push(card.dataset.id);
+        savePrefs(t, p); render();
+    });
+
+    document.querySelectorAll('.coach .swap-btn').forEach(b => b.onclick = e => { e.stopPropagation(); coachMenu(b.closest('.coach'), e); });
+
+    // Drag a player onto another player of the same team to swap; onto an empty spot to move them last
+    document.querySelectorAll('.player').forEach(card => {
+        card.addEventListener('dragstart', e => {
+            if (e.target !== card) return;
+            dragging = card; card.classList.add('dragging'); document.body.classList.add('dragging-card');
+            e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.dataset.id);
+        });
+        card.addEventListener('dragend', () => { dragging = null; card.classList.remove('dragging'); document.body.classList.remove('dragging-card'); clearDrop(); });
+    });
+    document.querySelectorAll('.player, .empty, .coach, .ref').forEach(target => {
+        target.addEventListener('dragover', e => {
+            const files = e.dataTransfer.types.includes('Files');
+            if (!files && !(dragging && target.dataset.team === dragging.dataset.team && target !== dragging && !target.classList.contains('coach'))) return;
+            if (files && target.classList.contains('empty')) return;
+            e.preventDefault(); clearDrop(); target.classList.add('drop-on');
+        });
+        target.addEventListener('dragleave', () => target.classList.remove('drop-on'));
+        target.addEventListener('drop', e => {
+            e.preventDefault(); clearDrop();
+            const file = e.dataTransfer.files[0];
+            if (file) { if (file.type.startsWith('image/')) setPhoto(target, file); return; }
+            if (!dragging) return;
+            const t = teamBy(dragging.dataset.team), p = prefsFor(t);
+            const a = p.order.indexOf(dragging.dataset.id);
+            if (target.classList.contains('empty')) { p.order.splice(a, 1); p.order.push(dragging.dataset.id); }
+            else { const b = p.order.indexOf(target.dataset.id); [p.order[a], p.order[b]] = [p.order[b], p.order[a]]; }
+            savePrefs(t, p); render();
+        });
+    });
+
+    document.querySelectorAll('.photo[data-photo]').forEach(box => {
+        const card = box.closest('.card');
+        enableAdjust(box, card);
+        box.parentElement.addEventListener('dblclick', e => {
+            if (e.altKey || e.target.isContentEditable) return;
+            const f = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*' });
+            f.onchange = () => f.files[0] && setPhoto(card, f.files[0]);
+            f.click();
+        });
+    });
+}
+function clearDrop() { document.querySelectorAll('.drop-on').forEach(el => el.classList.remove('drop-on')); }
+
+// Option+scroll zooms, Option+drag moves, Option+double-click resets. Remembered per photo.
+function enableAdjust(box, card) {
+    const key = box.dataset.photo, img = box.querySelector('img');
+    let adj = Object.assign({ s: 1, x: 0, y: 0 }, readJSON(ADJUST_KEY)[key]);
+    const apply = () => {
+        img.style.transform = img.classList.contains('custom')
+            ? `translate(${adj.x}px, ${adj.y}px) scale(${adj.s})`
+            : `translate(calc(-50% + ${adj.x}px), ${adj.y}px) scale(${adj.s})`;
+    };
+    const save = () => { const all = readJSON(ADJUST_KEY); all[key] = adj; writeJSON(ADJUST_KEY, all); };
+    apply();
+    box.addEventListener('wheel', e => {
+        if (!e.altKey) return;
+        e.preventDefault();
+        adj.s = Math.max(0.4, Math.min(4, adj.s + (e.deltaY > 0 ? -0.03 : 0.03))); apply(); save();
+    }, { passive: false });
+    box.addEventListener('mousedown', e => {
+        if (!e.altKey || e.button !== 0) return;
+        e.preventDefault(); e.stopPropagation();
+        card.draggable = false;
+        const start = { mx: e.clientX, my: e.clientY, x: adj.x, y: adj.y };
+        const move = ev => { adj.x = start.x + ev.clientX - start.mx; adj.y = start.y + ev.clientY - start.my; apply(); };
+        const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); card.draggable = card.classList.contains('player'); save(); };
+        window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    });
+    box.parentElement.addEventListener('dblclick', e => {
+        if (!e.altKey) return;
+        e.stopImmediatePropagation();
+        adj = { s: 1, x: 0, y: 0 }; apply();
+        const all = readJSON(ADJUST_KEY); delete all[key]; writeJSON(ADJUST_KEY, all);
+    });
+}
+
+function clearAdjust(key) { const all = readJSON(ADJUST_KEY); delete all[key]; writeJSON(ADJUST_KEY, all); }
+
+// Coach and referee photos are saved on the server by name for everyone; player photos last this visit only
+async function setPhoto(card, file) {
+    const box = card.querySelector('.photo[data-photo]');
+    if (!box) return;
+    const key = box.dataset.photo;
+    const name = card.classList.contains('coach') ? card.dataset.coach
+               : card.classList.contains('ref') ? (readJSON(REF_KEY).name ? refPhotoName(readJSON(REF_KEY).name) : '') : '';
+    clearAdjust(key);
+    if (name) {
+        try {
+            const form = new FormData(); form.append('name', name); form.append('photo', file);
+            const res = await fetch('/coach_photos', { method: 'POST', body: form });
+            const out = await res.json();
+            if (!res.ok) throw new Error(out.error || res.status);
+            SERVER_PHOTOS[slug(name)] = out.url;
+            delete custom[key];
+            return render();
+        } catch (err) {
+            alert(`Couldn't save the photo for everyone (${err.message}). It's on this sheet only.`);
+        }
+    } else if (card.classList.contains('ref')) {
+        alert('Type the referee\'s name first so the photo is remembered for next time. It\'s on this sheet for now.');
+    }
+    custom[key] = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+    render();
+}
+
+function coachMenu(card, e) {
+    closeMenu();
+    const t = teamBy(card.dataset.team), p = prefsFor(t), slot = +card.dataset.slot;
+    const menu = document.createElement('div'); menu.className = 'menu';
+    const options = t.coaches.filter(c => !p.coaches.includes(c.id)).map(c => ({ label: c.name, sub: c.role, id: c.id }));
+    if (p.coaches[slot]) options.push({ label: 'Leave this spot empty', sub: '', id: '' });
+    menu.innerHTML = options.length ? options.map((o, i) => `<div data-i="${i}">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</div>`).join('')
+                                    : '<div>No other staff listed on NBA.com</div>';
+    menu.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
+        p.coaches[slot] = options[+el.dataset.i].id; savePrefs(t, p); closeMenu(); render();
+    });
+    document.body.appendChild(menu);
+    const r = card.getBoundingClientRect();
+    menu.style.left = Math.min(r.left, innerWidth - menu.offsetWidth - 10) + 'px';
+    menu.style.top = Math.min(r.bottom + 4, innerHeight - menu.offsetHeight - 10) + 'px';
+    setTimeout(() => document.addEventListener('click', closeMenu, { once: true }));
+}
+function closeMenu() { document.querySelectorAll('.menu').forEach(m => m.remove()); }
+
+$('ref-toggle').onclick = () => { const ref = readJSON(REF_KEY); ref.hidden = !ref.hidden; writeJSON(REF_KEY, ref); render(); };
+$('reset').onclick = () => {
+    if (!data || !confirm('Put both teams back in jersey-number order with everyone on the sheet, and reset the coaches?')) return;
+    const all = readJSON(PREFS_KEY); data.teams.forEach(t => delete all[t.abbr]); writeJSON(PREFS_KEY, all); render();
+};
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+
+let lastPrint = 0;
+window.addEventListener('beforeprint', () => {
+    if (Date.now() - lastPrint < 5000 || !data) return;
+    lastPrint = Date.now();
+    const f = new FormData(); f.append('kind', 'print_nba'); f.append('summary', `${data.teams[0].name} @ ${data.teams[1].name}`);
+    navigator.sendBeacon('/activity/event', f);
+});
+
+(async () => {
+    try { SERVER_PHOTOS = await fetch('/coach_photos').then(r => r.json()); } catch (e) {}
+    render();
+    document.fonts && document.fonts.ready.then(fitNames);
+})();
+</script>
+</body>
+</html>

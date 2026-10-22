@@ -24,6 +24,7 @@
         <nav class="league-switch" aria-label="Choose a league">
             <a{% if league == 'nhl' %} class="on" aria-current="page"{% endif %} href="/"><img src="https://assets.nhle.com/logos/nhl/svg/{{ 'NHL_dark' if league == 'nhl' else 'NHL_light' }}.svg" alt=""><span><span class="l-name">NHL</span><span class="l-sub">Hockey</span></span></a>
             <a{% if league == 'pwhl' %} class="on" aria-current="page"{% endif %} href="/pwhl"><img src="https://res.cloudinary.com/pwhl-low/image/upload/{{ 'PWHL_Logo_Lockup_White_z8mr75' if league == 'pwhl' else 'PWHL_Logo_Logotype_Ultra_Violet_cgbt5r' }}" alt=""><span><span class="l-name">PWHL</span><span class="l-sub">Women's hockey</span></span></a>
+            <a href="/nba"><img src="https://cdn.nba.com/logos/leagues/logo-nba.svg" alt=""><span><span class="l-name">NBA</span><span class="l-sub">Basketball</span></span></a>
             <a href="/mlb"><img src="https://www.mlbstatic.com/team-logos/league-on-light/1.svg" alt=""><span><span class="l-name">MLB</span><span class="l-sub">Baseball</span></span></a>
         </nav>
         <div class="hero">
@@ -134,6 +135,7 @@
         <span>Rosters and headshots from {{ league_info.source }}</span>
         {% if league != 'nhl' %}<a href="/">Making NHL sheets? →</a>{% endif %}
         {% if league != 'pwhl' %}<a href="/pwhl">Making PWHL sheets? →</a>{% endif %}
+        <a href="/nba">Making NBA sheets? →</a>
         <a href="/mlb">Making MLB sheets? →</a>
     </footer>
 
