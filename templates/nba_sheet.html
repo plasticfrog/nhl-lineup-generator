@@ -21,8 +21,12 @@
         .head-mid { display: flex; flex-direction: column; min-width: 0; }
         .team-name { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 21px; line-height: 1; text-transform: uppercase; text-align: center; white-space: nowrap; padding: 0.02in 0 0.05in; outline: none; }
         .assts { flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.05in; min-height: 0; }
-        .logo { display: flex; align-items: center; justify-content: center; }
+        .logo-wrap { position: relative; min-width: 0; }
+        .logo { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; line-height: 1.25; text-align: center; overflow: hidden; overflow-wrap: anywhere; outline: none; cursor: text; }
         .logo img { width: 100%; max-height: 1.3in; object-fit: contain; }
+        .logo:empty::before { content: 'Type notes'; color: #bbb; font-weight: 400; }
+        .logo-back { position: absolute; bottom: 2px; right: 2px; border: 0; border-radius: 10px; background: rgba(0,0,0,.72); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 7px; cursor: pointer; display: none; }
+        .logo-wrap:hover .logo-back { display: block; }
 
         /* ---------- Cards (players, coaches, referee) ---------- */
         .card { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -34,9 +38,24 @@
         .name { height: 0.23in; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; outline: none; }
         .coach .name { height: 0.3in; font-size: 10px; line-height: 1.1; white-space: normal; }
         .head-coach .name { font-size: 11px; }
-        .num { position: absolute; left: 0.03in; bottom: -0.02in; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 0.46in; line-height: 1; color: #FFE500; -webkit-text-stroke: 1.6px #000; paint-order: stroke fill; outline: none; z-index: 2; min-width: 0.2in; }
+        .num { position: absolute; left: 0.03in; bottom: -0.02in; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 0.46in; line-height: 1; outline: none; z-index: 2; min-width: 0.2in; }
+        /* Number styles (picked in the side panel) */
+        body.num-badge .num { left: 0; bottom: 0; padding: 0.03in 0.07in 0.01in; font-size: 0.38in; color: #fff; background: var(--team); border-top-right-radius: 5px; box-shadow: 0 0 0 1.5px #fff; }
+        body.num-badge .num:empty:not(:focus) { padding: 0; box-shadow: none; background: none; }
+        body.num-badge .new .num:empty { background: var(--team); }
+        body.num-team .num { color: var(--team); -webkit-text-stroke: 5px #fff; paint-order: stroke fill; filter: drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000); }
+        body.num-yellow .num { color: #FFE500; -webkit-text-stroke: 4px #000; paint-order: stroke fill; filter: drop-shadow(0 0 1.5px #000); }
         [contenteditable]:focus { background: #fff6b0; }
-        .num:focus { background: transparent; color: #fff6b0; }
+        .num:focus { background: var(--team); }
+        body:not(.num-badge) .num:focus { background: transparent; }
+        .new [data-ph]:empty::before { content: attr(data-ph); color: #aaa; -webkit-text-stroke: 0; font-weight: 700; }
+        .new .num:empty { min-width: 0.4in; min-height: 0.4in; }
+        .add { display: none; width: 100%; height: 100%; border: 2px dashed #c7cbd1; border-radius: 6px; background: #f7f8fa; color: #4b5563; font: 700 13px -apple-system, 'Segoe UI', sans-serif; cursor: pointer; }
+        .empty:hover .add { display: block; }
+        .add:hover { border-color: #111; color: #111; }
+        .seg { display: flex; background: #eef0f3; border-radius: 7px; padding: 3px; gap: 3px; margin-bottom: 8px; }
+        .seg button { flex: 1; border: 0; background: none; border-radius: 5px; padding: 7px 4px; font-weight: 700; font-size: 12px; cursor: pointer; color: #4b5563; }
+        .seg button.on { background: #fff; color: #111; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
 
         .players { flex: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.05in 0.05in; min-height: 0; }
         .player { cursor: grab; }
@@ -77,7 +96,8 @@
         @media print {
             body { background: #fff; }
             .sheet { margin: 0; box-shadow: none; }
-            .panel, .x, .swap-btn, .menu { display: none !important; }
+            .panel, .x, .swap-btn, .menu, .add, .logo-back { display: none !important; }
+            .logo:empty::before, .new [data-ph]:empty::before { content: none; }
             [contenteditable]:focus { background: transparent; }
             .empty { border: 0 !important; }
         }
@@ -87,12 +107,20 @@
     <div id="root"></div>
     <aside class="panel">
         <button class="big print" onclick="window.print()">Print sheet</button>
+        <h4 style="margin-top:4px">Numbers</h4>
+        <div class="seg" id="num-style">
+            <button type="button" data-v="badge">Team box</button>
+            <button type="button" data-v="team">Team color</button>
+            <button type="button" data-v="yellow">Yellow</button>
+        </div>
         <button class="big plain" id="ref-toggle"></button>
         <button class="big plain" id="reset">Reset order &amp; coaches</button>
         <h4>How to edit</h4>
         <div class="tips">
             <b>Drag</b> a player onto another to swap them<br>
             <b>✕</b> on a player takes them off the sheet<br>
+            <b>Click</b> an empty spot to add a player who isn't on the roster<br>
+            <b>Click</b> the logo to delete it and type notes<br>
             <b>Swap</b> on a coach picks another staff member<br>
             <b>Click</b> a name or number to edit it<br>
             <b>Double-click</b> a photo to replace it, or drop an image on it<br>
@@ -108,10 +136,11 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 function readJSON(key, fallback = {}) { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (e) { return fallback; } }
 function writeJSON(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }
 
-// Remembered per team across new sheets: player order, who's off the sheet, which coaches show
-const PREFS_KEY = 'nba_team_prefs';      // { ABBR: { order: [ids], out: [ids], coaches: [ids|''] } }
+// Remembered per team across new sheets: player order, who's off the sheet, which coaches show, added players
+const PREFS_KEY = 'nba_team_prefs';      // { ABBR: { order: [ids], out: [ids], coaches: [ids|''], added: [{ id, number, last, photo }] } }
 const ADJUST_KEY = 'nba_photo_adjust';   // { photoKey: { s, x, y } }
 const REF_KEY = 'nba_ref';               // { name, number, hidden }
+const NUM_STYLE_KEY = 'nba_num_style';   // 'badge' | 'team' | 'yellow'
 const SILHOUETTE = 'https://cdn.nba.com/headshots/nba/latest/1040x760/1.png';
 const COACH_SLOTS = 5;
 
@@ -119,14 +148,15 @@ const data = readJSON('nba_sheet_data', null);
 let SERVER_PHOTOS = {};                  // coach and referee photos saved for everyone: { slug: url }
 const custom = {};                       // photos dropped on players this visit: { photoKey: dataUrl }
 const edits = {};                        // typed changes this visit: { 'p:ID:last': text, ... }
+const logos = {};                        // logo boxes turned into notes this visit: { ABBR: html }
 
 const slug = name => (name || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const refPhotoName = name => `NBA REF ${name}`;
 
 function prefsFor(team) {
     const all = readJSON(PREFS_KEY);
-    const p = Object.assign({ order: [], out: [], coaches: null }, all[team.abbr]);
-    const ids = team.players.map(x => x.id);
+    const p = Object.assign({ order: [], out: [], coaches: null, added: [] }, all[team.abbr]);
+    const ids = team.players.map(x => x.id).concat(p.added.map(x => x.id));
     p.out = p.out.filter(id => ids.includes(id));
     p.order = p.order.filter(id => ids.includes(id) && !p.out.includes(id));
     ids.forEach(id => { if (!p.order.includes(id) && !p.out.includes(id)) p.order.push(id); });   // new players go last
@@ -137,10 +167,16 @@ function prefsFor(team) {
 }
 function savePrefs(team, p) { const all = readJSON(PREFS_KEY); all[team.abbr] = p; writeJSON(PREFS_KEY, all); }
 
+// Roster players plus anyone added by hand on this sheet
+function playersOf(team, p) {
+    return team.players.concat(p.added.map(x => ({ id: x.id, first: '', last: x.last, number: x.number, headshot: x.photo, added: true })));
+}
+const isAdded = id => id.startsWith('x-');
+
 function coachPhoto(c) { return SERVER_PHOTOS[slug(c.name)] || c.headshot || SILHOUETTE; }
 
 function photoHTML(key, src) {
-    const c = custom[key];
+    const c = custom[key] || (src && src.startsWith('data:') ? src : null);   // photos people dropped in
     return `<div class="photo" data-photo="${esc(key)}"><img class="${c ? 'custom' : ''}" src="${esc(c || src || SILHOUETTE)}" alt=""></div>`;
 }
 
@@ -163,13 +199,17 @@ function coachCard(team, c, slot, isHead) {
 }
 
 function playerCard(team, p) {
-    return `<div class="card player" draggable="true" data-team="${team.abbr}" data-id="${p.id}">
+    const added = p.added;
+    const field = (key, text, cls, ph) => added
+        ? `<div class="${cls}" contenteditable="true" spellcheck="false" data-added="${key}" data-ph="${ph}">${esc(text)}</div>`
+        : editable(`p:${p.id}:${key}`, text, cls);
+    return `<div class="card player${added && !p.headshot ? ' new' : added ? ' new has-photo' : ''}" draggable="true" data-team="${team.abbr}" data-id="${p.id}">
         <div class="photo-wrap" style="position:relative;flex:1;display:flex;min-height:0">
             ${photoHTML(`p:${p.id}`, p.headshot)}
-            ${editable(`p:${p.id}:num`, p.number, 'num')}
+            ${field('number', p.number, 'num', '#')}
         </div>
-        ${editable(`p:${p.id}:last`, p.last, 'name')}
-        <button class="x" type="button" title="Take ${esc(p.first)} ${esc(p.last)} off the sheet">✕</button>
+        ${field('last', p.last, 'name', 'Name')}
+        <button class="x" type="button" title="${added ? 'Remove this player' : `Take ${esc(p.first)} ${esc(p.last)} off the sheet`}">✕</button>
     </div>`;
 }
 
@@ -199,21 +239,24 @@ function render() {
     const rows = Math.max(4, ...cells.map(n => Math.ceil(n / 5)));
 
     const halves = teams.map(({ t, p }, i) => {
-        const byId = Object.fromEntries(t.players.map(x => [x.id, x]));
+        const byId = Object.fromEntries(playersOf(t, p).map(x => [x.id, x]));
         const coach = id => t.coaches.find(c => c.id === id);
         const total = rows * 5;
         let grid = p.order.map(id => playerCard(t, byId[id])).join('');
         const used = cells[i];
-        grid += Array.from({ length: total - used }, () => `<div class="empty" data-team="${t.abbr}"></div>`).join('');
+        grid += Array.from({ length: total - used }, () => `<div class="empty" data-team="${t.abbr}"><button class="add" type="button">+ Add player</button></div>`).join('');
         if (i === refSide) grid += refSpot();
         return `<section class="half" style="--team:${t.color}">
             <div class="head">
                 ${coachCard(t, coach(p.coaches[0]), 0, true)}
                 <div class="head-mid">
-                    <div class="team-name" contenteditable="true" spellcheck="false">${esc(`${t.city} ${t.name}`)}</div>
+                    ${editable(`team:${t.abbr}`, `${t.city} ${t.name}`, 'team-name')}
                     <div class="assts">${[1, 2, 3, 4].map(s => coachCard(t, coach(p.coaches[s]), s, false)).join('')}</div>
                 </div>
-                <div class="logo"><img src="${esc(t.logo)}" alt=""></div>
+                <div class="logo-wrap">
+                    <div class="logo" contenteditable="true" spellcheck="false" data-logo="${t.abbr}">${logos[t.abbr] ?? `<img src="${esc(t.logo)}" alt="">`}</div>
+                    ${logos[t.abbr] !== undefined ? `<button class="logo-back" type="button" data-team="${t.abbr}">↺ Logo</button>` : ''}
+                </div>
             </div>
             <div class="players" style="grid-template-rows: repeat(${rows}, minmax(0, 1fr))">${grid}</div>
         </section>`;
@@ -221,6 +264,7 @@ function render() {
     $('root').innerHTML = `<div class="sheet">${halves[0]}<div class="divider"></div>${halves[1]}</div>`;
     document.title = `${data.teams[0].name} @ ${data.teams[1].name} · NBA Headshot Sheet`;
     $('ref-toggle').textContent = ref.hidden ? 'Show referee' : 'Hide referee';
+    applyNumStyle();
     renderBench(teams);
     wire();
     requestAnimationFrame(fitNames);
@@ -266,13 +310,39 @@ function wire() {
             else if (!el.textContent && el.dataset.refField === 'name') el.textContent = 'Referee';
         });
     });
-    document.querySelectorAll('[contenteditable]').forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } }));
+    document.querySelectorAll('[contenteditable]:not(.logo)').forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } }));
 
     document.querySelectorAll('.player .x').forEach(b => b.onclick = e => {
-        const card = b.closest('.player'), t = teamBy(card.dataset.team), p = prefsFor(t);
-        p.order = p.order.filter(id => id !== card.dataset.id); p.out.push(card.dataset.id);
+        const card = b.closest('.player'), t = teamBy(card.dataset.team), p = prefsFor(t), id = card.dataset.id;
+        if (isAdded(id)) {
+            const x = p.added.find(a => a.id === id);
+            if ((x.last || x.number || x.photo) && !confirm(`Remove ${x.last || 'this player'} from the sheet?`)) return;
+            p.added = p.added.filter(a => a.id !== id);
+        } else p.out.push(id);
+        p.order = p.order.filter(o => o !== id);
         savePrefs(t, p); render();
     });
+
+    // Players added by hand: typing saves them for this team's future sheets too
+    document.querySelectorAll('[data-added]').forEach(el => el.addEventListener('input', () => {
+        const card = el.closest('.player'), t = teamBy(card.dataset.team), p = prefsFor(t);
+        const x = p.added.find(a => a.id === card.dataset.id);
+        x[el.dataset.added] = el.innerText.trim(); savePrefs(t, p);
+    }));
+    document.querySelectorAll('.add').forEach(b => b.onclick = () => {
+        const t = teamBy(b.closest('.empty').dataset.team), p = prefsFor(t), id = `x-${Date.now()}`;
+        p.added.push({ id, number: '', last: '', photo: null }); p.order.push(id);
+        savePrefs(t, p); render();
+        document.querySelector(`.player[data-id="${id}"] .num`)?.focus();
+    });
+
+    // Logo box: delete the logo and type notes, like the MLB sheet
+    document.querySelectorAll('[data-logo]').forEach(el => el.addEventListener('input', () => {
+        const had = el.dataset.logo in logos;
+        logos[el.dataset.logo] = el.innerHTML.replace(/^<br>$/, '');
+        if (!had) el.parentElement.insertAdjacentHTML('beforeend', `<button class="logo-back" type="button" data-team="${el.dataset.logo}">↺ Logo</button>`), wireLogoBack();
+    }));
+    wireLogoBack();
 
     document.querySelectorAll('.coach .swap-btn').forEach(b => b.onclick = e => { e.stopPropagation(); coachMenu(b.closest('.coach'), e); });
 
@@ -316,6 +386,9 @@ function wire() {
             f.click();
         });
     });
+}
+function wireLogoBack() {
+    document.querySelectorAll('.logo-back').forEach(b => b.onclick = () => { delete logos[b.dataset.team]; render(); });
 }
 function clearDrop() { document.querySelectorAll('.drop-on').forEach(el => el.classList.remove('drop-on')); }
 
@@ -377,9 +450,37 @@ async function setPhoto(card, file) {
     } else if (card.classList.contains('ref')) {
         alert('Type the referee\'s name first so the photo is remembered for next time. It\'s on this sheet for now.');
     }
-    custom[key] = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+    const url = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+    if (card.classList.contains('player') && isAdded(card.dataset.id)) {
+        // Added players keep their photo with the rest of their info for this team's future sheets
+        const t = teamBy(card.dataset.team), p = prefsFor(t);
+        p.added.find(a => a.id === card.dataset.id).photo = await shrink(url);
+        savePrefs(t, p);
+    } else custom[key] = url;
     render();
 }
+
+function shrink(dataUrl, maxSide = 500) {
+    return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+            const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+            const c = Object.assign(document.createElement('canvas'), { width: Math.round(img.width * k), height: Math.round(img.height * k) });
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            resolve(c.toDataURL('image/webp', 0.88));
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+    });
+}
+
+function applyNumStyle() {
+    const v = localStorage.getItem(NUM_STYLE_KEY) || 'badge';
+    document.body.classList.remove('num-badge', 'num-team', 'num-yellow');
+    document.body.classList.add(`num-${v}`);
+    document.querySelectorAll('#num-style button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+}
+document.querySelectorAll('#num-style button').forEach(b => b.onclick = () => { localStorage.setItem(NUM_STYLE_KEY, b.dataset.v); applyNumStyle(); });
 
 function coachMenu(card, e) {
     closeMenu();
@@ -402,7 +503,7 @@ function closeMenu() { document.querySelectorAll('.menu').forEach(m => m.remove(
 
 $('ref-toggle').onclick = () => { const ref = readJSON(REF_KEY); ref.hidden = !ref.hidden; writeJSON(REF_KEY, ref); render(); };
 $('reset').onclick = () => {
-    if (!data || !confirm('Put both teams back in jersey-number order with everyone on the sheet, and reset the coaches?')) return;
+    if (!data || !confirm('Put both teams back in jersey-number order with everyone on the sheet, reset the coaches, and remove players you added?')) return;
     const all = readJSON(PREFS_KEY); data.teams.forEach(t => delete all[t.abbr]); writeJSON(PREFS_KEY, all); render();
 };
 window.addEventListener('dragover', e => e.preventDefault());
