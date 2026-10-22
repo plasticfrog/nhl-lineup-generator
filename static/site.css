@@ -107,6 +107,14 @@ img { display: block; }
 .slot.dupe { border-color: var(--warn); background: #fdf8ef; }
 .slot.dupe .meta { color: var(--warn); }
 .slot.empty .face, .slot.bad .face { visibility: hidden; }
+.slot { position: relative; }
+.slot[draggable="true"] { cursor: grab; }
+.slot.dragging { opacity: .4; }
+.slot.drop-target { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.slot-x { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: transparent; color: var(--muted); font-size: 12px; line-height: 20px; text-align: center; padding: 0; display: none; }
+.slot-x:hover { background: var(--paper); color: var(--bad); }
+.slot:not(.empty) .slot-x { display: block; }
+.slot:not(.empty) .meta { padding-right: 18px; }
 
 .builder-tools { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 16px; font-size: 13px; color: var(--muted); align-items: center; }
 .builder-tools .linkish { font-size: 13px; }
@@ -125,7 +133,9 @@ img { display: block; }
 .chip b { font-family: var(--display); font-size: 15px; }
 .chip .no-photo { width: 22px; height: 22px; border-radius: 50%; background: var(--line); flex-shrink: 0; }
 .chip:hover { border-color: var(--ink-2); }
-.chip.used { opacity: .4; }
+.chip.used { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, #fff); }
+.chip.used::after { content: '✓'; font-weight: 700; color: var(--accent); margin-left: 2px; }
+.chip.used:hover::after { content: '✕'; color: var(--bad); }
 
 .locked { position: relative; }
 .locked > .lock-note { display: none; }
@@ -220,6 +230,8 @@ kbd { font-family: var(--body); font-size: 12px; border: 1px solid var(--line-2)
     .slot .last { font-size: 12px; }
     .slot .meta { display: none; }
     .slot.bad .meta, .slot.dupe .meta { display: block; }
+    .slot-x { top: auto; bottom: 2px; right: 2px; width: 18px; height: 18px; line-height: 18px; }
+    .slot:not(.empty) .meta { padding-right: 0; }
     .thumbs { grid-template-columns: minmax(0, 1fr); }
     .matchup { grid-template-columns: minmax(0, 1fr); }
     .at { padding: 0; text-align: center; }

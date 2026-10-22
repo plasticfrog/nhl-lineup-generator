@@ -150,7 +150,7 @@ const prefs = (() => { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) 
 const savePrefs = () => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} };
 
 let team = null, roster = null, byNum = {}, rosterReq = 0;
-let mode = new URLSearchParams(location.search).get('mode') === 'numbers' ? 'numbers' : (prefs.mode || 'shots');
+let mode = new URLSearchParams(location.search).get('mode') === 'shots' ? 'shots' : 'numbers';   // always start on Type numbers
 let shots = [];   // { file, url, role: 'whole' | 'forwards' | 'defense' }
 let busy = false;
 
@@ -249,7 +249,7 @@ function buildSlots() {
             for (let c = 0; c < per; c++) {
                 const i = r * per + c;
                 const el = document.createElement('label'); el.className = 'slot empty';
-                el.innerHTML = `<input inputmode="numeric" maxlength="2" placeholder="#" aria-label="${group} ${place(group, i)} slot ${c + 1}"><span class="face"></span><span class="meta"></span><span class="last"></span>`;
+                el.innerHTML = `<input inputmode="numeric" maxlength="2" placeholder="#" aria-label="${group} ${place(group, i)} slot ${c + 1}"><span class="face"></span><span class="meta"></span><span class="last"></span><button type="button" class="slot-x" aria-label="Remove from this spot" title="Remove">✕</button>`;
                 wrap.appendChild(el);
                 const input = el.querySelector('input');
                 const entry = { group, i, el, input };
@@ -257,6 +257,24 @@ function buildSlots() {
                 input.addEventListener('input', () => onSlotInput(entry));
                 input.addEventListener('keydown', e => onSlotKey(e, entry));
                 input.addEventListener('paste', e => onSlotPaste(e, entry));
+                el.querySelector('.slot-x').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); setSlot(entry, ''); });
+                // Drag a filled spot onto another to swap them (or onto an empty one to move)
+                el.addEventListener('dragstart', e => {
+                    if (!slots[group][i] || e.target === input) { e.preventDefault(); return; }
+                    dragFrom = entry; el.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', slots[group][i]);
+                });
+                el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragFrom = null; document.querySelectorAll('.slot.drop-target').forEach(x => x.classList.remove('drop-target')); });
+                el.addEventListener('dragover', e => { if (dragFrom && dragFrom !== entry) { e.preventDefault(); el.classList.add('drop-target'); } });
+                el.addEventListener('dragleave', () => el.classList.remove('drop-target'));
+                el.addEventListener('drop', e => {
+                    e.preventDefault(); el.classList.remove('drop-target');
+                    if (!dragFrom || dragFrom === entry) return;
+                    const a = slots[dragFrom.group][dragFrom.i];
+                    slots[dragFrom.group][dragFrom.i] = slots[group][i];
+                    slots[group][i] = a;
+                    saveSlots(); renderBuilder(); refresh();
+                });
             }
         });
     }
@@ -283,6 +301,13 @@ function onSlotKey(e, entry) {
     } else if (e.key === 'ArrowLeft' && entry.input.selectionStart === 0 && idx > 0) {
         e.preventDefault(); slotEls[idx - 1].input.focus();
     }
+}
+
+let dragFrom = null;
+
+function setSlot(entry, value) {
+    slots[entry.group][entry.i] = value;
+    saveSlots(); renderBuilder(); refresh();
 }
 
 function focusNext(entry) {
@@ -323,6 +348,7 @@ function renderBuilder() {
         const p = byNum[v];
         const last = el.querySelector('.last'), meta = el.querySelector('.meta'), face = el.querySelector('.face');
         el.className = 'slot';
+        el.draggable = !!v;
         if (!v) { el.classList.add('empty'); last.textContent = ''; meta.textContent = ''; continue; }
         if (!roster || roster.error) { el.classList.add('empty'); last.textContent = ''; meta.textContent = ''; continue; }
         if (!p) {
@@ -343,20 +369,30 @@ function renderRoster() {
     body.innerHTML = groups.map(([title, list, target]) => {
         const withNum = list.filter(p => p.number).sort((a, b) => a.last.localeCompare(b.last));
         return `<div class="roster-group"><h4>${title}</h4><div class="chips">${withNum.map(p =>
-            `<button type="button" class="chip" data-num="${p.number}" data-target="${target}" title="Add ${p.first} ${p.last}">${p.headshot ? `<img src="${p.headshot}" alt="" loading="lazy">` : '<span class="no-photo"></span>'}<b>${p.number}</b>${p.last}</button>`).join('')}</div></div>`;
+            `<button type="button" class="chip" data-num="${p.number}" data-target="${target}" data-name="${p.first} ${p.last}">${p.headshot ? `<img src="${p.headshot}" alt="" loading="lazy">` : '<span class="no-photo"></span>'}<b>${p.number}</b>${p.last}</button>`).join('')}</div></div>`;
     }).join('');
     const noNum = [...roster.forwards, ...roster.defensemen, ...roster.goalies].filter(p => !p.number).length;
-    $('roster-count').textContent = `· click a player to add him to the next open spot${noNum ? ` · ${noNum} without a number yet not shown` : ''}`;
+    $('roster-count').textContent = `· click a player to add or remove them${noNum ? ` · ${noNum} without a number yet not shown` : ''}`;
     body.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => addFromRoster(c.dataset.num, c.dataset.target)));
     renderRosterUsed();
 }
 
 function renderRosterUsed() {
     const used = new Set(Object.values(slots).flat().filter(Boolean));
-    document.querySelectorAll('#roster-body .chip').forEach(c => c.classList.toggle('used', used.has(c.dataset.num)));
+    document.querySelectorAll('#roster-body .chip').forEach(c => {
+        const on = used.has(c.dataset.num);
+        c.classList.toggle('used', on);
+        c.title = `${on ? 'Remove' : 'Add'} ${c.dataset.name}`;
+        c.setAttribute('aria-pressed', on);
+    });
 }
 
 function addFromRoster(num, target) {
+    // Already in the lineup: clicking again takes them out
+    if (Object.values(slots).some(list => list.includes(num))) {
+        for (const g of Object.keys(slots)) slots[g] = slots[g].map(v => v === num ? '' : v);
+        saveSlots(); renderBuilder(); refresh(); return;
+    }
     const order = target === 'goalies' ? ['goalies'] : [target, target === 'forwards' ? 'defense' : 'forwards'];
     for (const g of order) {
         const i = slots[g].indexOf('');
