@@ -293,8 +293,8 @@
                 let pitchersHtml = `<div class="row players" style="background: ${c1};">`;
                 pitchersHtml += `<div class="grid-container" style="grid-template-rows: auto 1fr;">`;
                 // Group label row inside the grid
-                pitchersHtml += `<div class="group-label" style="grid-column: span ${nSP}; background: ${c1};">STARTING PITCHERS</div>`;
-                pitchersHtml += `<div class="group-label" style="grid-column: span ${nRP}; background: ${tintColor(c1, 0.5)};">RELIEF PITCHERS</div>`;
+                if (nSP) pitchersHtml += `<div class="group-label" style="grid-column: span ${nSP}; background: ${c1};">STARTING PITCHERS</div>`;
+                if (nRP) pitchersHtml += `<div class="group-label" style="grid-column: span ${nRP}; background: ${tintColor(c1, 0.5)};">RELIEF PITCHERS</div>`;
 
                 t.pitchers.forEach((p, idx) => {
                     const isCloser = !!p.is_closer;
@@ -323,9 +323,11 @@
                 let posHtml = `<div class="row players" style="background: ${c1};">`;
                 posHtml += `<div class="grid-container" style="grid-template-rows: auto 1fr;">`;
                 // Group label row inside grid
-                posHtml += `<div class="group-label" style="grid-column: span ${nIF}; background: ${c1};">INFIELDERS</div>`;
-                posHtml += `<div class="group-label" style="grid-column: span ${nOF}; background: ${tintColor(c1, 0.5)};">OUTFIELDERS</div>`;
-                posHtml += `<div class="group-label" style="grid-column: span ${nC + pad}; background: ${c1};">CATCHERS</div>`;
+                // A group with nobody in it gets no label (span 0 isn't valid CSS and would push a card onto a new row)
+                const label = (n, bg, text) => n > 0 ? `<div class="group-label" style="grid-column: span ${n}; background: ${bg};">${text}</div>` : '';
+                posHtml += label(nIF, c1, 'INFIELDERS');
+                posHtml += label(nOF, tintColor(c1, 0.5), 'OUTFIELDERS');
+                posHtml += label(nC + pad, c1, nC ? 'CATCHERS' : '');
 
                 t.pos_players.forEach(b => {
                     if (b.name) {

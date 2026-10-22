@@ -162,11 +162,15 @@ def fetch_team_data(team_slug, team_id):
     for p in catchers:
         p['group'] = 'catcher'
 
-    all_pos = (infield + outfield + catchers)[:13]
-    # Calculate actual displayed counts (after 13-cap)
-    shown_if = min(len(infield), 13)
-    shown_of = min(len(outfield), 13 - shown_if)
-    shown_c = min(len(catchers), 13 - shown_if - shown_of)
+    # 13 spots. Out of season the "active" roster is the whole 40-man, so share the spots out
+    # instead of letting infielders crowd out the catchers: up to 3 catchers, then about half
+    # each for infield and outfield, with any spots one group can't use going to the other
+    shown_c = min(len(catchers), 3)
+    rest = 13 - shown_c
+    shown_if = min(len(infield), max(rest - len(outfield), rest // 2))
+    shown_of = min(len(outfield), rest - shown_if)
+    shown_if = min(len(infield), rest - shown_of)
+    all_pos = infield[:shown_if] + outfield[:shown_of] + catchers[:shown_c]
     while len(all_pos) < 13:
         all_pos.append({'name': '', 'number': '', 'bat_l': '', 'image': ''})
 
