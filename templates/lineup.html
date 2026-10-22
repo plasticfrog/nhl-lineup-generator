@@ -136,6 +136,11 @@
         body.league-pwhl .headshot {
             left: 0; top: 0; width: 100%; height: 100%; object-position: 50% 0%; transform-origin: 50% 30%;
         }
+        /* Coach photos are ordinary rectangular portraits (not cutout mugs), so fill the box:
+           heads come out the same size whatever the original photo's framing */
+        .headshot.coach-photo, body.league-pwhl .headshot.coach-photo {
+            left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 8%; transform-origin: 50% 25%;
+        }
 
         .role-label {
             position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
@@ -664,7 +669,7 @@
             const coachPhoto = isCoach ? coachPhotoFor(staffName) : null;
             const url = coachPhoto || saved.image || pre.headshot_url || pre.image;
             if (url) {
-                const img = document.createElement('img'); img.src = url; img.className = 'headshot';
+                const img = document.createElement('img'); img.src = url; img.className = isCoach ? 'headshot coach-photo' : 'headshot';
                 imgCont.appendChild(img);
             } else { imgCont.innerHTML += '<div style="font-size:2em;color:#ccc;font-weight:900">?</div>'; }
 
