@@ -168,8 +168,38 @@ def fetch_nhl_roster(team):
     res = requests.get(f"https://api-web.nhle.com/v1/roster/{team}/current", timeout=10)
     res.raise_for_status()
     data = res.json()
+    _add_game_roster_players(team, data)
     ROSTER_CACHE[team] = (time.time(), data)
     return data
+
+GAME_GROUPS = {'C': 'forwards', 'L': 'forwards', 'R': 'forwards', 'D': 'defensemen', 'G': 'goalies'}
+
+def _add_game_roster_players(team, data):
+    """Add anyone on the roster for the team's game today (or next game) who's missing from
+    the current roster. Same-day call-ups often show up there hours before the roster feed."""
+    try:
+        today = datetime.now().strftime('%Y-%m-%d')
+        games = requests.get(f"https://api-web.nhle.com/v1/club-schedule/{team}/week/now", timeout=6).json().get('games', [])
+        game = next((g for g in games if g.get('gameDate', '') >= today), None)
+        if not game:
+            return
+        team_id = next(t['id'] for t in (game['homeTeam'], game['awayTeam']) if t.get('abbrev') == team)
+        spots = requests.get(f"https://api-web.nhle.com/v1/gamecenter/{game['id']}/play-by-play", timeout=6).json().get('rosterSpots', [])
+        have = {p['id'] for g in GAME_GROUPS.values() for p in data.get(g, [])}
+        added = []
+        for s in spots:
+            group = GAME_GROUPS.get(s.get('positionCode'))
+            if s.get('teamId') != team_id or s['playerId'] in have or not group:
+                continue
+            data.setdefault(group, []).append({'id': s['playerId'], 'firstName': s['firstName'], 'lastName': s['lastName'],
+                                               'sweaterNumber': s.get('sweaterNumber'), 'positionCode': s['positionCode'],
+                                               'headshot': s.get('headshot')})
+            have.add(s['playerId'])
+            added.append(f"{s['firstName']['default']} {s['lastName']['default']}")
+        if added:
+            logger.info(f"GAME ROSTER ADDS | {team} | game {game['id']} | {', '.join(added)}")
+    except Exception as e:
+        logger.warning(f"GAME ROSTER | {team} | {e}")  # the regular roster still works without it
 
 # The NHL's 2026-27 headshots ("latest") are heavily smoothed and look artificial. When a
 # player was on the same team last season, use last season's real photo instead (same
