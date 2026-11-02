@@ -567,7 +567,18 @@ def league_coaches(league, team):
         return with_saved_photos([{'name': (saved[i].get('name') if i < len(saved) else '') or '',
                                    'role': (saved[i].get('role') if i < len(saved) else '') or role, 'headshot_url': ''}
                                   for i, role in enumerate(PWHL_DEFAULT_ROLES)])
-    return get_coaches_from_nhl(team)
+    nhl = get_coaches_from_nhl(team)
+    saved = load_team_staff().get(f'nhl:{team}', {}).get('coaches')
+    if not saved:
+        return nhl
+    # The admin's saved list wins over NHL.com; NHL.com photos still fill in for the same people
+    coaches = []
+    for i in range(4):
+        c = saved[i] if i < len(saved) else {}
+        name = (c.get('name') or '').upper()
+        photo = next((x['headshot_url'] for x in nhl if name and x['name'] == name), '')
+        coaches.append({'name': name, 'role': c.get('role') or ('HEAD COACH' if i == 0 else 'COACH'), 'headshot_url': photo})
+    return with_saved_photos(coaches)
 
 def sheet_extras(league, team):
     """Extra fields the sheet uses to tell leagues apart (same abbreviations exist in both)."""
@@ -577,7 +588,8 @@ def sheet_extras(league, team):
                 'staff_updated': load_team_staff().get(f'pwhl:{team}', {}).get('updated'),
                 'staff_link': pwhl.STAFF_LINKS.get(team), 'can_save_staff': is_admin()}
     city, name, color = NHL_TEAM_INFO[team]
-    return {'league': 'nhl', 'team_name': f"{city} {name}", 'team_color': color}
+    return {'league': 'nhl', 'team_name': f"{city} {name}", 'team_color': color,
+            'staff_updated': load_team_staff().get(f'nhl:{team}', {}).get('updated'), 'can_save_staff': is_admin()}
 
 def roster_goalie_label(p):
     return f"#{p['number']} {p['last'].upper()}" if p['number'] else p['last'].upper()
@@ -956,7 +968,7 @@ def save_team_staff():
         return jsonify({'error': 'Only the site admin can do that'}), 403
     league = request.form.get('league', '')
     team = (request.form.get('team') or '').upper()
-    if league != 'pwhl' or not valid_team(league, team):
+    if league not in ('pwhl', 'nhl') or not valid_team(league, team):
         return jsonify({'error': 'Unknown team'}), 400
     coaches = [{'name': str(c.get('name', '')).strip().upper()[:60], 'role': str(c.get('role', '')).strip().upper()[:30]}
                for c in json.loads(request.form.get('coaches') or '[]')[:4]]

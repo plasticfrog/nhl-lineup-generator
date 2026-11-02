@@ -440,13 +440,14 @@
             navigator.sendBeacon('/activity/event', f);
         }
 
-        // PWHL coaches come from a list the admin saves; say how fresh it is and where to check it
+        // PWHL coaches come from a list the admin saves; say how fresh it is and where to check it.
+        // NHL coaches come from NHL.com unless the admin saved a list, so only the admin sees this there.
         function showStaffNote() {
-            if (LEAGUE !== 'pwhl') return;
+            if (LEAGUE !== 'pwhl' && !lineupData.can_save_staff) return;
             const note = document.getElementById('staff-note');
             const when = lineupData.staff_updated
                 ? `Coaches as of ${new Date(lineupData.staff_updated + 'T12:00').toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}.`
-                : 'No coaches saved for this team yet.';
+                : LEAGUE === 'nhl' ? 'Coaches from NHL.com (none saved for this team).' : 'No coaches saved for this team yet.';
             const link = lineupData.staff_link ? ` <a href="${lineupData.staff_link}" target="_blank" rel="noopener">Check the team's staff ↗</a>` : '';
             note.innerHTML = when + link + (lineupData.can_save_staff ? '<button type="button" id="save-staff">Save coaches for everyone</button>' : '');
             note.hidden = false;
