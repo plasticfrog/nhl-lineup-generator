@@ -548,17 +548,34 @@ def league_roster(league, team):
         'pos': p.get('positionCode', ''), 'headshot': headshot_url(p['id'], team),
     } for p in data.get(group, [])] for group in ['forwards', 'defensemen', 'goalies']}
 
+# ---- Shared coaching staffs (PWHL publishes none, so the admin saves them from the sheet) ----
+
+TEAM_STAFF_PATH = os.path.join(os.environ.get('RAILWAY_VOLUME_MOUNT_PATH') or os.path.dirname(os.path.abspath(__file__)), 'team_staff.json')
+PWHL_DEFAULT_ROLES = ['HEAD COACH', 'ASST. COACH', 'ASST. COACH', 'ASST. COACH']
+
+def load_team_staff():
+    """{ 'pwhl:BOS': { 'updated': 'YYYY-MM-DD', 'coaches': [{name, role}] } }"""
+    try:
+        with open(TEAM_STAFF_PATH) as f:
+            return json.load(f)
+    except (FileNotFoundError, ValueError):
+        return {}
+
 def league_coaches(league, team):
-    if league == 'pwhl':  # no PWHL feed lists coaches; the sheet remembers what you type in per team
-        return with_saved_photos([{'name': '', 'role': r, 'headshot_url': ''}
-                                  for r in ['HEAD COACH', 'ASST. COACH', 'ASST. COACH', 'ASST. COACH']])
+    if league == 'pwhl':
+        saved = load_team_staff().get(f'pwhl:{team}', {}).get('coaches', [])
+        return with_saved_photos([{'name': (saved[i].get('name') if i < len(saved) else '') or '',
+                                   'role': (saved[i].get('role') if i < len(saved) else '') or role, 'headshot_url': ''}
+                                  for i, role in enumerate(PWHL_DEFAULT_ROLES)])
     return get_coaches_from_nhl(team)
 
 def sheet_extras(league, team):
     """Extra fields the sheet uses to tell leagues apart (same abbreviations exist in both)."""
     if league == 'pwhl':
         t = pwhl.teams()[team]
-        return {'league': 'pwhl', 'team_name': t['name'], 'team_color': t['color']}
+        return {'league': 'pwhl', 'team_name': t['name'], 'team_color': t['color'],
+                'staff_updated': load_team_staff().get(f'pwhl:{team}', {}).get('updated'),
+                'staff_link': pwhl.STAFF_LINKS.get(team), 'can_save_staff': is_admin()}
     city, name, color = NHL_TEAM_INFO[team]
     return {'league': 'nhl', 'team_name': f"{city} {name}", 'team_color': color}
 
@@ -894,6 +911,20 @@ def _admin_ok():
     auth = request.authorization
     return bool(password) and auth is not None and auth.password == password
 
+# Visiting /activity with the password marks this browser as the admin's, so the sheets can show
+# admin-only buttons (like saving a team's coaches for everyone) without ever asking visitors for a password
+ADMIN_COOKIE = 'adm'
+
+def _admin_token():
+    import hashlib, hmac
+    return hmac.new(os.environ.get('ADMIN_PASSWORD', '').encode(), b'headshot-admin', hashlib.sha256).hexdigest()
+
+def is_admin():
+    import hmac
+    if not os.environ.get('ADMIN_PASSWORD'):
+        return False
+    return _admin_ok() or hmac.compare_digest(request.cookies.get(ADMIN_COOKIE, ''), _admin_token())
+
 def _admin_denied():
     if not os.environ.get('ADMIN_PASSWORD'):
         return Response('Activity page is off: set ADMIN_PASSWORD in Railway variables to turn it on.', 503)
@@ -905,13 +936,39 @@ def activity_event():
     kind = request.form.get('kind')
     if kind in ('print_nhl', 'print_pwhl', 'print_mlb', 'print_nba'):
         activity.record(kind, (request.form.get('summary') or '')[:80] or 'Sheet', True)
+    elif kind == 'coach_change':  # someone changed a coach on a sheet: maybe the staff changed
+        activity.record(kind, (request.form.get('summary') or '')[:80] or 'Coach', True, None, (request.form.get('detail') or '')[:200])
     return ('', 204)
 
 @app.route('/activity')
 def activity_page():
     if not _admin_ok():
         return _admin_denied()
-    return render_template('activity.html')
+    res = app.make_response(render_template('activity.html'))
+    res.set_cookie(ADMIN_COOKIE, _admin_token(), max_age=365 * 24 * 3600, httponly=True, samesite='Lax',
+                   secure=request.is_secure or request.headers.get('X-Forwarded-Proto') == 'https')
+    return res
+
+@app.route('/team_staff', methods=['POST'])
+def save_team_staff():
+    """Admin only: save a team's coaches so every sheet for that team starts with them."""
+    if not is_admin():
+        return jsonify({'error': 'Only the site admin can do that'}), 403
+    league = request.form.get('league', '')
+    team = (request.form.get('team') or '').upper()
+    if league != 'pwhl' or not valid_team(league, team):
+        return jsonify({'error': 'Unknown team'}), 400
+    coaches = [{'name': str(c.get('name', '')).strip().upper()[:60], 'role': str(c.get('role', '')).strip().upper()[:30]}
+               for c in json.loads(request.form.get('coaches') or '[]')[:4]]
+    staff = load_team_staff()
+    staff[f'{league}:{team}'] = {'updated': datetime.now().strftime('%Y-%m-%d'), 'coaches': coaches}
+    tmp = TEAM_STAFF_PATH + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(staff, f, indent=1)
+    os.replace(tmp, TEAM_STAFF_PATH)
+    names = ', '.join(c['name'] for c in coaches if c['name']) or 'no names'
+    activity.record('staff_saved', f"{sheet_extras(league, team)['team_name']} coaches", True, None, names)
+    return jsonify({'updated': staff[f'{league}:{team}']['updated']})
 
 @app.route('/activity/data')
 def activity_data():

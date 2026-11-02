@@ -169,6 +169,10 @@
             font-family: Arial, sans-serif; font-size: 10px; line-height: 1.6; color: #444;
         }
         .controls .legend b { color: #000; }
+        .controls .staff-note { margin-top: 4px; padding: 6px 8px; border-radius: 4px; background: #fff7d6; border: 1px solid #e8c547;
+            font-family: Arial, sans-serif; font-size: 11px; line-height: 1.45; color: #333; max-width: 190px; cursor: default; }
+        .controls .staff-note a { color: #000; font-weight: 700; }
+        .controls .staff-note button { margin-top: 5px; width: 100%; }
 
         @media print {
             body, html { background: white !important; overflow: hidden !important; height: 11in !important; }
@@ -185,6 +189,7 @@
         <button onclick="toggleFourthCoach()">Add/Remove 4th Coach</button>
         <button onclick="clearAllData()">Reset to Original</button>
         <button id="name-bar-btn" onclick="toggleNameBars()">Black Name Bars</button>
+        <div class="staff-note" id="staff-note" hidden></div>
         <div class="legend">
             <b>Double-click</b> photo to replace<br>
             <b>Drag & drop</b> an image onto a photo<br>
@@ -424,6 +429,48 @@
             document.body.appendChild(canvas);
             e.dataTransfer.setDragImage(canvas, e.clientX - box.left, e.clientY - box.top);
             setTimeout(() => canvas.remove(), 0);
+        }
+
+        // Coach changes go to the activity log: a sign the team's staff may have changed
+        function reportCoachChange(role, before, after) {
+            const f = new FormData();
+            f.append('kind', 'coach_change');
+            f.append('summary', `${lineupData.team_name || lineupData.team || currentTeam} · ${role || 'COACH'}`);
+            f.append('detail', `${before || '(empty)'} → ${after || '(empty)'}`);
+            navigator.sendBeacon('/activity/event', f);
+        }
+
+        // PWHL coaches come from a list the admin saves; say how fresh it is and where to check it
+        function showStaffNote() {
+            if (LEAGUE !== 'pwhl') return;
+            const note = document.getElementById('staff-note');
+            const when = lineupData.staff_updated
+                ? `Coaches as of ${new Date(lineupData.staff_updated + 'T12:00').toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}.`
+                : 'No coaches saved for this team yet.';
+            const link = lineupData.staff_link ? ` <a href="${lineupData.staff_link}" target="_blank" rel="noopener">Check the team's staff ↗</a>` : '';
+            note.innerHTML = when + link + (lineupData.can_save_staff ? '<button type="button" id="save-staff">Save coaches for everyone</button>' : '');
+            note.hidden = false;
+            note.addEventListener('mousedown', e => e.stopPropagation());   // the panel is draggable
+            const btn = document.getElementById('save-staff');
+            if (btn) btn.onclick = async () => {
+                const coaches = [...document.querySelectorAll('#coach-container .staff-member')].map(m => ({
+                    name: m.querySelector('.info-bar').textContent.trim(), role: m.querySelector('.role-label').textContent.trim() }));
+                const f = new FormData();
+                f.append('league', LEAGUE); f.append('team', lineupData.team); f.append('coaches', JSON.stringify(coaches));
+                btn.disabled = true; btn.textContent = 'Saving…';
+                try {
+                    const res = await fetch('/team_staff', { method: 'POST', body: f });
+                    const out = await res.json();
+                    if (!res.ok) throw new Error(out.error || res.status);
+                    lineupData.staff_updated = out.updated;
+                    localStorage.setItem('lineup_data', JSON.stringify(lineupData));
+                    showStaffNote();
+                    document.getElementById('save-staff').textContent = 'Saved for everyone ✓';
+                } catch (err) {
+                    btn.disabled = false; btn.textContent = 'Save coaches for everyone';
+                    alert(`Couldn't save: ${err.message}`);
+                }
+            };
         }
 
         function toggleFourthCoach() {
@@ -687,8 +734,12 @@
                 fitText(nameInfo);
             };
             // Show a remembered photo as soon as a known coach's name is typed in
+            let nameAtFocus = staffName;
+            if (isCoach) nameInfo.onfocus = () => { nameAtFocus = nameInfo.textContent.trim().toUpperCase(); };
             if (isCoach) nameInfo.onblur = () => {
-                const photo = coachPhotoFor(nameInfo.textContent.trim().toUpperCase());
+                const now = nameInfo.textContent.trim().toUpperCase();
+                if (now !== nameAtFocus) reportCoachChange(role.textContent.trim(), nameAtFocus, now);
+                const photo = coachPhotoFor(now);
                 if (photo && photo !== url) location.reload();
             };
 
@@ -817,6 +868,7 @@
 
             restoreCardOrder();
             applyNameBars();
+            showStaffNote();
             initDraggable();
             initNotesObjects();
         });

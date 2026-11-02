@@ -85,7 +85,7 @@
         <button class="chip" data-f="nba">NBA sheets</button>
         <button class="chip" data-f="mlb">MLB sheets</button>
         <button class="chip" data-f="print">Prints</button>
-        <button class="chip" data-f="photo">Coach photos</button>
+        <button class="chip" data-f="photo">Coaches</button>
         <button class="chip" data-f="fail">Failures</button>
         <input type="search" id="search" placeholder="Search team, person, place…">
     </div>
@@ -106,6 +106,8 @@
         print_mlb:      { tag: 'PRINT', cls: 'print', group: 'print', label: 'Printed MLB sheet' },
         print_nba:      { tag: 'PRINT', cls: 'print', group: 'print', label: 'Printed NBA sheet' },
         coach_photo:    { tag: 'PHOTO', cls: 'photo', group: 'photo', label: 'Coach photo uploaded' },
+        coach_change:   { tag: 'COACH', cls: 'photo', group: 'photo', label: 'Coach changed on a sheet' },
+        staff_saved:    { tag: 'COACH', cls: 'photo', group: 'photo', label: 'Coaches saved for everyone' },
     };
     let rows = [], filter = 'all';
     const $ = id => document.getElementById(id);

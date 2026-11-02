@@ -60,6 +60,24 @@ def _logo_color(url):
 COLOR_OVERRIDES = {'MTL': '#862633', 'TOR': '#1F4E9C', 'DET': '#C8102E', 'MIN': '#5B3A8E'}
 
 
+# Where to check a team's current coaching staff (the PWHL doesn't publish staff lists):
+# Wikipedia's "Coaching staff" section, or the team's page on thepwhl.com for the newest teams
+STAFF_LINKS = {
+    'BOS': 'https://en.wikipedia.org/wiki/Boston_Fleet#Coaching_staff',
+    'MIN': 'https://en.wikipedia.org/wiki/Minnesota_Frost#Coaching_staff',
+    'MTL': 'https://en.wikipedia.org/wiki/Montr%C3%A9al_Victoire#Coaching_staff',
+    'NY': 'https://en.wikipedia.org/wiki/New_York_Sirens#Coaching_staff',
+    'OTT': 'https://en.wikipedia.org/wiki/Ottawa_Charge#Coaching_staff',
+    'TOR': 'https://en.wikipedia.org/wiki/Toronto_Sceptres#Coaching_staff',
+    'SEA': 'https://en.wikipedia.org/wiki/Seattle_Torrent#Coaching_staff',
+    'VAN': 'https://en.wikipedia.org/wiki/Vancouver_Goldeneyes#Coaching_staff',
+    'DET': 'https://www.thepwhl.com/en/teams/detroit',
+    'HAM': 'https://www.thepwhl.com/en/teams/hamilton',
+    'VGS': 'https://www.thepwhl.com/en/teams/las-vegas',
+    'SJ': 'https://www.thepwhl.com/en/teams/san-jose',
+}
+
+
 def teams():
     """{abbr: {id, name, city, logo, color}} for the newest season, in alphabetical order."""
     def load():
