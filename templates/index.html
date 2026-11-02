@@ -9,6 +9,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
+    {% if league == 'nhl' %}<script>
+        // The home page opens on the league this browser used last
+        try { const l = localStorage.getItem('last_league'); if (location.pathname === '/' && !location.search && ['pwhl', 'nba', 'mlb'].includes(l)) location.replace('/' + l); } catch (e) {}
+    </script>{% endif %}
+    <script src="{{ url_for('static', filename='landing.js') }}" defer></script>
 </head>
 <body>
     <header class="topbar">
