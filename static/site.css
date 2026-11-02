@@ -90,6 +90,17 @@ img { display: block; }
 .group-title { font-family: var(--display); font-weight: 700; font-size: 17px; margin: 18px 0 8px; display: flex; align-items: baseline; gap: 8px; }
 .group-title:first-child { margin-top: 0; }
 .group-title small { font-family: var(--body); font-weight: 400; font-size: 12px; color: var(--muted); }
+/* 11 F / 7 D switch: drops the 12th forward spot and shows a 7th D spot */
+.lineup-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-family: var(--body); font-weight: 600; font-size: 13px; color: var(--ink-2); cursor: pointer; user-select: none; }
+.lineup-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.lineup-toggle .track { width: 34px; height: 20px; border-radius: 999px; background: var(--line-2); position: relative; transition: background .15s; }
+.lineup-toggle .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.lineup-toggle input:checked + .track { background: var(--accent); }
+.lineup-toggle input:checked + .track::after { transform: translateX(14px); }
+.lineup-toggle input:focus-visible + .track { outline: 2px solid var(--ink-2); outline-offset: 2px; }
+#builder:not(.eleven-seven) [data-extra="d7"] { display: none; }
+#builder.eleven-seven .slot[data-extra="f12"] { border-style: dashed; background: transparent; pointer-events: none; }
+#builder.eleven-seven .slot[data-extra="f12"] > * { visibility: hidden; }
 
 /* Number + face on top, full last name underneath (names never get cut off) */
 .slot { display: grid; grid-template-columns: 44px 34px minmax(0, 1fr); grid-template-areas: "num face meta" "last last last"; align-items: center; gap: 3px 8px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px 6px 6px; background: #fff; min-width: 0; transition: border-color .12s, background .12s; }

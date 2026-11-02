@@ -56,6 +56,13 @@
             width: 60%; height: 100%; border-left: var(--group-rule) solid black;
         }
 
+        /* 11 F / 7 D: the 4th line keeps an empty spot, and the defense gets more of the page for a
+           4th row. D photos are a bit smaller so whole faces fit the shorter boxes. */
+        body.f11d7 .forwards-section { height: 41%; }
+        body.f11d7 .defensemen-section { height: 59%; }
+        body.f11d7 .defensemen-grid { grid-template-rows: repeat(4, 1fr); width: 44%; --mug: 238px; --headroom: 0px; }
+        body.f11d7 .staff-grid { width: 56%; }
+
         .staff-row { display: flex; height: 50%; width: 100%; gap: var(--rule); }
         .coach-row { border-top: var(--group-rule) solid black; flex: 1; }
 
@@ -792,6 +799,7 @@
             const g2Slot = document.getElementById('g2-slot');
             const cCont = document.getElementById('coach-container');
             
+            document.body.classList.toggle('f11d7', (lineupData.defensemen || []).length === 7);
             (lineupData.forwards || []).forEach(p => fGrid.appendChild(createPlayerCard(p)));
             (lineupData.defensemen || []).forEach(p => dGrid.appendChild(createPlayerCard(p)));
             

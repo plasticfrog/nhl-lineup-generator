@@ -713,7 +713,7 @@ def process_lineup():
 def process_numbers():
     """Build a lineup from jersey numbers. Names always come from the official roster.
 
-    New form: slots = JSON {"forwards": [12 numbers], "defense": [6], "goalies": [2]} where
+    New form: slots = JSON {"forwards": [12 numbers], "defense": [6], "goalies": [2]} (or 11 and 7) where
     blanks ("") keep their place on the sheet. Old form: lines_text / lines_screenshot, read in
     order (first 12 forwards, next 6 D); roster_screenshot is optional and only overrides names.
     """
@@ -740,7 +740,7 @@ def process_numbers():
         if slots:
             slots = json.loads(slots)
             f_nums = [str(n).strip() for n in slots.get('forwards', [])][:12]
-            d_nums = [str(n).strip() for n in slots.get('defense', [])][:6]
+            d_nums = [str(n).strip() for n in slots.get('defense', [])][:7]   # 7 when the lineup is 11 F / 7 D
             g_nums = [str(n).strip() for n in slots.get('goalies', [])][:2]
             ref_roster = {}
         else:

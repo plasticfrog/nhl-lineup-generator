@@ -68,7 +68,9 @@
                         <div class="locked" id="builder">
                             <div class="lock-note">Pick a team first</div>
 
-                            <div class="group-title">Forwards</div>
+                            <div class="group-title">Forwards
+                                <label class="lineup-toggle" title="11 forwards and 7 defensemen tonight"><input type="checkbox" id="eleven-seven"><span class="track"></span>11 F / 7 D</label>
+                            </div>
                             <div class="lines" id="fwd-lines">
                                 <span></span><span class="col-head">LW</span><span class="col-head">C</span><span class="col-head">RW</span>
                             </div>
@@ -232,9 +234,21 @@ function setMode(m) {
 }
 
 /* ---------- Lineup builder ---------- */
-const SLOTS = { forwards: 12, defense: 6, goalies: 2 };
-let slots = { forwards: Array(12).fill(''), defense: Array(6).fill(''), goalies: Array(2).fill('') };
+// The 7th D spot is always there but only used with 11 F / 7 D; that switch also drops the 12th forward.
+// It's a one-off for tonight, so it isn't remembered.
+const SLOTS = { forwards: 12, defense: 7, goalies: 2 };
+const emptySlots = () => ({ forwards: Array(12).fill(''), defense: Array(7).fill(''), goalies: Array(2).fill('') });
+let slots = emptySlots();
+let elevenSeven = false;
 const slotEls = [];   // { group, i, el, input }
+const isOff = ({ group, i }) => elevenSeven ? group === 'forwards' && i === 11 : group === 'defense' && i === 6;
+const activeEls = () => slotEls.filter(s => !isOff(s));
+// The numbers that go on the sheet: 12 F + 6 D, or 11 F + 7 D
+function lineupSlots() {
+    return elevenSeven
+        ? { forwards: slots.forwards.slice(0, 11), defense: slots.defense.slice(0, 7), goalies: slots.goalies }
+        : { forwards: slots.forwards.slice(0, 12), defense: slots.defense.slice(0, 6), goalies: slots.goalies };
+}
 
 function place(group, i) {
     if (group === 'forwards') return `line ${Math.floor(i / 3) + 1}`;
@@ -243,14 +257,20 @@ function place(group, i) {
 }
 
 function buildSlots() {
-    const rows = [['fwd-lines', 'forwards', 3, ['1st', '2nd', '3rd', '4th']], ['d-lines', 'defense', 2, ['1', '2', '3']], ['g-lines', 'goalies', 2, ['']]];
+    const rows = [['fwd-lines', 'forwards', 3, ['1st', '2nd', '3rd', '4th']], ['d-lines', 'defense', 2, ['1', '2', '3', '4']], ['g-lines', 'goalies', 2, ['']]];
     for (const [id, group, per, heads] of rows) {
         const wrap = $(id);
         heads.forEach((h, r) => {
             const rh = document.createElement('span'); rh.className = 'row-head'; rh.textContent = h; wrap.appendChild(rh);
+            if (group === 'defense' && r === 3) rh.dataset.extra = 'd7';
             for (let c = 0; c < per; c++) {
                 const i = r * per + c;
+                if (i >= SLOTS[group]) {   // 4th D row has just the 7th D
+                    const gap = document.createElement('span'); gap.dataset.extra = 'd7'; wrap.appendChild(gap); continue;
+                }
                 const el = document.createElement('label'); el.className = 'slot empty';
+                if (group === 'forwards' && i === 11) el.dataset.extra = 'f12';
+                if (group === 'defense' && i === 6) el.dataset.extra = 'd7';
                 el.innerHTML = `<input inputmode="numeric" maxlength="2" placeholder="#" aria-label="${group} ${place(group, i)} slot ${c + 1}"><span class="face"></span><span class="meta"></span><span class="last"></span><button type="button" class="slot-x" aria-label="Remove from this spot" title="Remove">✕</button>`;
                 wrap.appendChild(el);
                 const input = el.querySelector('input');
@@ -295,13 +315,13 @@ function onSlotInput(entry) {
 }
 
 function onSlotKey(e, entry) {
-    const idx = slotEls.indexOf(entry);
+    const els = activeEls(), idx = els.indexOf(entry);
     if (['Enter', ' ', ',', '-', 'ArrowRight'].includes(e.key) && !(e.key === 'ArrowRight' && entry.input.selectionStart < entry.input.value.length)) {
         e.preventDefault(); focusNext(entry);
     } else if (e.key === 'Backspace' && !entry.input.value && idx > 0) {
-        e.preventDefault(); slotEls[idx - 1].input.focus();
+        e.preventDefault(); els[idx - 1].input.focus();
     } else if (e.key === 'ArrowLeft' && entry.input.selectionStart === 0 && idx > 0) {
-        e.preventDefault(); slotEls[idx - 1].input.focus();
+        e.preventDefault(); els[idx - 1].input.focus();
     }
 }
 
@@ -313,7 +333,7 @@ function setSlot(entry, value) {
 }
 
 function focusNext(entry) {
-    const next = slotEls[slotEls.indexOf(entry) + 1];
+    const els = activeEls(), next = els[els.indexOf(entry) + 1];
     if (next) { next.input.focus(); next.input.select(); }
 }
 
@@ -323,27 +343,29 @@ function onSlotPaste(e, entry) {
     const nums = (text.match(/\d{1,2}/g) || []);
     if (nums.length < 2) return;
     e.preventDefault();
-    fillFrom(slotEls.indexOf(entry), nums);
+    fillFrom(activeEls().indexOf(entry), nums);
 }
 
 function fillFrom(start, nums) {
+    const els = activeEls();
     let k = start;
     for (const n of nums) {
-        if (k >= slotEls.length) break;
-        const s = slotEls[k++];
+        if (k >= els.length) break;
+        const s = els[k++];
         slots[s.group][s.i] = n;
     }
     saveSlots(); renderBuilder(); refresh();
-    const last = slotEls[Math.min(k, slotEls.length - 1)]; if (last) last.input.focus();
+    const last = els[Math.min(k, els.length - 1)]; if (last) last.input.focus();
 }
 
 function renderBuilder() {
     $('builder').classList.toggle('is-locked', !team);
+    $('builder').classList.toggle('eleven-seven', elevenSeven);
     const counts = {};
-    slotEls.forEach(({ group, i }) => { const v = slots[group][i]; if (v) counts[v] = (counts[v] || 0) + 1; });
+    activeEls().forEach(({ group, i }) => { const v = slots[group][i]; if (v) counts[v] = (counts[v] || 0) + 1; });
     const first = {};   // number -> first slot it appears in
-    slotEls.forEach(s => { const v = slots[s.group][s.i]; if (v && !(v in first)) first[v] = s; });
-    for (const entry of slotEls) {
+    activeEls().forEach(s => { const v = slots[s.group][s.i]; if (v && !(v in first)) first[v] = s; });
+    for (const entry of activeEls()) {
         const { group, i, el, input } = entry;
         const v = slots[group][i];
         if (document.activeElement !== input || input.value !== v) input.value = v;
@@ -380,7 +402,7 @@ function renderRoster() {
 }
 
 function renderRosterUsed() {
-    const used = new Set(Object.values(slots).flat().filter(Boolean));
+    const used = new Set(Object.values(lineupSlots()).flat().filter(Boolean));
     document.querySelectorAll('#roster-body .chip').forEach(c => {
         const on = used.has(c.dataset.num);
         c.classList.toggle('used', on);
@@ -391,20 +413,25 @@ function renderRosterUsed() {
 
 function addFromRoster(num, target) {
     // Already in the lineup: clicking again takes them out
-    if (Object.values(slots).some(list => list.includes(num))) {
+    if (Object.values(lineupSlots()).some(list => list.includes(num))) {
         for (const g of Object.keys(slots)) slots[g] = slots[g].map(v => v === num ? '' : v);
         saveSlots(); renderBuilder(); refresh(); return;
     }
     const order = target === 'goalies' ? ['goalies'] : [target, target === 'forwards' ? 'defense' : 'forwards'];
     for (const g of order) {
-        const i = slots[g].indexOf('');
-        if (i !== -1) { slots[g][i] = num; saveSlots(); renderBuilder(); refresh(); return; }
+        const open = activeEls().find(s => s.group === g && !slots[g][s.i]);
+        if (open) { slots[g][open.i] = num; saveSlots(); renderBuilder(); refresh(); return; }
     }
     setHint('Every spot is full — clear one first.');
 }
 
+$('eleven-seven').addEventListener('change', e => {
+    elevenSeven = e.target.checked;
+    renderBuilder(); refresh();
+});
+
 $('clear-all').addEventListener('click', () => {
-    slots = { forwards: Array(12).fill(''), defense: Array(6).fill(''), goalies: Array(2).fill('') };
+    slots = emptySlots();
     saveSlots(); renderBuilder(); refresh();
     slotEls[0].input.focus();
 });
@@ -421,7 +448,7 @@ async function readNumbersFrom(file) {
         const data = await res.json();
         const nums = (data.numbers || []).filter(n => byNum[n] && byNum[n].group !== 'G');
         if (!nums.length) { setHint("Couldn't find any of this team's numbers in that image."); return; }
-        slots.forwards = Array(12).fill(''); slots.defense = Array(6).fill('');
+        slots.forwards = Array(12).fill(''); slots.defense = Array(7).fill('');
         fillFrom(0, nums.slice(0, 18));
         setHint(`Filled ${Math.min(nums.length, 18)} spots from the screenshot. Check them before you generate.`);
     } catch (e) {
@@ -437,7 +464,7 @@ function saveSlots() {
 }
 function loadSlots() {
     const saved = team && prefs.lineups && prefs.lineups[team];
-    slots = { forwards: Array(12).fill(''), defense: Array(6).fill(''), goalies: Array(2).fill('') };
+    slots = emptySlots();
     if (saved) for (const g of Object.keys(SLOTS)) (saved[g] || []).slice(0, SLOTS[g]).forEach((v, i) => slots[g][i] = v || '');
 }
 
@@ -504,12 +531,13 @@ function readiness() {
     if (!team) return [false, 'Pick a team'];
     if (!roster) return [false, 'Loading the roster…'];
     if (roster.error) return [false, roster.error];
-    const skaters = [...slots.forwards, ...slots.defense];
+    const ls = lineupSlots();
+    const skaters = [...ls.forwards, ...ls.defense];
     const good = skaters.filter(v => byNum[v]).length;
-    const bad = [...skaters, ...slots.goalies].filter(v => v && !byNum[v]).length;
+    const bad = [...skaters, ...ls.goalies].filter(v => v && !byNum[v]).length;
     if (!good) return [false, 'Type at least one jersey number, or click players in the roster'];
     const open = 18 - good - skaters.filter(v => v && !byNum[v]).length;
-    const all = Object.values(slots).flat().filter(v => byNum[v]);
+    const all = Object.values(ls).flat().filter(v => byNum[v]);
     const twice = all.length - new Set(all).size;
     const notes = [];
     if (twice) notes.push(`${twice} player${twice > 1 ? 's are' : ' is'} in two spots`);
@@ -561,7 +589,7 @@ async function generate() {
     } else {
         url = '/process_numbers';
         form.append('team', team);
-        form.append('slots', JSON.stringify(slots));
+        form.append('slots', JSON.stringify(lineupSlots()));
     }
 
     try {
