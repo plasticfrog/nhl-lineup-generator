@@ -92,7 +92,9 @@
                             </div>
 
                             <details class="roster" id="roster" open>
-                                <summary>Roster <span id="roster-count"></span></summary>
+                                <summary>Roster <span id="roster-count"></span>
+                                    <span class="segmented small" id="roster-sort" title="Sort the roster"><button type="button" data-sort="name">A–Z</button><button type="button" data-sort="number">#</button></span>
+                                </summary>
                                 <div id="roster-body"></div>
                             </details>
                         </div>
@@ -222,10 +224,10 @@ function renderPicked() {
 }
 
 /* ---------- Mode ---------- */
-document.querySelectorAll('.segmented button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+document.querySelectorAll('[role=tablist] button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
 function setMode(m) {
     mode = m; prefs.mode = m; savePrefs();
-    document.querySelectorAll('.segmented button').forEach(b => { b.classList.toggle('on', b.dataset.mode === m); b.setAttribute('aria-selected', b.dataset.mode === m); });
+    document.querySelectorAll('[role=tablist] button').forEach(b => { b.classList.toggle('on', b.dataset.mode === m); b.setAttribute('aria-selected', b.dataset.mode === m); });
     $('mode-numbers').hidden = m !== 'numbers';
     $('mode-shots').hidden = m !== 'shots';
     $('team-note').textContent = m === 'shots' && CAN_DETECT ? 'optional' : '';
@@ -391,7 +393,9 @@ function renderRoster() {
     if (!roster || roster.error) { body.innerHTML = ''; $('roster-count').textContent = ''; return; }
     const groups = [['Forwards', roster.forwards, 'forwards'], ['Defense', roster.defensemen, 'defense'], ['Goalies', roster.goalies, 'goalies']];
     body.innerHTML = groups.map(([title, list, target]) => {
-        const withNum = list.filter(p => p.number).sort((a, b) => a.last.localeCompare(b.last));
+        const withNum = list.filter(p => p.number).sort(prefs.rosterSort === 'number'
+            ? (a, b) => (+a.number - +b.number) || a.last.localeCompare(b.last)
+            : (a, b) => a.last.localeCompare(b.last));
         return `<div class="roster-group"><h4>${title}</h4><div class="chips">${withNum.map(p =>
             `<button type="button" class="chip" data-num="${p.number}" data-target="${target}" data-name="${p.first} ${p.last}">${p.headshot ? `<img src="${p.headshot}" alt="" loading="lazy">` : '<span class="no-photo"></span>'}<b>${p.number}</b>${p.last}</button>`).join('')}</div></div>`;
     }).join('');
@@ -400,6 +404,16 @@ function renderRoster() {
     body.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => addFromRoster(c.dataset.num, c.dataset.target)));
     renderRosterUsed();
 }
+
+// A–Z or jersey-number order for the roster chips; each browser keeps its own pick
+function showRosterSort() {
+    document.querySelectorAll('#roster-sort button').forEach(b => b.classList.toggle('on', b.dataset.sort === (prefs.rosterSort || 'name')));
+}
+document.querySelectorAll('#roster-sort button').forEach(b => b.addEventListener('click', e => {
+    e.preventDefault();   // don't open/close the roster
+    prefs.rosterSort = b.dataset.sort; savePrefs(); showRosterSort(); renderRoster();
+}));
+showRosterSort();
 
 function renderRosterUsed() {
     const used = new Set(Object.values(lineupSlots()).flat().filter(Boolean));

@@ -136,6 +136,8 @@ img { display: block; }
 .roster summary::before { content: '▸'; color: var(--muted); transition: transform .12s; }
 .roster[open] summary::before { transform: rotate(90deg); }
 .roster summary span { font-weight: 400; color: var(--muted); font-size: 13px; }
+.roster summary .segmented { margin-left: auto; padding: 2px; flex-shrink: 0; }
+.roster summary .segmented button { padding: 3px 10px; font-size: 12px; }
 .roster-group { margin-top: 12px; }
 .roster-group h4 { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
