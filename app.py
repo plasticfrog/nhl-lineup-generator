@@ -14,6 +14,7 @@ from difflib import SequenceMatcher
 from bs4 import BeautifulSoup
 from mlb import MLB_TEAMS, fetch_team_data as mlb_fetch_team_data
 import nba
+import ncaa
 import activity
 import pwhl
 
@@ -912,9 +913,46 @@ def nba_generate():
         activity.record('nba', summary, False, elapsed, str(e)[:300])
         return jsonify({'error': "Couldn't build those sheets. NBA.com may be slow; give it a minute and try again."}), 500
 
+# The NBA and NCAA sheets share one template; this tells it which league it's showing
+SHEET_CFG = {
+    'nba': {'key': 'nba', 'name': 'NBA', 'ref_prefix': 'NBA REF', 'staff_source': 'NBA.com',
+            'ref_logo': 'https://cdn.nba.com/logos/leagues/logo-nba.svg', 'coach_photos_fill': False},
+    'ncaa': {'key': 'ncaa', 'name': 'NCAA', 'ref_prefix': 'NCAA REF', 'staff_source': "the school's site",
+             'ref_logo': ncaa.NCAA_LOGO, 'coach_photos_fill': True},
+}
+
 @app.route('/nba/sheet')
 def nba_sheet():
-    return render_template('nba_sheet.html')
+    return render_template('nba_sheet.html', cfg=SHEET_CFG['nba'])
+
+@app.route('/ncaa')
+def ncaa_select():
+    return render_template('ncaa_select.html', teams=ncaa.teams(), conferences=ncaa.CONFERENCES, genders=ncaa.GENDERS)
+
+@app.route('/ncaa/generate', methods=['POST'])
+def ncaa_generate():
+    start = time.time()
+    gender = request.form.get('gender')
+    away, home = request.form.get('away_team'), request.form.get('home_team')
+    if gender not in ncaa.GENDERS or away not in ncaa.NCAA_TEAMS or home not in ncaa.NCAA_TEAMS or away == home:
+        return jsonify({'error': 'Pick two different teams'}), 400
+    summary = f"{ncaa.GENDERS[gender]}: {ncaa.NCAA_TEAMS[away][0]} @ {ncaa.NCAA_TEAMS[home][0]}"
+    try:
+        data = ncaa.matchup(gender, away, home)
+        elapsed = round(time.time() - start, 2)
+        counts = ' | '.join(f"{t['city']}: {len(t['players'])} players, {len(t['coaches'])} coaches" for t in data['teams'])
+        logger.info(f"NCAA GENERATE OK | {summary} | {elapsed}s | {counts}")
+        activity.record('ncaa', summary, True, elapsed, counts)
+        return jsonify(data)
+    except Exception as e:
+        elapsed = round(time.time() - start, 2)
+        logger.error(f"NCAA GENERATE FAIL | {summary} | {elapsed}s | error: {e}")
+        activity.record('ncaa', summary, False, elapsed, str(e)[:300])
+        return jsonify({'error': "Couldn't build those sheets. ESPN may be slow; give it a minute and try again."}), 500
+
+@app.route('/ncaa/sheet')
+def ncaa_sheet():
+    return render_template('nba_sheet.html', cfg=SHEET_CFG['ncaa'])
 
 # ---- Activity dashboard (password: ADMIN_PASSWORD env var; username can be anything) ----
 
@@ -946,7 +984,7 @@ def _admin_denied():
 def activity_event():
     """Sheet pages report prints here."""
     kind = request.form.get('kind')
-    if kind in ('print_nhl', 'print_pwhl', 'print_mlb', 'print_nba'):
+    if kind in ('print_nhl', 'print_pwhl', 'print_mlb', 'print_nba', 'print_ncaa'):
         activity.record(kind, (request.form.get('summary') or '')[:80] or 'Sheet', True)
     elif kind == 'coach_change':  # someone changed a coach on a sheet: maybe the staff changed
         activity.record(kind, (request.form.get('summary') or '')[:80] or 'Coach', True, None, (request.form.get('detail') or '')[:200])

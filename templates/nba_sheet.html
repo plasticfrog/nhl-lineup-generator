@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="referrer" content="no-referrer">
-    <title>NBA Headshot Sheet</title>
+    <title>{{ cfg.name }} Headshot Sheet</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
@@ -33,7 +33,7 @@
         .photo { position: relative; flex: 1; overflow: hidden; min-height: 0; }
         .photo img { position: absolute; left: 50%; top: -3%; height: 116%; width: auto; max-width: none; transform-origin: 50% 25%; user-select: none; -webkit-user-drag: none; pointer-events: none; }
         .coach .photo img { top: -6%; height: 124%; }
-        .photo img.custom { top: 0; height: 100%; width: 100%; object-fit: cover; object-position: 50% 15%; }
+        .photo img.custom { left: 0; top: 0; height: 100%; width: 100%; object-fit: cover; object-position: 50% 15%; }
         .label { font-size: 9px; font-weight: 700; text-transform: uppercase; text-align: center; letter-spacing: .02em; padding-bottom: 2px; outline: none; }
         .name { height: 0.23in; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; outline: none; }
         .coach .name { height: 0.3in; font-size: 10px; line-height: 1.1; white-space: normal; }
@@ -136,22 +136,24 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 function readJSON(key, fallback = {}) { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (e) { return fallback; } }
 function writeJSON(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }
 
+// This sheet serves the NBA and NCAA basketball; CFG says which (storage names, logos, wording)
+const CFG = {{ cfg|tojson }};
 // Remembered per team across new sheets: player order, who's off the sheet, which coaches show, added players
-const PREFS_KEY = 'nba_team_prefs';      // { ABBR: { order: [ids], out: [ids], coaches: [ids|''], added: [{ id, number, last, photo }] } }
-const ADJUST_KEY = 'nba_photo_adjust';   // { photoKey: { s, x, y } }
-const REF_KEY = 'nba_ref';               // { name, number, hidden }
-const NUM_STYLE_KEY = 'nba_num_style';   // 'badge' | 'team' | 'yellow'
+const PREFS_KEY = `${CFG.key}_team_prefs`;      // { ABBR: { order: [ids], out: [ids], coaches: [ids|''], added: [{ id, number, last, photo }] } }
+const ADJUST_KEY = `${CFG.key}_photo_adjust`;   // { photoKey: { s, x, y } }
+const REF_KEY = `${CFG.key}_ref`;               // { name, number, hidden }
+const NUM_STYLE_KEY = `${CFG.key}_num_style`;   // 'badge' | 'team' | 'yellow'
 const SILHOUETTE = 'https://cdn.nba.com/headshots/nba/latest/1040x760/1.png';
 const COACH_SLOTS = 5;
 
-const data = readJSON('nba_sheet_data', null);
+const data = readJSON(`${CFG.key}_sheet_data`, null);
 let SERVER_PHOTOS = {};                  // coach and referee photos saved for everyone: { slug: url }
 const custom = {};                       // photos dropped on players this visit: { photoKey: dataUrl }
 const edits = {};                        // typed changes this visit: { 'p:ID:last': text, ... }
 const logos = {};                        // logo boxes turned into notes this visit: { ABBR: html }
 
 const slug = name => (name || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-const refPhotoName = name => `NBA REF ${name}`;
+const refPhotoName = name => `${CFG.ref_prefix} ${name}`;
 
 function prefsFor(team) {
     const all = readJSON(PREFS_KEY);
@@ -175,9 +177,10 @@ const isAdded = id => id.startsWith('x-');
 
 function coachPhoto(c) { return SERVER_PHOTOS[slug(c.name)] || c.headshot || SILHOUETTE; }
 
-function photoHTML(key, src) {
+function photoHTML(key, src, fill = false) {
     const c = custom[key] || (src && src.startsWith('data:') ? src : null);   // photos people dropped in
-    return `<div class="photo" data-photo="${esc(key)}"><img class="${c ? 'custom' : ''}" src="${esc(c || src || SILHOUETTE)}" alt=""></div>`;
+    // Dropped-in photos (and ordinary portrait photos, like college coaches') fill the box instead of the cutout framing
+    return `<div class="photo" data-photo="${esc(key)}"><img class="${c || (fill && src) ? 'custom' : ''}" src="${esc(c || src || SILHOUETTE)}" alt=""></div>`;
 }
 
 function editable(key, text, cls) {
@@ -192,7 +195,7 @@ function coachCard(team, c, slot, isHead) {
     const [first, ...rest] = c.name.split(' ');
     return `<div class="card coach${isHead ? ' head-coach' : ''}" data-team="${team.abbr}" data-slot="${slot}" data-coach="${esc(c.name)}">
         ${isHead ? editable(`c:${c.id}:role`, 'Head Coach', 'label') : ''}
-        ${photoHTML(`c:${c.id}`, coachPhoto(c))}
+        ${photoHTML(`c:${c.id}`, coachPhoto(c), CFG.coach_photos_fill)}
         ${editable(`c:${c.id}:name`, `${first}\n${rest.join(' ')}`, 'name').replace(/\n/, '<br>')}
         <button class="swap-btn" type="button" title="Show a different staff member">Swap</button>
     </div>`;
@@ -217,7 +220,7 @@ function refSpot() {
     const ref = readJSON(REF_KEY);
     const src = ref.name && SERVER_PHOTOS[slug(refPhotoName(ref.name))];
     return `<div class="ref-spot">
-        <div class="league-logo"><img src="https://cdn.nba.com/logos/leagues/logo-nba.svg" alt="NBA"></div>
+        <div class="league-logo"><img src="${esc(data.ref_logo || CFG.ref_logo)}" alt="${esc(data.ref_logo_alt || CFG.name)}"></div>
         <div class="card ref" data-ref="1">
             <div class="photo-wrap" style="position:relative;flex:1;display:flex;min-height:0">
                 ${photoHTML('ref', src || SILHOUETTE)}
@@ -229,7 +232,7 @@ function refSpot() {
 }
 
 function render() {
-    if (!data || !data.teams) { $('root').innerHTML = '<div class="no-data">No sheet found. Go back to the NBA page and pick a matchup.</div>'; return; }
+    if (!data || !data.teams) { $('root').innerHTML = `<div class="no-data">No sheet found. Go back to the ${CFG.name} page and pick a matchup.</div>`; return; }
     const ref = readJSON(REF_KEY);
     const teams = data.teams.map(t => ({ t, p: prefsFor(t) }));
     // The referee spot (2 cells) goes on the left team if it has room, else the right, else adds a row on the left
@@ -262,7 +265,7 @@ function render() {
         </section>`;
     });
     $('root').innerHTML = `<div class="sheet">${halves[0]}<div class="divider"></div>${halves[1]}</div>`;
-    document.title = `${data.teams[0].name} @ ${data.teams[1].name} · NBA Headshot Sheet`;
+    document.title = `${data.teams[0].name} @ ${data.teams[1].name} · ${CFG.name} Headshot Sheet`;
     $('ref-toggle').textContent = ref.hidden ? 'Show referee' : 'Hide referee';
     applyNumStyle();
     renderBench(teams);
@@ -489,7 +492,7 @@ function coachMenu(card, e) {
     const options = t.coaches.filter(c => !p.coaches.includes(c.id)).map(c => ({ label: c.name, sub: c.role, id: c.id }));
     if (p.coaches[slot]) options.push({ label: 'Leave this spot empty', sub: '', id: '' });
     menu.innerHTML = options.length ? options.map((o, i) => `<div data-i="${i}">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</div>`).join('')
-                                    : '<div>No other staff listed on NBA.com</div>';
+                                    : `<div>No other staff listed on ${CFG.staff_source}</div>`;
     menu.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
         p.coaches[slot] = options[+el.dataset.i].id; savePrefs(t, p); closeMenu(); render();
     });
@@ -513,7 +516,7 @@ let lastPrint = 0;
 window.addEventListener('beforeprint', () => {
     if (Date.now() - lastPrint < 5000 || !data) return;
     lastPrint = Date.now();
-    const f = new FormData(); f.append('kind', 'print_nba'); f.append('summary', `${data.teams[0].name} @ ${data.teams[1].name}`);
+    const f = new FormData(); f.append('kind', `print_${CFG.key}`); f.append('summary', `${data.teams[0].name} @ ${data.teams[1].name}`);
     navigator.sendBeacon('/activity/event', f);
 });
 
