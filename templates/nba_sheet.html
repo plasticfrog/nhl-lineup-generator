@@ -36,6 +36,8 @@
         .photo img.custom { left: 0; top: 0; height: 100%; width: 100%; object-fit: cover; object-position: 50% 15%; }
         .label { font-size: 9px; font-weight: 700; text-transform: uppercase; text-align: center; letter-spacing: .02em; padding-bottom: 2px; outline: none; }
         .name { height: 0.23in; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; outline: none; }
+        .first { height: 0.17in; display: flex; align-items: flex-end; justify-content: center; font-size: 11px; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; outline: none; line-height: 1; }
+        .first + .name { height: 0.2in; align-items: flex-start; }
         .coach .name { height: 0.3in; font-size: 10px; line-height: 1.1; white-space: normal; }
         .head-coach .name { font-size: 11px; }
         .num { position: absolute; left: 0.03in; bottom: -0.02in; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 0.46in; line-height: 1; outline: none; z-index: 2; min-width: 0.2in; }
@@ -113,6 +115,7 @@
             <button type="button" data-v="team">Team color</button>
             <button type="button" data-v="yellow">Yellow</button>
         </div>
+        <button class="big plain" id="first-toggle"></button>
         <button class="big plain" id="ref-toggle"></button>
         <button class="big plain" id="reset">Reset order &amp; coaches</button>
         <h4>How to edit</h4>
@@ -143,6 +146,7 @@ const PREFS_KEY = `${CFG.key}_team_prefs`;      // { ABBR: { order: [ids], out: 
 const ADJUST_KEY = `${CFG.key}_photo_adjust`;   // { photoKey: { s, x, y } }
 const REF_KEY = `${CFG.key}_ref`;               // { name, number, hidden }
 const NUM_STYLE_KEY = `${CFG.key}_num_style`;   // 'badge' | 'team' | 'yellow'
+const FIRST_NAMES_KEY = `${CFG.key}_first_names`;   // '1' shows first names above last names
 const SILHOUETTE = 'https://cdn.nba.com/headshots/nba/latest/1040x760/1.png';
 const COACH_SLOTS = 5;
 
@@ -171,7 +175,7 @@ function savePrefs(team, p) { const all = readJSON(PREFS_KEY); all[team.abbr] = 
 
 // Roster players plus anyone added by hand on this sheet
 function playersOf(team, p) {
-    return team.players.concat(p.added.map(x => ({ id: x.id, first: '', last: x.last, number: x.number, headshot: x.photo, added: true })));
+    return team.players.concat(p.added.map(x => ({ id: x.id, first: x.first || '', last: x.last, number: x.number, headshot: x.photo, added: true })));
 }
 const isAdded = id => id.startsWith('x-');
 
@@ -211,6 +215,7 @@ function playerCard(team, p) {
             ${photoHTML(`p:${p.id}`, p.headshot)}
             ${field('number', p.number, 'num', '#')}
         </div>
+        ${showFirst() ? field('first', p.first, 'first', 'First') : ''}
         ${field('last', p.last, 'name', 'Name')}
         <button class="x" type="button" title="${added ? 'Remove this player' : `Take ${esc(p.first)} ${esc(p.last)} off the sheet`}">✕</button>
     </div>`;
@@ -267,6 +272,7 @@ function render() {
     $('root').innerHTML = `<div class="sheet">${halves[0]}<div class="divider"></div>${halves[1]}</div>`;
     document.title = `${data.teams[0].name} @ ${data.teams[1].name} · ${CFG.name} Headshot Sheet`;
     $('ref-toggle').textContent = ref.hidden ? 'Show referee' : 'Hide referee';
+    $('first-toggle').textContent = showFirst() ? 'Hide first names' : 'Show first names';
     applyNumStyle();
     renderBench(teams);
     wire();
@@ -290,7 +296,7 @@ function renderBench(teams) {
 const teamBy = abbr => data.teams.find(t => t.abbr === abbr);
 
 function fitNames() {
-    document.querySelectorAll('.name, .team-name').forEach(el => {
+    document.querySelectorAll('.name, .first, .team-name').forEach(el => {
         el.style.fontSize = '';
         let size = parseFloat(getComputedStyle(el).fontSize);
         while (size > 7 && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) { size -= 0.5; el.style.fontSize = size + 'px'; }
@@ -504,6 +510,8 @@ function coachMenu(card, e) {
 }
 function closeMenu() { document.querySelectorAll('.menu').forEach(m => m.remove()); }
 
+const showFirst = () => localStorage.getItem(FIRST_NAMES_KEY) === '1';
+$('first-toggle').onclick = () => { localStorage.setItem(FIRST_NAMES_KEY, showFirst() ? '0' : '1'); render(); };
 $('ref-toggle').onclick = () => { const ref = readJSON(REF_KEY); ref.hidden = !ref.hidden; writeJSON(REF_KEY, ref); render(); };
 $('reset').onclick = () => {
     if (!data || !confirm('Put both teams back in jersey-number order with everyone on the sheet, reset the coaches, and remove players you added?')) return;
