@@ -10,6 +10,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
     <script src="{{ url_for('static', filename='landing.js') }}" defer></script>
+    <style>
+        /* Conference headings in the team lists (browsers that allow styling them) */
+        .matchup optgroup { font-weight: 800; color: #121417; background: #eef0f3; }
+        .matchup option { font-weight: 400; background: #fff; }
+    </style>
 </head>
 <body>
     <header class="topbar">
@@ -51,7 +56,7 @@
                             <div class="pick"><span class="logo-blank" id="away-logo"></span>
                                 <select id="away-team">
                                     <option value="">Choose a team</option>
-                                    {% for code, (conf_name, _) in conferences.items() %}<optgroup label="{{ conf_name }}">{% for t in teams if t.conf == code %}<option value="{{ t.id }}">{{ t.school }} {{ t.name }}</option>{% endfor %}</optgroup>{% endfor %}
+                                    {% for code, (conf_name, _) in conferences.items() %}<optgroup label="━━━━  {{ conf_name|upper }}  ━━━━">{% for t in teams if t.conf == code %}<option value="{{ t.id }}">{{ t.school }} {{ t.name }}</option>{% endfor %}</optgroup>{% endfor %}
                                 </select>
                             </div>
                         </div>
@@ -61,7 +66,7 @@
                             <div class="pick"><span class="logo-blank" id="home-logo"></span>
                                 <select id="home-team">
                                     <option value="">Choose a team</option>
-                                    {% for code, (conf_name, _) in conferences.items() %}<optgroup label="{{ conf_name }}">{% for t in teams if t.conf == code %}<option value="{{ t.id }}">{{ t.school }} {{ t.name }}</option>{% endfor %}</optgroup>{% endfor %}
+                                    {% for code, (conf_name, _) in conferences.items() %}<optgroup label="━━━━  {{ conf_name|upper }}  ━━━━">{% for t in teams if t.conf == code %}<option value="{{ t.id }}">{{ t.school }} {{ t.name }}</option>{% endfor %}</optgroup>{% endfor %}
                                 </select>
                             </div>
                         </div>
