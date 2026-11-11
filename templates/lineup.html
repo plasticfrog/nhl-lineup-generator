@@ -156,7 +156,7 @@
             background: rgba(0, 0, 0, 0.9) !important; color: white !important;
             padding: 1px 8px; font-size: 0.6em; font-weight: 900;
             border-radius: 2px; z-index: 60; border: 1px solid white;
-            white-space: nowrap; cursor: text;
+            white-space: pre; text-align: center; line-height: 1.15; cursor: text;   /* Enter starts a second line */
         }
         
         .controls {
@@ -277,7 +277,8 @@
         const COACH_PHOTOS_KEY = 'nhl_coach_photos';   // { 'COACH NAME': imageDataUrl } (only if the server upload failed)
         const TEAM_COACHES_KEY = 'nhl_team_coaches';   // { TEAM: { staff_Coach_N: { name, role, image } } }
         const NAME_BARS_KEY = 'nhl_name_bars';         // 'black' for plain black name bars; team color otherwise
-        const KEEP_KEYS = ['lineup_data', COACH_PHOTOS_KEY, TEAM_COACHES_KEY, COACH_TOGGLE_KEY, NAME_BARS_KEY];
+        const COACH_ROLES_KEY = 'nhl_coach_roles';     // { 'COACH NAME': 'ASSISTANT COACH\nDEFENSE' } follows the coach
+        const KEEP_KEYS = ['lineup_data', COACH_PHOTOS_KEY, TEAM_COACHES_KEY, COACH_TOGGLE_KEY, NAME_BARS_KEY, COACH_ROLES_KEY];
 
         const LEAGUE = lineupData.league || 'nhl';
         // PWHL and NHL share abbreviations (BOS, TOR, ...), so PWHL teams get their own key for
@@ -458,7 +459,7 @@
             const btn = document.getElementById('save-staff');
             if (btn) btn.onclick = async () => {
                 const coaches = [...document.querySelectorAll('#coach-container .staff-member')].map(m => ({
-                    name: m.querySelector('.info-bar').textContent.trim(), role: m.querySelector('.role-label').textContent.trim() }));
+                    name: m.querySelector('.info-bar').textContent.trim(), role: m.querySelector('.role-label').innerText.trim() }));
                 const f = new FormData();
                 f.append('league', LEAGUE); f.append('team', lineupData.team); f.append('coaches', JSON.stringify(coaches));
                 btn.disabled = true; btn.textContent = 'Saving…';
@@ -718,10 +719,17 @@
 
             const role = document.createElement('div');
             role.className = 'role-label'; role.contentEditable = "true";
-            role.textContent = isStarter ? '*STARTING GOALIE*' : (saved.role || pre.role || type.toUpperCase());
+            const roleByName = isCoach ? readJSON(COACH_ROLES_KEY)[staffName.trim().toUpperCase()] : null;
+            role.textContent = isStarter ? '*STARTING GOALIE*' : (roleByName || saved.role || pre.role || type.toUpperCase());
             role.addEventListener('mousedown', e => e.stopPropagation());
             role.addEventListener('click', e => e.stopPropagation());
-            role.onblur = () => saveStaff({ role: role.textContent });
+            role.onblur = () => {
+                const text = role.innerText.replace(/\n{2,}/g, '\n').trim();   // keeps the line break from Enter
+                role.textContent = text;
+                saveStaff({ role: text });
+                const name = isCoach && nameInfo.textContent.trim().toUpperCase();
+                if (name) { const roles = readJSON(COACH_ROLES_KEY); roles[name] = text; writeJSON(COACH_ROLES_KEY, roles); }
+            };
             imgCont.appendChild(role);
 
             const coachPhoto = isCoach ? coachPhotoFor(staffName) : null;

@@ -1008,7 +1008,7 @@ def save_team_staff():
     team = (request.form.get('team') or '').upper()
     if league not in ('pwhl', 'nhl') or not valid_team(league, team):
         return jsonify({'error': 'Unknown team'}), 400
-    coaches = [{'name': str(c.get('name', '')).strip().upper()[:60], 'role': str(c.get('role', '')).strip().upper()[:30]}
+    coaches = [{'name': str(c.get('name', '')).strip().upper()[:60], 'role': str(c.get('role', '')).strip().upper()[:60]}
                for c in json.loads(request.form.get('coaches') or '[]')[:4]]
     staff = load_team_staff()
     staff[f'{league}:{team}'] = {'updated': datetime.now().strftime('%Y-%m-%d'), 'coaches': coaches}
