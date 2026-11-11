@@ -78,6 +78,20 @@ NCAA_TEAMS = {
     '28': ('UC San Diego', 'Tritons', '#000000', 'bigw', 'ucsdtritons.com'),
     '2540': ('UC Santa Barbara', 'Gauchos', '#1E1840', 'bigw', 'ucsbgauchos.com'),
     '3084': ('Utah Valley', 'Wolverines', '#004812', 'bigw', 'gouvu.com'),
+    # CAA
+    '2097': ('Campbell', 'Fighting Camels', '#000000', 'caa', 'gocamels.com'),
+    '232': ('Charleston', 'Cougars', '#7A2531', 'caa', 'cofcsports.com'),
+    '2182': ('Drexel', 'Dragons', '#020260', 'caa', 'drexeldragons.com'),
+    '2210': ('Elon', 'Phoenix', '#020303', 'caa', 'elonphoenix.com'),
+    '2261': ('Hampton', 'Pirates', '#0067AC', 'caa', 'hamptonpirates.com'),
+    '2275': ('Hofstra', 'Pride', '#003594', 'caa', 'gohofstra.com'),
+    '2405': ('Monmouth', 'Hawks', '#051844', 'caa', 'monmouthhawks.com'),
+    '2448': ('North Carolina A&T', 'Aggies', '#0505AA', 'caa', 'ncataggies.com'),
+    '111': ('Northeastern', 'Huskies', '#CC0001', 'caa', 'gonu.com'),
+    '2619': ('Stony Brook', 'Seawolves', '#990000', 'caa', 'stonybrookathletics.com'),
+    '119': ('Towson', 'Tigers', '#FFC229', 'caa', 'towsontigers.com'),
+    '350': ('UNC Wilmington', 'Seahawks', '#00665E', 'caa', 'uncwsports.com'),
+    '2729': ('William & Mary', 'Tribe', '#115740', 'caa', 'tribeathletics.com'),
     '333': ('Alabama', 'Crimson Tide', '#9E1B32', 'sec', 'rolltide.com'),
     '8': ('Arkansas', 'Razorbacks', '#A32136', 'sec', 'arkansasrazorbacks.com'),
     '2': ('Auburn', 'Tigers', '#002B5C', 'sec', 'auburntigers.com'),
@@ -102,6 +116,7 @@ CONFERENCES = {
     'big12': ('Big 12', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/big_12.png'),
     'sec': ('SEC', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/sec.png'),
     'bigw': ('Big West', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/big_west.png'),
+    'caa': ('CAA', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/colonial.png'),
 }
 NCAA_LOGO = '/static/img/ncaa.svg'   # referee spot for games between conferences
 
