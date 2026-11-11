@@ -92,6 +92,16 @@ NCAA_TEAMS = {
     '119': ('Towson', 'Tigers', '#FFC229', 'caa', 'towsontigers.com'),
     '350': ('UNC Wilmington', 'Seahawks', '#00665E', 'caa', 'uncwsports.com'),
     '2729': ('William & Mary', 'Tribe', '#115740', 'caa', 'tribeathletics.com'),
+    # Pac-12
+    '68': ('Boise State', 'Broncos', '#0033A0', 'pac12', 'broncosports.com'),
+    '36': ('Colorado State', 'Rams', '#004C23', 'pac12', 'csurams.com'),
+    '278': ('Fresno State', 'Bulldogs', '#B1102B', 'pac12', 'gobulldogs.com'),
+    '2250': ('Gonzaga', 'Bulldogs', '#041E42', 'pac12', 'gozags.com'),
+    '204': ('Oregon State', 'Beavers', '#DC4405', 'pac12', 'osubeavers.com'),
+    '21': ('San Diego State', 'Aztecs', '#A6192E', 'pac12', 'goaztecs.com'),
+    '326': ('Texas State', 'Bobcats', '#501214', 'pac12', 'txst.com'),
+    '328': ('Utah State', 'Aggies', '#0F2439', 'pac12', 'utahstateaggies.com'),
+    '265': ('Washington State', 'Cougars', '#A60F2D', 'pac12', 'wsucougars.com'),
     '333': ('Alabama', 'Crimson Tide', '#9E1B32', 'sec', 'rolltide.com'),
     '8': ('Arkansas', 'Razorbacks', '#A32136', 'sec', 'arkansasrazorbacks.com'),
     '2': ('Auburn', 'Tigers', '#002B5C', 'sec', 'auburntigers.com'),
@@ -117,6 +127,7 @@ CONFERENCES = {
     'sec': ('SEC', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/sec.png'),
     'bigw': ('Big West', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/big_west.png'),
     'caa': ('CAA', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/colonial.png'),
+    'pac12': ('Pac-12', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/pac_12.png'),
 }
 NCAA_LOGO = '/static/img/ncaa.svg'   # referee spot for games between conferences
 
@@ -235,8 +246,10 @@ def _from_coach_links(s, base):
     return [(n, p, photos.get(n, '')) for n, p, _ in out]
 
 def _from_staff_table(s, base):
-    """Arkansas: a staff table of names and titles; each coach's photo is on their own page"""
-    rows = re.findall(r'<a href="([^"]*/coache/[^"]*)">\s*([^<]+?)\s*</a>\s*</td>\s*<td>\s*([^<]+?)\s*</td>', s)
+    """Arkansas, and older SIDEARM coach tables (Utah State): names and titles; each coach's photo is on their own page"""
+    rows = re.findall(r'<a href="([^"]*/coache/[^"]*)">\s*([^<]+?)\s*</a>\s*</td>\s*<td>\s*([^<]+?)\s*</td>', s) + [
+        (urljoin(base, page), name, title) for page, name, title in re.findall(
+            r'sidearm-coaches-coach">\s*<th[^>]*>\s*<a[^>]*href=\'([^\']+)\'>\s*([^<]+?)\s*</a>\s*</th>\s*<td[^>]*>\s*([^<]+?)\s*</td>', s)]
     def photo(page, name):
         try:
             p = requests.get(page, headers=HEADERS, timeout=10).text
