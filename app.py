@@ -1013,6 +1013,8 @@ def ncaa_generate():
     away, home = request.form.get('away_team'), request.form.get('home_team')
     if gender not in ncaa.GENDERS or away not in ncaa.NCAA_TEAMS or home not in ncaa.NCAA_TEAMS or away == home:
         return jsonify({'error': 'Pick two different teams'}), 400
+    if gender == 'womens' and (away in ncaa.MENS_ONLY or home in ncaa.MENS_ONLY):
+        return jsonify({'error': f"{ncaa.NCAA_TEAMS[away if away in ncaa.MENS_ONLY else home][0]} has no women's team"}), 400
     summary = f"{ncaa.GENDERS[gender]}: {ncaa.NCAA_TEAMS[away][0]} @ {ncaa.NCAA_TEAMS[home][0]}"
     try:
         data = ncaa.matchup(gender, away, home)

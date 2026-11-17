@@ -105,7 +105,7 @@
                     <li>Both teams on one landscape page</li>
                     <li>Drag players into your order and take out anyone who's not playing; each team remembers it</li>
                     <li>Coaching staffs come from each school's site; type in the referee and drop in a photo</li>
-                    <li>ACC, Big Ten, Big 12, SEC, Big East, Pac-12, Mountain West, WCC, American, Atlantic 10, Missouri Valley, Sun Belt, Conference USA, Big West, CAA and Southland teams</li>
+                    <li>ACC, Big Ten, Big 12, SEC, Big East, Pac-12, Mountain West, WCC, American, Atlantic 10, Missouri Valley, Sun Belt, Conference USA, MAC, Ivy League, SoCon, Summit League, Big West, CAA and Southland teams</li>
                 </ul>
             </aside>
         </div>
@@ -143,12 +143,13 @@ const fullName = t => `${t.school} ${t.name}`;
 function setGender(g) {
     gender = GENDERS[g] ? g : 'mens';
     document.querySelectorAll('#gender button').forEach(b => { b.classList.toggle('on', b.dataset.g === gender); b.setAttribute('aria-selected', b.dataset.g === gender); });
+    if (gender === 'womens') ['away-team', 'home-team'].forEach(id => { if ((TEAMS[$(id).value] || {}).mens_only) $(id).value = ''; });
 }
 document.querySelectorAll('#gender button').forEach(b => b.addEventListener('click', () => { setGender(b.dataset.g); refresh(); }));
 
 // ---- Team search: type a school, nickname or conference; the hidden selects keep the picks ----
 const TEAM_ORDER = {{ teams|tojson }};   // already grouped by conference
-const CONF_ALSO = { big10: 'b1g big 10', pac12: 'pac 12', aac: 'aac', mwc: 'mwc mw', wcc: 'west coast', bigw: 'bw', caa: 'coastal colonial', a10: 'a10 a 10', mvc: 'mvc mo valley', sunbelt: 'sunbelt', cusa: 'cusa c usa' };
+const CONF_ALSO = { big10: 'b1g big 10', pac12: 'pac 12', aac: 'aac', mwc: 'mwc mw', wcc: 'west coast', bigw: 'bw', caa: 'coastal colonial', a10: 'a10 a 10', mvc: 'mvc mo valley', sunbelt: 'sunbelt', cusa: 'cusa c usa', mac: 'mid american', socon: 'southern', summit: 'summit' };
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ'’.]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 TEAM_ORDER.forEach(t => { t.words = norm(`${t.school} ${t.name} ${t.conf_name} ${CONF_ALSO[t.conf] || ''}`).split(' '); });
 // Every word typed has to start some word of the team's name or conference ("big east", "gonz", "st john")
@@ -160,7 +161,7 @@ function setupSearch(side) {
     const open = () => !list.hidden;
     function render(q) {
         const words = norm(q).split(' ').filter(Boolean);
-        shown = TEAM_ORDER.filter(t => !words.length || matches(t, words));
+        shown = TEAM_ORDER.filter(t => !(gender === 'womens' && t.mens_only) && (!words.length || matches(t, words)));
         let html = '', conf = null;
         shown.forEach((t, i) => {
             if (t.conf !== conf) { conf = t.conf; html += `<div class="conf">${t.conf_name}</div>`; }
@@ -272,6 +273,7 @@ try {
     setGender(saved.gender);
     if (TEAMS[saved.away]) $('away-team').value = saved.away;
     if (TEAMS[saved.home]) $('home-team').value = saved.home;
+    setGender(gender);   // drops a men-only team if the saved pick is women's
 } catch (e) {}
 if (!document.querySelector('#gender .on')) setGender('mens');
 refresh();

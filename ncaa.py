@@ -232,6 +232,49 @@ NCAA_TEAMS = {
     '166': ('New Mexico State', 'Aggies', '#7E141B', 'cusa', 'nmstatesports.com'),
     '2534': ('Sam Houston', 'Bearkats', '#F56423', 'cusa', 'gobearkats.com'),
     '98': ('Western Kentucky', 'Hilltoppers', '#E13A3E', 'cusa', 'wkusports.com'),
+    # Mid-American
+    '2006': ('Akron', 'Zips', '#041E42', 'mac', 'gozips.com'),
+    '2050': ('Ball State', 'Cardinals', '#BA0C2F', 'mac', 'ballstatesports.com'),
+    '189': ('Bowling Green', 'Falcons', '#FD5000', 'mac', 'bgsufalcons.com'),
+    '2084': ('Buffalo', 'Bulls', '#005BBB', 'mac', 'ubbulls.com'),
+    '2117': ('Central Michigan', 'Chippewas', '#4C0027', 'mac', 'cmuchippewas.com'),
+    '2199': ('Eastern Michigan', 'Eagles', '#006938', 'mac', 'emueagles.com'),
+    '2309': ('Kent State', 'Golden Flashes', '#002664', 'mac', 'kentstatesports.com'),
+    '113': ('UMass', 'Minutemen', '#881C1C', 'mac', 'umassathletics.com'),
+    '193': ('Miami (OH)', 'RedHawks', '#C41230', 'mac', 'miamiredhawks.com'),
+    '195': ('Ohio', 'Bobcats', '#154734', 'mac', 'ohiobobcats.com'),
+    '2649': ('Toledo', 'Rockets', '#0B2240', 'mac', 'utrockets.com'),
+    '2711': ('Western Michigan', 'Broncos', '#532E1F', 'mac', 'wmubroncos.com'),
+    # Ivy
+    '225': ('Brown', 'Bears', '#411E09', 'ivy', 'brownbears.com'),
+    '171': ('Columbia', 'Lions', '#7BA4DB', 'ivy', 'gocolumbialions.com'),
+    '172': ('Cornell', 'Big Red', '#B31B1B', 'ivy', 'cornellbigred.com'),
+    '159': ('Dartmouth', 'Big Green', '#005730', 'ivy', 'dartmouthsports.com'),
+    '108': ('Harvard', 'Crimson', '#990000', 'ivy', 'gocrimson.com'),
+    '219': ('Penn', 'Quakers', '#082A74', 'ivy', 'pennathletics.com'),
+    '163': ('Princeton', 'Tigers', '#000000', 'ivy', 'goprincetontigers.com'),
+    '43': ('Yale', 'Bulldogs', '#004A81', 'ivy', 'yalebulldogs.com'),
+    # Southern
+    '236': ('Chattanooga', 'Mocs', '#00386B', 'socon', 'gomocs.com'),
+    '2193': ('East Tennessee State', 'Buccaneers', '#002D61', 'socon', 'etsubucs.com'),
+    '231': ('Furman', 'Paladins', '#582C83', 'socon', 'furmanpaladins.com'),
+    '2382': ('Mercer', 'Bears', '#FF7F29', 'socon', 'mercerbears.com'),
+    '2535': ('Samford', 'Bulldogs', '#005485', 'socon', 'samfordsports.com'),
+    '2635': ('Tennessee Tech', 'Golden Eagles', '#5A4099', 'socon', 'ttusports.com'),
+    '2643': ('The Citadel', 'Bulldogs', '#7BADD3', 'socon', 'citadelsports.com'),
+    '2430': ('UNC Greensboro', 'Spartans', '#003559', 'socon', 'uncgspartans.com'),
+    '2678': ('VMI', 'Keydets', '#AE122A', 'socon', 'vmikeydets.com'),
+    '2717': ('Western Carolina', 'Catamounts', '#492F91', 'socon', 'catamountsports.com'),
+    '2747': ('Wofford', 'Terriers', '#533B22', 'socon', 'woffordterriers.com'),
+    # Summit
+    '140': ('Kansas City', 'Roos', '#004B87', 'summit', 'kcroos.com'),
+    '155': ('North Dakota', 'Fighting Hawks', '#00A26B', 'summit', 'fightinghawks.com'),
+    '2449': ('North Dakota State', 'Bison', '#01402A', 'summit', 'gobison.com'),
+    '2437': ('Omaha', 'Mavericks', '#E3193E', 'summit', 'omavs.com'),
+    '198': ('Oral Roberts', 'Golden Eagles', '#002462', 'summit', 'oruathletics.com'),
+    '233': ('South Dakota', 'Coyotes', '#CD1241', 'summit', 'goyotes.com'),
+    '2571': ('South Dakota State', 'Jackrabbits', '#0033A0', 'summit', 'gojacks.com'),
+    '2900': ('St. Thomas', 'Tommies', '#000000', 'summit', 'tommiesports.com'),
 }
 
 CONFERENCES = {
@@ -251,10 +294,15 @@ CONFERENCES = {
     'mvc': ('Missouri Valley', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/missouri_valley.png'),
     'sunbelt': ('Sun Belt', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/sun_belt.png'),
     'cusa': ('Conference USA', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/conference_usa.png'),
+    'mac': ('MAC', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/mid_american.png'),
+    'ivy': ('Ivy League', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/ivy.png'),
+    'socon': ('SoCon', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/southern.png'),
+    'summit': ('Summit League', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/summit_league.png'),
 }
 NCAA_LOGO = '/static/img/ncaa.svg'   # referee spot for games between conferences
 
 GENDERS = {'mens': "Men's", 'womens': "Women's"}
+MENS_ONLY = {'2643', '2678'}   # The Citadel and VMI have no women's team
 
 # Schools whose basketball pages aren't at /sports/<mens|womens>-basketball/: (men's page, women's page)
 STAFF_PAGES = {
@@ -268,6 +316,9 @@ STAFF_PAGES = {
     'clemsontigers.com': (None, '/sports/w-basketball/roster'),
     'virginiasports.com': (None, '/sports/wbball/roster'),
     'golobos.com': ('/sports/mbball/roster/', '/sports/wbball/roster/'),
+    'ohiobobcats.com': ('/sports/mbball/roster/', '/sports/wbball/roster/'),
+    'tommiesports.com': ('/sports/mbball/roster/', '/sports/wbball/roster/'),
+    'ttusports.com': ('/sports/mbkb/coaches/index', '/sports/wbkb/coaches/index'),
 }
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
@@ -299,7 +350,8 @@ def logo_url(team_id):
 def teams():
     """[{id, school, name, color, conf, conf_name, logo}] grouped by conference, then school."""
     order = list(CONFERENCES)
-    return sorted(({'id': i, 'school': s, 'name': n, 'color': c, 'conf': conf, 'conf_name': CONFERENCES[conf][0], 'logo': logo_url(i)}
+    return sorted(({'id': i, 'school': s, 'name': n, 'color': c, 'conf': conf, 'conf_name': CONFERENCES[conf][0], 'logo': logo_url(i),
+                    'mens_only': i in MENS_ONLY}
                    for i, (s, n, c, conf, _) in NCAA_TEAMS.items()), key=lambda t: (order.index(t['conf']), t['school']))
 
 
@@ -369,6 +421,16 @@ def _from_coach_links(s, base):
         if pos: out.append([name, html.unescape(pos.group(1)).strip(), ''])
     return [(n, p, photos.get(n, '')) for n, p, _ in out]
 
+def _from_presto_cards(s, base):
+    """PrestoSports sites (Tennessee Tech): coach cards with the photo as a background image"""
+    out = []
+    for chunk in s.split('coach-thumb ')[1:]:
+        n = re.search(r'card-title[^>]*>\s*([^<]+?)\s*</a>', chunk); p = re.search(r'card-text[^>]*>\s*([^<]+?)\s*</p>', chunk)
+        img = re.search(r"background-image:url\('([^'?]+)", chunk)
+        if n and p:
+            out.append((html.unescape(n.group(1)), html.unescape(p.group(1)), urljoin(base, img.group(1)) if img else ''))
+    return out
+
 def _from_staff_table(s, base):
     """Arkansas, and older SIDEARM coach tables (Utah State): names and titles; each coach's photo is on their own page"""
     rows = re.findall(r'<a href="([^"]*/coache/[^"]*)">\s*([^<]+?)\s*</a>\s*</td>\s*<td>\s*([^<]+?)\s*</td>', s) + [
@@ -406,13 +468,15 @@ def _staff_from_site(domain, gender):
         arr = _nuxt(res.text)
         parsers = ([lambda: _from_sidearm_data(arr, base), lambda: _from_wmt_data(arr, base)] if arr else []) + [
             lambda: _from_sidearm_cards(res.text, base), lambda: _from_sidearm_classic(res.text, base),
-            lambda: _from_coach_links(res.text, base), lambda: _from_staff_table(res.text, base)]
+            lambda: _from_coach_links(res.text, base), lambda: _from_presto_cards(res.text, base),
+            lambda: _from_staff_table(res.text, base)]
         for parse in parsers:
             found = keep(parse())
             if len(found) >= 2:
                 seen, out = set(), []
                 for name, title, photo in found:
-                    name = re.sub(r'\s+', ' ', name).strip()
+                    # drop class years: "Jon Jaques '10" (Cornell), "David Richman ('02, '05)" (NDSU)
+                    name = re.sub(r"\s*\(\s*['’]\d{2}(?:\s*,\s*['’]\d{2})*\s*\)|\s+['’]\d{2}\b", '', re.sub(r'\s+', ' ', name)).strip()
                     if name.lower() not in seen:
                         seen.add(name.lower())
                         out.append({'name': name, 'role': re.sub(r'\s+', ' ', title).strip(), 'headshot': photo or None})
@@ -424,11 +488,14 @@ def _rank(role):
     r = role.lower()
     if 'associate head' in r or 'assistant head' in r:
         return 1
-    if 'head' in r and 'assistant' not in r and 'associate' not in r:
+    if 'advisor' in r or 'to the head' in r:
+        return 3
+    # endowed Ivy titles: "Elizabeth F. Turner '98 Coaching Chair for Women's Basketball" (Brown)
+    if ('head' in r or 'coaching chair' in r) and 'assistant' not in r and 'associate' not in r:
         return 0
     if 'associate' in r:
         return 1
-    if r.startswith('assistant coach'):
+    if r.startswith('assistant coach') or 'assistant coach' in r:
         return 2
     return 3
 
@@ -458,9 +525,30 @@ def _roster(gender, team_id):
     def load():
         res = requests.get(f'https://site.api.espn.com/apis/site/v2/sports/basketball/{gender}-college-basketball/teams/{team_id}/roster',
                            headers=HEADERS, timeout=15)
+        if res.status_code == 404:
+            return _roster_by_player(gender, team_id) or res.raise_for_status()
         res.raise_for_status()
         return res.json()
     return _cached(f'roster:{gender}:{team_id}', ROSTER_SECONDS, load)
+
+
+def _roster_by_player(gender, team_id):
+    """ESPN's roster call 404s when one player's record is missing (Mercer men): load the players one by one, skipping that one"""
+    league = f'https://sports.core.api.espn.com/v2/sports/basketball/leagues/{gender}-college-basketball'
+    try:
+        season = requests.get(league + '/seasons', headers=HEADERS, timeout=10).json()['items'][0]['$ref'].split('/seasons/')[1].split('?')[0]
+        refs = [r['$ref'] for r in requests.get(f'{league}/seasons/{season}/teams/{team_id}/athletes?limit=60', headers=HEADERS, timeout=10).json()['items']]
+    except Exception:
+        return None
+    def one(ref):
+        try:
+            res = requests.get(ref.replace('http://', 'https://'), headers=HEADERS, timeout=10)
+            return res.json() if res.ok else None
+        except Exception:
+            return None
+    with ThreadPoolExecutor(8) as pool:
+        athletes = [a for a in pool.map(one, refs) if a]
+    return {'athletes': athletes} if athletes else None
 
 
 def team_data(gender, team_id):
