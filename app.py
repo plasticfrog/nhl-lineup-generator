@@ -55,22 +55,44 @@ def prepare_for_ocr(image):
         image = image.resize((2000, round(image.height * 2000 / image.width)), Image.LANCZOS)
     return ImageOps.autocontrast(ImageOps.grayscale(image))
 
-def read_players_by_position(data, rows, cols, names, height):
+def read_players_by_position(data, rows, cols, names, height, numbers=None):
     """Find each roster player's last name on the sheet and slot them by where it sits: names grouped
-    into rows top to bottom, then columns left to right. A stray word or a missed name can't shift everyone."""
-    words = []
+    into rows top to bottom, then columns left to right. A stray word or a missed name can't shift everyone.
+    numbers: {name: jersey number}, used to confirm a misread last name or stand in for one."""
+    numbers = numbers or {}
+    words, digits = [], []   # words: (letters, center x, center y, height, left, right)
     for i, t in enumerate(data['text']):
+        x, y, w_, h_ = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
         w = re.sub(r'[^A-Z]', '', t.upper())
-        if len(w) >= 3:
-            words.append((w, data['left'][i] + data['width'][i] / 2, data['top'][i] + data['height'][i] / 2, data['height'][i]))
+        if len(w) >= 2:
+            words.append((w, x + w_ / 2, y + h_ / 2, h_, x, x + w_))
+        if t.strip().isdigit():
+            digits.append((t.strip(), x, x + w_, y + h_ / 2))
     near = lambda a, b: a == b or (len(b) >= 4 and SequenceMatcher(None, a, b).ratio() >= 0.85)
+    first_above = lambda first, s: any(near(f[0], first) and abs(f[1] - s[1]) < s[3] * 8 and 0 < s[2] - f[2] < s[3] * 3 for f in words)
+    # The big jersey number sits just left of the names on the card
+    number_beside = lambda num, s: bool(num) and any(d[0] == num and d[2] <= s[4] + s[3] and s[4] - d[1] < s[3] * 12 and abs(d[3] - s[2]) < s[3] * 3 for d in digits)
     hits = {}
+    taken = lambda s: any(abs(s[1] - h[1]) < h[3] and abs(s[2] - h[2]) < h[3] for h in hits.values())
     for name in names:
         first, last = name.split()[0], re.sub(r'[^A-Z]', '', name.split()[-1])
-        spots = [w for w in words if near(w[0], last)]
+        spots = [w for w in words if len(w[0]) >= 3 and near(w[0], last)]
         # Same last name twice (two Smiths): prefer the spot with this player's first name just above it
-        spots.sort(key=lambda s: not any(near(f[0], first) and abs(f[1] - s[1]) < s[3] * 8 and 0 < s[2] - f[2] < s[3] * 3 for f in words))
-        spot = next((s for s in spots if s not in hits.values()), None)
+        spots.sort(key=lambda s: not first_above(first, s))
+        spot = next((s for s in spots if not taken(s)), None)
+        if spot:
+            hits[name] = spot
+    # Second look for anyone missed: a last name with a letter or two misread (SMLTH), as long as the first
+    # name above it or the jersey number beside it backs it up; failing that, first name plus number alone
+    for name in [n for n in names if n not in hits]:
+        first, last = name.split()[0], re.sub(r'[^A-Z]', '', name.split()[-1])
+        num = numbers.get(name)
+        close = sorted(((SequenceMatcher(None, last, w[0]).ratio(), w) for w in words if not taken(w)), reverse=True)
+        spot = next((w for r, w in close if r >= 0.6 and (first_above(first, w) or number_beside(num, w))), None)
+        if not spot:
+            spot = next((w for w in words if not taken(w) and near(w[0], first) and number_beside(num, w)), None)
+            if spot:   # the first name sits a line above where the last name would be
+                spot = (spot[0], spot[1], spot[2] + spot[3] * 1.5) + spot[3:]
         if spot:
             hits[name] = spot
     out = [None] * (rows * cols)
@@ -105,7 +127,8 @@ def read_players(zone, rows, cols, names, roster_data_full, label, first_slot=1)
     data = pytesseract.image_to_data(zone, output_type=pytesseract.Output.DICT, config='--psm 6')
     # A sharpened copy reads some names the plain one misses (and the other way around): look for names in both
     sharp = pytesseract.image_to_data(zone.filter(ImageFilter.SHARPEN), output_type=pytesseract.Output.DICT, config='--psm 6')
-    placed = read_players_by_position({k: data[k] + sharp[k] for k in ('text', 'left', 'top', 'width', 'height')}, rows, cols, names, zone.height)
+    placed = read_players_by_position({k: data[k] + sharp[k] for k in ('text', 'left', 'top', 'width', 'height')}, rows, cols, names,
+                                      zone.height, {n: roster_data_full[n]['number'] for n in names})
     grid, used = [], set()
     for txt in get_grid_binned_text(zone, rows, cols, label, data):
         m = match_name_to_roster(txt, names, used, roster_data_full)
