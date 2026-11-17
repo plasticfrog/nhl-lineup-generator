@@ -118,6 +118,67 @@ NCAA_TEAMS = {
     '251': ('Texas', 'Longhorns', '#AF5C37', 'sec', 'texassports.com'),
     '245': ('Texas A&M', 'Aggies', '#500000', 'sec', '12thman.com'),
     '238': ('Vanderbilt', 'Commodores', '#000000', 'sec', 'vucommodores.com'),
+    # Big East
+    '2086': ('Butler', 'Bulldogs', '#0D1361', 'bigeast', 'butlersports.com'),
+    '156': ('Creighton', 'Bluejays', '#005CA9', 'bigeast', 'gocreighton.com'),
+    '305': ('DePaul', 'Blue Demons', '#2D649C', 'bigeast', 'depaulbluedemons.com'),
+    '46': ('Georgetown', 'Hoyas', '#110E42', 'bigeast', 'guhoyas.com'),
+    '269': ('Marquette', 'Golden Eagles', '#003366', 'bigeast', 'gomarquette.com'),
+    '2507': ('Providence', 'Friars', '#000000', 'bigeast', 'friars.com'),
+    '2550': ('Seton Hall', 'Pirates', '#0857B1', 'bigeast', 'shupirates.com'),
+    '2599': ("St. John's", 'Red Storm', '#D10000', 'bigeast', 'redstormsports.com'),
+    '41': ('UConn', 'Huskies', '#0C2340', 'bigeast', 'uconnhuskies.com'),
+    '222': ('Villanova', 'Wildcats', '#00205B', 'bigeast', 'villanova.com'),
+    '2752': ('Xavier', 'Musketeers', '#21304E', 'bigeast', 'goxavier.com'),
+    # Mountain West
+    '2005': ('Air Force', 'Falcons', '#003594', 'mwc', 'goairforcefalcons.com'),
+    '2253': ('Grand Canyon', 'Lopes', '#522398', 'mwc', 'gculopes.com'),
+    '62': ("Hawai'i", 'Rainbow Warriors', '#005737', 'mwc', 'hawaiiathletics.com'),
+    '2440': ('Nevada', 'Wolf Pack', '#041E42', 'mwc', 'nevadawolfpack.com'),
+    '167': ('New Mexico', 'Lobos', '#BA0C2F', 'mwc', 'golobos.com'),
+    '23': ('San José State', 'Spartans', '#0038A8', 'mwc', 'sjsuspartans.com'),
+    '302': ('UC Davis', 'Aggies', '#002855', 'mwc', 'ucdavisaggies.com'),
+    '2439': ('UNLV', 'Rebels', '#CF0A2C', 'mwc', 'unlvrebels.com'),
+    '2638': ('UTEP', 'Miners', '#FF8200', 'mwc', 'utepminers.com'),
+    '2751': ('Wyoming', 'Cowboys', '#492F24', 'mwc', 'gowyo.com'),
+    # West Coast
+    '2172': ('Denver', 'Pioneers', '#98002E', 'wcc', 'denverpioneers.com'),
+    '2351': ('Loyola Marymount', 'Lions', '#880029', 'wcc', 'lmulions.com'),
+    '279': ('Pacific', 'Tigers', '#F47820', 'wcc', 'pacifictigers.com'),
+    '2492': ('Pepperdine', 'Waves', '#003A72', 'wcc', 'pepperdinewaves.com'),
+    '2501': ('Portland', 'Pilots', '#330072', 'wcc', 'portlandpilots.com'),
+    '2608': ("Saint Mary's", 'Gaels', '#D80024', 'wcc', 'smcgaels.com'),
+    '301': ('San Diego', 'Toreros', '#2F99D4', 'wcc', 'usdtoreros.com'),
+    '2539': ('San Francisco', 'Dons', '#005A36', 'wcc', 'usfdons.com'),
+    '2541': ('Santa Clara', 'Broncos', '#690B0B', 'wcc', 'santaclarabroncos.com'),
+    '2547': ('Seattle U', 'Redhawks', '#BF2E1A', 'wcc', 'goseattleu.com'),
+    # American
+    '2429': ('Charlotte', '49ers', '#005035', 'aac', 'charlotte49ers.com'),
+    '151': ('East Carolina', 'Pirates', '#582C83', 'aac', 'ecupirates.com'),
+    '2226': ('Florida Atlantic', 'Owls', '#003366', 'aac', 'fausports.com'),
+    '235': ('Memphis', 'Tigers', '#004991', 'aac', 'gotigersgo.com'),
+    '249': ('North Texas', 'Mean Green', '#068F33', 'aac', 'meangreensports.com'),
+    '242': ('Rice', 'Owls', '#00205B', 'aac', 'riceowls.com'),
+    '58': ('South Florida', 'Bulls', '#006747', 'aac', 'gousfbulls.com'),
+    '218': ('Temple', 'Owls', '#A41E35', 'aac', 'owlsports.com'),
+    '2655': ('Tulane', 'Green Wave', '#006747', 'aac', 'tulanegreenwave.com'),
+    '202': ('Tulsa', 'Golden Hurricane', '#003595', 'aac', 'tulsahurricane.com'),
+    '5': ('UAB', 'Blazers', '#1A5632', 'aac', 'uabsports.com'),
+    '2636': ('UTSA', 'Roadrunners', '#0C2340', 'aac', 'goutsa.com'),
+    '2724': ('Wichita State', 'Shockers', '#FFCD00', 'aac', 'goshockers.com'),
+    # Southland
+    '2837': ('East Texas A&M', 'Lions', '#000000', 'southland', 'lionathletics.com'),
+    '2277': ('Houston Christian', 'Huskies', '#00539C', 'southland', 'hcuhuskies.com'),
+    '2916': ('Incarnate Word', 'Cardinals', '#000000', 'southland', 'uiwcardinals.com'),
+    '2320': ('Lamar', 'Cardinals', '#000000', 'southland', 'lamarcardinals.com'),
+    '2377': ('McNeese', 'Cowboys', '#00529C', 'southland', 'mcneesesports.com'),
+    '2443': ('New Orleans', 'Privateers', '#461D7C', 'southland', 'unoprivateers.com'),
+    '2447': ('Nicholls', 'Colonels', '#C41230', 'southland', 'geauxcolonels.com'),
+    '2466': ('Northwestern State', 'Demons', '#492F91', 'southland', 'nsudemons.com'),
+    '2545': ('SE Louisiana', 'Lions', '#215732', 'southland', 'lionsports.net'),
+    '2617': ('Stephen F. Austin', 'Lumberjacks', '#393996', 'southland', 'sfajacks.com'),
+    '357': ('Texas A&M-Corpus Christi', 'Islanders', '#0067C5', 'southland', 'goislanders.com'),
+    '292': ('UT Rio Grande Valley', 'Vaqueros', '#DC6000', 'southland', 'goutrgv.com'),
 }
 
 CONFERENCES = {
@@ -128,6 +189,11 @@ CONFERENCES = {
     'bigw': ('Big West', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/big_west.png'),
     'caa': ('CAA', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/colonial.png'),
     'pac12': ('Pac-12', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/pac_12.png'),
+    'bigeast': ('Big East', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/big_east.png'),
+    'mwc': ('Mountain West', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/mountain_west.png'),
+    'wcc': ('WCC', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/west_coast.png'),
+    'aac': ('American', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/american.png'),
+    'southland': ('Southland', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/southland.png'),
 }
 NCAA_LOGO = '/static/img/ncaa.svg'   # referee spot for games between conferences
 
@@ -144,6 +210,7 @@ STAFF_PAGES = {
     'vucommodores.com': ('/sports/mbball/roster/', '/sports/wbball/roster/'),
     'clemsontigers.com': (None, '/sports/w-basketball/roster'),
     'virginiasports.com': (None, '/sports/wbball/roster'),
+    'golobos.com': ('/sports/mbball/roster/', '/sports/wbball/roster/'),
 }
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
@@ -253,7 +320,10 @@ def _from_staff_table(s, base):
     def photo(page, name):
         try:
             p = requests.get(page, headers=HEADERS, timeout=10).text
-            m = re.search(r'<img[^>]+src="([^"]+)"[^>]*alt="[^"]*' + re.escape(name.split()[-1]), p)
+            last = re.escape(name.split()[-1])
+            # the coach's name in the photo's alt text, or in its file name (UTRGV labels every photo "WBB Headshots")
+            m = (re.search(r'<img[^>]+src="([^"]+)"[^>]*alt="[^"]*' + last, p, re.I)
+                 or re.search(r'<img[^>]+src="([^"]*/images/\d{4}/[^"]*' + last + r'[^"]*)"', p, re.I))
             return m.group(1) if m else ''
         except Exception:
             return ''
