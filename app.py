@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory, abort, Response, redirect
 import pytesseract
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageFilter
 import requests
 import os
 import time
@@ -48,10 +48,76 @@ TEAM_NAME_MAP = {
     'VAN': 'canucks', 'VGK': 'goldenknights', 'WPG': 'jets', 'WSH': 'capitals'
 }
 
-def get_grid_binned_text(image, rows, cols, debug_label=""):
+def prepare_for_ocr(image):
+    """Small screenshots (a shrunk PDF, a phone photo) read badly: blow them up first."""
+    image = image.convert('RGB')
+    if image.width < 2000:
+        image = image.resize((2000, round(image.height * 2000 / image.width)), Image.LANCZOS)
+    return ImageOps.autocontrast(ImageOps.grayscale(image))
+
+def read_players_by_position(data, rows, cols, names, height):
+    """Find each roster player's last name on the sheet and slot them by where it sits: names grouped
+    into rows top to bottom, then columns left to right. A stray word or a missed name can't shift everyone."""
+    words = []
+    for i, t in enumerate(data['text']):
+        w = re.sub(r'[^A-Z]', '', t.upper())
+        if len(w) >= 3:
+            words.append((w, data['left'][i] + data['width'][i] / 2, data['top'][i] + data['height'][i] / 2, data['height'][i]))
+    near = lambda a, b: a == b or (len(b) >= 4 and SequenceMatcher(None, a, b).ratio() >= 0.85)
+    hits = {}
+    for name in names:
+        first, last = name.split()[0], re.sub(r'[^A-Z]', '', name.split()[-1])
+        spots = [w for w in words if near(w[0], last)]
+        # Same last name twice (two Smiths): prefer the spot with this player's first name just above it
+        spots.sort(key=lambda s: not any(near(f[0], first) and abs(f[1] - s[1]) < s[3] * 8 and 0 < s[2] - f[2] < s[3] * 3 for f in words))
+        spot = next((s for s in spots if s not in hits.values()), None)
+        if spot:
+            hits[name] = spot
+    out = [None] * (rows * cols)
+    if not hits:
+        return out
+    tall = sorted(h[3] for h in hits.values())[len(hits) // 2]
+    grid_rows = []
+    for name, h in sorted(hits.items(), key=lambda kv: kv[1][2]):
+        if grid_rows and h[2] - grid_rows[-1][0][1][2] < tall * 2:
+            grid_rows[-1].append((name, h))
+        else:
+            grid_rows.append([(name, h)])
+    # Column edges: the widest gaps between name centers
+    xs = sorted(h[1] for h in hits.values())
+    gaps = sorted(range(1, len(xs)), key=lambda i: xs[i] - xs[i - 1])[-(cols - 1):] if cols > 1 and len(xs) >= cols else []
+    edges = [(xs[i - 1] + xs[i]) / 2 for i in sorted(gaps)]
+    if len(grid_rows) == rows and len(edges) == cols - 1:
+        for r, row in enumerate(grid_rows):
+            for name, h in row:
+                slot = r * cols + sum(h[1] > e for e in edges)
+                if out[slot] is None:
+                    out[slot] = name
+    elif len(edges) == cols - 1:   # a whole line missed: place each name by how far down the section it sits
+        for name, h in sorted(hits.items(), key=lambda kv: kv[1][2]):
+            slot = min(int(h[2] / height * rows), rows - 1) * cols + sum(h[1] > e for e in edges)
+            if out[slot] is None:
+                out[slot] = name
+    return out
+
+def read_players(zone, rows, cols, names, roster_data_full, label, first_slot=1):
+    """Place players by where their names sit; fall back to the older fixed grid when it matches more."""
+    data = pytesseract.image_to_data(zone, output_type=pytesseract.Output.DICT, config='--psm 6')
+    # A sharpened copy reads some names the plain one misses (and the other way around): look for names in both
+    sharp = pytesseract.image_to_data(zone.filter(ImageFilter.SHARPEN), output_type=pytesseract.Output.DICT, config='--psm 6')
+    placed = read_players_by_position({k: data[k] + sharp[k] for k in ('text', 'left', 'top', 'width', 'height')}, rows, cols, names, zone.height)
+    grid, used = [], set()
+    for txt in get_grid_binned_text(zone, rows, cols, label, data):
+        m = match_name_to_roster(txt, names, used, roster_data_full)
+        grid.append(m)
+        if m: used.add(m)
+    best = placed if sum(map(bool, placed)) >= sum(map(bool, grid)) else grid
+    return [n or f"PLAYER {i + first_slot}" for i, n in enumerate(best)]
+
+def get_grid_binned_text(image, rows, cols, debug_label="", data=None):
     """USED BY DUAL SCREENSHOT: Mathematical grid division."""
     width, height = image.size
-    data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT, config='--psm 6')
+    data = data or pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT, config='--psm 6')
     all_x, all_y, found_words = [], [], []
     for i in range(len(data['text'])):
         text = data['text'][i].strip()
@@ -127,15 +193,9 @@ def match_name_to_roster(ocr_text, roster_list, used_names, roster_data_full):
 
 def extract_players_from_image(image_file, expected_count, preferred_roster, full_roster, type_label, roster_data_full):
     try:
-        image = Image.open(image_file)
+        image = prepare_for_ocr(Image.open(image_file))
         rows, cols = (4, 3) if expected_count == 12 else (3, 2)
-        bins = get_grid_binned_text(image, rows, cols, type_label)
-        matched, used = [], set()
-        for i, text in enumerate(bins):
-            m = match_name_to_roster(text, preferred_roster, used, roster_data_full)
-            matched.append(m if m else f"PLAYER {i+1}")
-            if m: used.add(m)
-        return matched[:expected_count]
+        return read_players(image, rows, cols, preferred_roster, roster_data_full, type_label)[:expected_count]
     except Exception as e: return [f"PLAYER {i+1}" for i in range(expected_count)]
 
 # Picker order, names and colors (color: primary, or secondary where primary is black)
@@ -653,6 +713,7 @@ def process_lineup():
         comb = request.files.get('combined')
         f_file, d_file = request.files.get('forwards'), request.files.get('defense')
         sample = comb if comb else f_file
+        small_image = Image.open(sample).width < 1000   # too few pixels for names to read reliably
         chosen = (request.form.get('team') or '').upper()
         if valid_team(league, chosen):
             team = chosen
@@ -685,31 +746,24 @@ def process_lineup():
         d_names = [n for n, d in roster_data_full.items() if not d['is_forward']]
 
         if comb:
-            comb.seek(0); img_c = Image.open(comb); w, h = img_c.size
+            comb.seek(0); img_c = prepare_for_ocr(Image.open(comb)); w, h = img_c.size
             d_ocr = pytesseract.image_to_data(img_c, output_type=pytesseract.Output.DICT)
             f_start, d_start, d_end, g_col_x = 0, int(h * 0.55), h, int(w * 0.65)
+            found_d = False
             for i, txt in enumerate(d_ocr['text']):
                 u_txt = txt.upper()
                 if 'FORWARDS' in u_txt: f_start = d_ocr['top'][i] + d_ocr['height'][i]
-                if 'DEFENSE' in u_txt: d_start = d_ocr['top'][i] + d_ocr['height'][i]
-                if 'GOALTENDER' in u_txt: g_col_x = d_ocr['left'][i]
+                if 'DEFENSE' in u_txt: d_start, found_d = d_ocr['top'][i] + d_ocr['height'][i], True
+                if 'GOALTENDER' in u_txt:
+                    g_col_x = d_ocr['left'][i]
+                    if not found_d: d_start = d_ocr['top'][i] + d_ocr['height'][i]   # same line as DEFENSEMEN
                 if 'COACH' in u_txt or 'SCRATCH' in u_txt: d_end = min(d_end, d_ocr['top'][i])
 
             f_zone = img_c.crop((0, f_start + 15, w, d_start - 15))
-            f_bins = get_grid_binned_text(f_zone, 4, 3, "COMBINED-FORWARDS")
-            forwards_raw, used_f = [], set()
-            for i, txt in enumerate(f_bins):
-                m = match_name_to_roster(txt, f_names, used_f, roster_data_full)
-                forwards_raw.append(m if m else f"PLAYER {i+1}")
-                if m: used_f.add(m)
+            forwards_raw = read_players(f_zone, 4, 3, f_names, roster_data_full, "COMBINED-FORWARDS")
 
             d_zone = img_c.crop((0, d_start + 15, g_col_x - 10, d_end - 15))
-            d_bins = get_grid_binned_text(d_zone, 3, 2, "COMBINED-DEFENSE")
-            defense_raw, used_d = [], set()
-            for i, txt in enumerate(d_bins):
-                m = match_name_to_roster(txt, d_names, used_d, roster_data_full)
-                defense_raw.append(m if m else f"PLAYER {i+13}")
-                if m: used_d.add(m)
+            defense_raw = read_players(d_zone, 3, 2, d_names, roster_data_full, "COMBINED-DEFENSE", first_slot=13)
         else:
             f_file.seek(0); d_file.seek(0)
             forwards_raw = extract_players_from_image(f_file, 12, f_names, list(roster_data_full.keys()), "FORWARDS", roster_data_full)
@@ -732,7 +786,7 @@ def process_lineup():
         return jsonify({'forwards': final_f, 'defensemen': final_d,
                         'goalies': [{'name': roster_goalie_label(g), 'headshot_url': g['headshot']} for g in goalies[:2]],
                         'coaches': league_coaches(league, team), 'team': team, **sheet_extras(league, team),
-                        'matched': matched_f + matched_d, 'total': len(final_f) + len(final_d)})
+                        'matched': matched_f + matched_d, 'total': len(final_f) + len(final_d), 'small_image': small_image})
     except Exception as e:
         elapsed = round(time.time() - start, 2)
         logger.error(f"{league.upper()} PROCESS FAIL | method: {method} | {elapsed}s | error: {e}")

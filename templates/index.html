@@ -627,7 +627,8 @@ async function generate() {
         const missing = (data.total || 0) - (data.matched || 0);
         const again = `<a href="/lineup" target="_blank">Open it again</a>`;
         if (mode === 'shots' && missing > 0) {
-            showStatus('warn', `Your ${name} sheet is open in a new tab. We found ${data.matched} of ${data.total} players — click the empty spots on the sheet to fill them in. ${again}`);
+            const bigger = data.small_image ? ' That screenshot is small; a bigger one reads much better.' : '';
+            showStatus('warn', `Your ${name} sheet is open in a new tab. We found ${data.matched} of ${data.total} players — click the empty spots on the sheet to fill them in.${bigger} ${again}`);
         } else {
             showStatus('ok', `Your ${name} sheet is open in a new tab. ${again}`);
         }
