@@ -11,9 +11,20 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
     <script src="{{ url_for('static', filename='landing.js') }}" defer></script>
     <style>
-        /* Conference headings in the team lists (browsers that allow styling them) */
-        .matchup optgroup { font-weight: 800; color: #121417; background: #eef0f3; }
-        .matchup option { font-weight: 400; background: #fff; }
+        /* Type-to-search team pickers; the hidden selects underneath hold the picks */
+        .side { position: relative; }
+        .team-search { flex: 1; border: 0; background: none; font-weight: 600; font-size: 16px; padding: 6px 0; min-width: 0; outline: none; }
+        .team-search::placeholder { color: var(--muted); font-weight: 500; }
+        .team-list { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; max-height: 360px; overflow-y: auto;
+                     background: #fff; border: 1px solid var(--line-2); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); padding-bottom: 4px; }
+        .team-list .conf { position: sticky; top: 0; background: #f4f3ef; padding: 6px 12px; font-size: 11px; font-weight: 800; letter-spacing: .08em;
+                           text-transform: uppercase; color: var(--ink); border-bottom: 1px solid var(--line); }
+        .team-list .opt { display: flex; align-items: center; gap: 10px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+        .team-list .opt img { width: 24px; height: 24px; object-fit: contain; flex-shrink: 0; }
+        .team-list .opt.active { background: var(--paper); }
+        .team-list .opt.sel { font-weight: 600; }
+        .team-list .opt .nick { color: var(--muted); }
+        .team-list .none { padding: 12px; color: var(--muted); font-size: 14px; }
     </style>
 </head>
 <body>
@@ -52,23 +63,27 @@
                     </div>
                     <div class="matchup">
                         <div class="side">
-                            <label for="away-team">Away · left side</label>
+                            <label for="away-search">Away · left side</label>
                             <div class="pick"><span class="logo-blank" id="away-logo"></span>
-                                <select id="away-team">
+                                <input type="text" class="team-search" id="away-search" placeholder="Search a team or conference" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="away-list">
+                                <select id="away-team" hidden>
                                     <option value="">Choose a team</option>
                                     {% for code, (conf_name, _) in conferences.items() %}<optgroup label="━━━━  {{ conf_name|upper }}  ━━━━">{% for t in teams if t.conf == code %}<option value="{{ t.id }}">{{ t.school }} {{ t.name }}</option>{% endfor %}</optgroup>{% endfor %}
                                 </select>
                             </div>
+                            <div class="team-list" id="away-list" role="listbox" hidden></div>
                         </div>
                         <div class="at">@</div>
                         <div class="side">
-                            <label for="home-team">Home · right side</label>
+                            <label for="home-search">Home · right side</label>
                             <div class="pick"><span class="logo-blank" id="home-logo"></span>
-                                <select id="home-team">
+                                <input type="text" class="team-search" id="home-search" placeholder="Search a team or conference" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="home-list">
+                                <select id="home-team" hidden>
                                     <option value="">Choose a team</option>
                                     {% for code, (conf_name, _) in conferences.items() %}<optgroup label="━━━━  {{ conf_name|upper }}  ━━━━">{% for t in teams if t.conf == code %}<option value="{{ t.id }}">{{ t.school }} {{ t.name }}</option>{% endfor %}</optgroup>{% endfor %}
                                 </select>
                             </div>
+                            <div class="team-list" id="home-list" role="listbox" hidden></div>
                         </div>
                     </div>
                     <button type="button" class="linkish swap" id="swap">⇄ Swap home and away</button>
@@ -131,8 +146,73 @@ function setGender(g) {
 }
 document.querySelectorAll('#gender button').forEach(b => b.addEventListener('click', () => { setGender(b.dataset.g); refresh(); }));
 
+// ---- Team search: type a school, nickname or conference; the hidden selects keep the picks ----
+const TEAM_ORDER = {{ teams|tojson }};   // already grouped by conference
+const CONF_ALSO = { big10: 'b1g big 10', pac12: 'pac 12', aac: 'aac', mwc: 'mwc mw', wcc: 'west coast', bigw: 'bw', caa: 'coastal colonial' };
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ'’.]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+TEAM_ORDER.forEach(t => { t.words = norm(`${t.school} ${t.name} ${t.conf_name} ${CONF_ALSO[t.conf] || ''}`).split(' '); });
+// Every word typed has to start some word of the team's name or conference ("big east", "gonz", "st john")
+const matches = (t, q) => q.every(w => t.words.some(tw => tw.startsWith(w)));
+
+function setupSearch(side) {
+    const input = $(`${side}-search`), list = $(`${side}-list`), select = $(`${side}-team`);
+    let shown = [], active = -1;
+    const open = () => !list.hidden;
+    function render(q) {
+        const words = norm(q).split(' ').filter(Boolean);
+        shown = TEAM_ORDER.filter(t => !words.length || matches(t, words));
+        let html = '', conf = null;
+        shown.forEach((t, i) => {
+            if (t.conf !== conf) { conf = t.conf; html += `<div class="conf">${t.conf_name}</div>`; }
+            html += `<div class="opt${t.id === select.value ? ' sel' : ''}" role="option" data-i="${i}"><img src="${t.logo}" alt="" loading="lazy">${t.school} <span class="nick">${t.name}</span></div>`;
+        });
+        list.innerHTML = html || '<div class="none">No teams match</div>';
+        list.hidden = false; input.setAttribute('aria-expanded', 'true');
+    }
+    function highlight(i) {
+        active = Math.max(0, Math.min(i, shown.length - 1));
+        list.querySelectorAll('.opt').forEach(o => o.classList.toggle('active', +o.dataset.i === active));
+        const el = list.querySelector('.opt.active');
+        if (el) el.scrollIntoView({ block: 'nearest' });
+    }
+    function close() { list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.value = select.value ? fullName(TEAMS[select.value]) : ''; }
+    function choose(i) {
+        const t = shown[i];
+        if (!t) return;
+        select.value = t.id; close(); input.blur();
+        select.dispatchEvent(new Event('change'));
+    }
+    input.addEventListener('focus', () => {
+        render(''); input.select();
+        const cur = shown.findIndex(t => t.id === select.value);
+        if (cur >= 0) highlight(cur); else active = -1;
+    });
+    input.addEventListener('input', () => { render(input.value); if (shown.length) highlight(0); });
+    input.addEventListener('keydown', e => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!open()) render('');
+            highlight(active + (e.key === 'ArrowDown' ? 1 : -1));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (open()) choose(active >= 0 ? active : 0);
+        } else if (e.key === 'Escape') {
+            close(); input.blur();
+        }
+    });
+    input.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== input) close(); }, 0));
+    list.addEventListener('mousedown', e => e.preventDefault());   // keep focus in the box while clicking a team
+    list.addEventListener('click', e => { const o = e.target.closest('.opt'); if (o) choose(+o.dataset.i); });
+    list.addEventListener('mousemove', e => { const o = e.target.closest('.opt'); if (o && +o.dataset.i !== active) highlight(+o.dataset.i); });
+}
+setupSearch('away'); setupSearch('home');
+
 function refresh() {
     const away = $('away-team').value, home = $('home-team').value;
+    ['away', 'home'].forEach(side => {   // show the picks in the search boxes (after a swap or a restore)
+        const input = $(`${side}-search`), id = $(`${side}-team`).value;
+        if (document.activeElement !== input) input.value = id ? fullName(TEAMS[id]) : '';
+    });
     showLogo('away'); showLogo('home');
     const color = (TEAMS[home] || TEAMS[away] || {}).color;
     document.documentElement.style.setProperty('--accent', color || '#121417');
