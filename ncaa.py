@@ -275,6 +275,64 @@ NCAA_TEAMS = {
     '233': ('South Dakota', 'Coyotes', '#CD1241', 'summit', 'goyotes.com'),
     '2571': ('South Dakota State', 'Jackrabbits', '#0033A0', 'summit', 'gojacks.com'),
     '2900': ('St. Thomas', 'Tommies', '#000000', 'summit', 'tommiesports.com'),
+    # Big Sky
+    '331': ('Eastern Washington', 'Eagles', '#A10022', 'bigsky', 'goeags.com'),
+    '70': ('Idaho', 'Vandals', '#000000', 'bigsky', 'govandals.com'),
+    '304': ('Idaho State', 'Bengals', '#EF8C00', 'bigsky', 'isubengals.com'),
+    '149': ('Montana', 'Grizzlies', '#751D4A', 'bigsky', 'gogriz.com'),
+    '147': ('Montana State', 'Bobcats', '#00205C', 'bigsky', 'msubobcats.com'),
+    '2464': ('Northern Arizona', 'Lumberjacks', '#003976', 'bigsky', 'nauathletics.com'),
+    '2458': ('Northern Colorado', 'Bears', '#13558D', 'bigsky', 'uncbears.com'),
+    '2502': ('Portland State', 'Vikings', '#00311E', 'bigsky', 'goviks.com'),
+    '253': ('Southern Utah', 'Thunderbirds', '#C72026', 'bigsky', 'suutbirds.com'),
+    '3101': ('Utah Tech', 'Trailblazers', '#000000', 'bigsky', 'utahtechtrailblazers.com'),
+    '2692': ('Weber State', 'Wildcats', '#18005A', 'bigsky', 'weberstatesports.com'),
+    # Horizon
+    '325': ('Cleveland State', 'Vikings', '#006633', 'horizon', 'csuvikings.com'),
+    '2174': ('Detroit Mercy', 'Titans', '#165B9E', 'horizon', 'detroittitans.com'),
+    '2739': ('Green Bay', 'Phoenix', '#006633', 'horizon', 'greenbayphoenix.com'),
+    '85': ('IU Indianapolis', 'Jaguars', '#A81F30', 'horizon', 'iuindyjags.com'),
+    '270': ('Milwaukee', 'Panthers', '#000000', 'horizon', 'mkepanthers.com'),
+    '2459': ('Northern Illinois', 'Huskies', '#C8102E', 'horizon', 'niuhuskies.com'),
+    '94': ('Northern Kentucky', 'Norse', '#FFC82E', 'horizon', 'nkunorse.com'),
+    '2473': ('Oakland', 'Golden Grizzlies', '#04091C', 'horizon', 'goldengrizzlies.com'),
+    '2870': ('Purdue Fort Wayne', 'Mastodons', '#CFB991', 'horizon', 'gomastodons.com'),
+    '2523': ('Robert Morris', 'Colonials', '#00214D', 'horizon', 'rmucolonials.com'),
+    '2750': ('Wright State', 'Raiders', '#CBA052', 'horizon', 'wsuraiders.com'),
+    '2754': ('Youngstown State', 'Penguins', '#E51935', 'horizon', 'ysusports.com'),
+    # Atlantic Sun
+    '91': ('Bellarmine', 'Knights', '#000000', 'asun', 'athletics.bellarmine.edu'),
+    '526': ('Florida Gulf Coast', 'Eagles', '#00885A', 'asun', 'fgcuathletics.com'),
+    '294': ('Jacksonville', 'Dolphins', '#00523E', 'asun', 'judolphins.com'),
+    '288': ('Lipscomb', 'Bisons', '#20366C', 'asun', 'lipscombsports.com'),
+    '2454': ('North Florida', 'Ospreys', '#004B8D', 'asun', 'unfospreys.com'),
+    '2511': ('Queens', 'Royals', '#192C66', 'asun', 'queensathletics.com'),
+    '56': ('Stetson', 'Hatters', '#0A5640', 'asun', 'gohatters.com'),
+    '2697': ('West Florida', 'Argonauts', '#087DC2', 'asun', 'goargos.com'),
+    # United Athletic
+    '2000': ('Abilene Christian', 'Wildcats', '#592D82', 'uac', 'acusports.com'),
+    '2046': ('Austin Peay', 'Governors', '#8E0B0B', 'uac', 'letsgopeay.com'),
+    '2110': ('Central Arkansas', 'Bears', '#4F2D7F', 'uac', 'ucasports.com'),
+    '2198': ('Eastern Kentucky', 'Colonels', '#660819', 'uac', 'ekusports.com'),
+    '2031': ('Little Rock', 'Trojans', '#AD0000', 'uac', 'lrtrojans.com'),
+    '2453': ('North Alabama', 'Lions', '#663399', 'uac', 'roarlions.com'),
+    '2627': ('Tarleton State', 'Texans', '#4F2D7F', 'uac', 'tarletonsports.com'),
+    '250': ('UT Arlington', 'Mavericks', '#004B7C', 'uac', 'utamavs.com'),
+    '2698': ('West Georgia', 'Wolves', '#0033A1', 'uac', 'uwgathletics.com'),
+    # Metro (MAAC)
+    '2099': ('Canisius', 'Golden Griffins', '#004A81', 'maac', 'gogriffs.com'),
+    '2217': ('Fairfield', 'Stags', '#C8102E', 'maac', 'fairfieldstags.com'),
+    '314': ('Iona', 'Gaels', '#6F2C3E', 'maac', 'ionagaels.com'),
+    '2363': ('Manhattan', 'Jaspers', '#4F8537', 'maac', 'gojaspers.com'),
+    '2368': ('Marist', 'Red Foxes', '#E53730', 'maac', 'goredfoxes.com'),
+    '2771': ('Merrimack', 'Warriors', '#2F4F93', 'maac', 'merrimackathletics.com'),
+    '116': ("Mount St. Mary's", 'Mountaineers', '#005596', 'maac', 'mountathletics.com'),
+    '315': ('Niagara', 'Purple Eagles', '#69207E', 'maac', 'purpleeagles.com'),
+    '2514': ('Quinnipiac', 'Bobcats', '#041B43', 'maac', 'gobobcats.com'),
+    '2520': ('Rider', 'Broncs', '#A80532', 'maac', 'gobroncs.com'),
+    '2529': ('Sacred Heart', 'Pioneers', '#A40012', 'maac', 'sacredheartpioneers.com'),
+    '2612': ("Saint Peter's", 'Peacocks', '#004CC2', 'maac', 'saintpeterspeacocks.com'),
+    '2561': ('Siena', 'Saints', '#037961', 'maac', 'sienasaints.com'),
 }
 
 CONFERENCES = {
@@ -298,6 +356,11 @@ CONFERENCES = {
     'ivy': ('Ivy League', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/ivy.png'),
     'socon': ('SoCon', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/southern.png'),
     'summit': ('Summit League', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/summit_league.png'),
+    'bigsky': ('Big Sky', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/big_sky.png'),
+    'horizon': ('Horizon League', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/horizon.png'),
+    'asun': ('ASUN', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/atlantic_sun.png'),
+    'uac': ('UAC', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/uac.png'),
+    'maac': ('Metro (MAAC)', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/metro.png'),
 }
 NCAA_LOGO = '/static/img/ncaa.svg'   # referee spot for games between conferences
 
@@ -434,8 +497,9 @@ def _from_presto_cards(s, base):
 def _from_staff_table(s, base):
     """Arkansas, and older SIDEARM coach tables (Utah State): names and titles; each coach's photo is on their own page"""
     rows = re.findall(r'<a href="([^"]*/coache/[^"]*)">\s*([^<]+?)\s*</a>\s*</td>\s*<td>\s*([^<]+?)\s*</td>', s) + [
-        (urljoin(base, page), name, title) for page, name, title in re.findall(
-            r'sidearm-coaches-coach">\s*<th[^>]*>\s*<a[^>]*href=\'([^\']+)\'>\s*([^<]+?)\s*</a>\s*</th>\s*<td[^>]*>\s*([^<]+?)\s*</td>', s)]
+        # a title can wrap onto two lines: "Assistant Coach<br>Recruiting Coordinator" (Austin Peay)
+        (urljoin(base, page), name, re.sub(r'\s*<br\s*/?>\s*', ' / ', title)) for page, name, title in re.findall(
+            r'sidearm-coaches-coach">\s*<th[^>]*>\s*<a[^>]*href=\'([^\']+)\'>\s*([^<]+?)\s*</a>\s*</th>\s*<td[^>]*>\s*((?:[^<]|<br\s*/?>)+?)\s*</td>', s)]
     def photo(page, name):
         try:
             p = requests.get(page, headers=HEADERS, timeout=10).text
@@ -455,7 +519,7 @@ def _from_staff_table(s, base):
 def _staff_from_site(domain, gender):
     custom = STAFF_PAGES.get(domain, (None, None))[0 if gender == 'mens' else 1]
     paths = [custom] if custom else [f'/sports/{gender}-basketball/coaches', f'/sports/{gender}-basketball/roster']
-    not_bench = ('strength', 's&c', 'conditioning', 'performance', 'trainer', 'video')
+    not_bench = ('strength', 's&c', 'conditioning', 'performance', 'trainer', 'video', 'academic')
     keep = lambda cs: [c for c in cs if 'coach' in c[1].lower() and not any(w in c[1].lower() for w in not_bench)]
     for path in paths:
         base = f'https://{domain}{path}'
