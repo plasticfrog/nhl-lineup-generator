@@ -123,7 +123,7 @@
         <h4>How to edit</h4>
         <div class="tips">
             <b>Drag</b> a player onto another to swap them<br>
-            <b>✕</b> on a player takes them off the sheet<br>
+            <b>✕</b> on a player or coach takes them off the sheet<br>
             <b>Click</b> an empty spot to add a player who isn't on the roster<br>
             <b>Click</b> the logo to delete it and type notes<br>
             <b>Swap</b> on a coach picks another staff member<br>
@@ -204,6 +204,7 @@ function coachCard(team, c, slot, isHead) {
         ${photoHTML(`c:${c.id}`, coachPhoto(c), CFG.coach_photos_fill)}
         ${editable(`c:${c.id}:name`, `${first}\n${rest.join(' ')}`, 'name').replace(/\n/, '<br>')}
         <button class="swap-btn" type="button" title="Show a different staff member">Swap</button>
+        <button class="x" type="button" title="Take ${esc(c.name)} off the sheet (Swap puts someone back)">✕</button>
     </div>`;
 }
 
@@ -355,6 +356,11 @@ function wire() {
     }));
     wireLogoBack();
 
+    document.querySelectorAll('.coach .x').forEach(b => b.onclick = e => {
+        e.stopPropagation();
+        const card = b.closest('.coach'), t = teamBy(card.dataset.team), p = prefsFor(t);
+        p.coaches[+card.dataset.slot] = ''; savePrefs(t, p); render();
+    });
     document.querySelectorAll('.coach .swap-btn').forEach(b => b.onclick = e => { e.stopPropagation(); coachMenu(b.closest('.coach'), e); });
 
     // Drag a player onto another player of the same team to swap; onto an empty spot to move them last
