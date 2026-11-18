@@ -333,6 +333,79 @@ NCAA_TEAMS = {
     '2529': ('Sacred Heart', 'Pioneers', '#A40012', 'maac', 'sacredheartpioneers.com'),
     '2612': ("Saint Peter's", 'Peacocks', '#004CC2', 'maac', 'saintpeterspeacocks.com'),
     '2561': ('Siena', 'Saints', '#037961', 'maac', 'sienasaints.com'),
+    # Ohio Valley
+    '2197': ('Eastern Illinois', 'Panthers', '#004B83', 'ovc', 'eiupanthers.com'),
+    '2815': ('Lindenwood', 'Lions', '#000000', 'ovc', 'lindenwoodlions.com'),
+    '2413': ('Morehead State', 'Eagles', '#094FA3', 'ovc', 'msueagles.com'),
+    '2565': ('SIU Edwardsville', 'Cougars', '#EB1C23', 'ovc', 'siuecougars.com'),
+    '2546': ('Southeast Missouri State', 'Redhawks', '#C8102E', 'ovc', 'semoredhawks.com'),
+    '88': ('Southern Indiana', 'Screaming Eagles', '#002D72', 'ovc', 'gousieagles.com'),
+    '2634': ('Tennessee State', 'Tigers', '#171796', 'ovc', 'tsutigers.com'),
+    '2630': ('UT Martin', 'Skyhawks', '#FF6700', 'ovc', 'utmsports.com'),
+    '2710': ('Western Illinois', 'Leathernecks', '#4E1E8A', 'ovc', 'goleathernecks.com'),
+    # Big South
+    '2127': ('Charleston Southern', 'Buccaneers', '#2E3192', 'bigsouth', 'csusports.com'),
+    '2241': ('Gardner-Webb', "Runnin' Bulldogs", '#C12535', 'bigsouth', 'gwusports.com'),
+    '2272': ('High Point', 'Panthers', '#330072', 'bigsouth', 'highpointpanthers.com'),
+    '2344': ('Longwood', 'Lancers', '#003273', 'bigsouth', 'longwoodlancers.com'),
+    '2506': ('Presbyterian', 'Blue Hose', '#194896', 'bigsouth', 'gobluehose.com'),
+    '2515': ('Radford', 'Highlanders', '#BC1515', 'bigsouth', 'radfordathletics.com'),
+    '2908': ('South Carolina Upstate', 'Spartans', '#008545', 'bigsouth', 'upstatespartans.com'),
+    '2427': ('UNC Asheville', 'Bulldogs', '#003DA5', 'bigsouth', 'uncabulldogs.com'),
+    '2737': ('Winthrop', 'Eagles', '#9E0B0E', 'bigsouth', 'winthropeagles.com'),
+    # Patriot
+    '44': ('American', 'Eagles', '#C41130', 'patriot', 'aueagles.com'),
+    '349': ('Army', 'Black Knights', '#000000', 'patriot', 'goarmywestpoint.com'),
+    '104': ('Boston University', 'Terriers', '#CC0000', 'patriot', 'goterriers.com'),
+    '2083': ('Bucknell', 'Bison', '#000060', 'patriot', 'bucknellbison.com'),
+    '2142': ('Colgate', 'Raiders', '#821019', 'patriot', 'colgateathletics.com'),
+    '107': ('Holy Cross', 'Crusaders', '#582C83', 'patriot', 'goholycross.com'),
+    '322': ('Lafayette', 'Leopards', '#790000', 'patriot', 'goleopards.com'),
+    '2329': ('Lehigh', 'Mountain Hawks', '#6C2B2A', 'patriot', 'lehighsports.com'),
+    '2352': ('Loyola Maryland', 'Greyhounds', '#76A7A0', 'patriot', 'loyolagreyhounds.com'),
+    '2426': ('Navy', 'Midshipmen', '#00225B', 'patriot', 'navysports.com'),
+    # America East
+    '2066': ('Binghamton', 'Bearcats', '#00614A', 'ameast', 'bubearcats.com'),
+    '2803': ('Bryant', 'Bulldogs', '#000000', 'ameast', 'bryantbulldogs.com'),
+    '311': ('Maine', 'Black Bears', '#127DBE', 'ameast', 'goblackbears.com'),
+    '2885': ('NJIT', 'Highlanders', '#EE3024', 'ameast', 'njithighlanders.com'),
+    '160': ('New Hampshire', 'Wildcats', '#004990', 'ameast', 'unhwildcats.com'),
+    '399': ('UAlbany', 'Great Danes', '#3D2777', 'ameast', 'ualbanysports.com'),
+    '2378': ('UMBC', 'Retrievers', '#000000', 'ameast', 'umbcretrievers.com'),
+    '2349': ('UMass Lowell', 'River Hawks', '#00529C', 'ameast', 'goriverhawks.com'),
+    '261': ('Vermont', 'Catamounts', '#154734', 'ameast', 'uvmathletics.com'),
+    # Northeast
+    '2115': ('Central Connecticut', 'Blue Devils', '#1B49A2', 'nec', 'ccsubluedevils.com'),
+    '2130': ('Chicago State', 'Cougars', '#006700', 'nec', 'gocsucougars.com'),
+    '161': ('Fairleigh Dickinson', 'Knights', '#72293C', 'nec', 'fduknights.com'),
+    '2330': ('Le Moyne', 'Dolphins', '#00573F', 'nec', 'lemoynedolphins.com'),
+    '112358': ('LIU', 'Sharks', '#50C9F7', 'nec', 'liuathletics.com'),
+    '2385': ('Mercyhurst', 'Lakers', '#00471B', 'nec', 'hurstathletics.com'),
+    '2441': ('New Haven', 'Chargers', '#041E42', 'nec', 'newhavenchargers.com'),
+    '284': ('Stonehill', 'Skyhawks', '#2F2A85', 'nec', 'stonehillskyhawks.com'),
+    '2681': ('Wagner', 'Seahawks', '#00483A', 'nec', 'wagnerathletics.com'),
+    # SWAC
+    '2010': ('Alabama A&M', 'Bulldogs', '#790000', 'swac', 'aamusports.com'),
+    '2011': ('Alabama State', 'Hornets', '#E9A900', 'swac', 'bamastatesports.com'),
+    '2016': ('Alcorn State', 'Braves', '#4B0058', 'swac', 'alcornsports.com'),
+    '2029': ('Arkansas-Pine Bluff', 'Golden Lions', '#E0AA0F', 'swac', 'uapblionsroar.com'),
+    '2065': ('Bethune-Cookman', 'Wildcats', '#7B1831', 'swac', 'bcuathletics.com'),
+    '50': ('Florida A&M', 'Rattlers', '#F89728', 'swac', 'famuathletics.com'),
+    '2755': ('Grambling', 'Tigers', '#EE8601', 'swac', 'gsutigers.com'),
+    '2296': ('Jackson State', 'Tigers', '#123297', 'swac', 'gojsutigers.com'),
+    '2400': ('Mississippi Valley State', 'Delta Devils', '#005328', 'swac', 'mvsusports.com'),
+    '2504': ('Prairie View A&M', 'Panthers', '#582C83', 'swac', 'pvpanthers.com'),
+    '2582': ('Southern', 'Jaguars', '#004B97', 'swac', 'gojagsports.com'),
+    '2640': ('Texas Southern', 'Tigers', '#860038', 'swac', 'tsusports.com'),
+    # MEAC
+    '2154': ('Coppin State', 'Eagles', '#2E3192', 'meac', 'coppinstatesports.com'),
+    '2169': ('Delaware State', 'Hornets', '#009CDB', 'meac', 'dsuhornets.com'),
+    '47': ('Howard', 'Bison', '#003A63', 'meac', 'hubison.com'),
+    '2379': ('Maryland Eastern Shore', 'Hawks', '#5C2301', 'meac', 'easternshorehawks.com'),
+    '2415': ('Morgan State', 'Bears', '#014786', 'meac', 'morganstatebears.com'),
+    '2450': ('Norfolk State', 'Spartans', '#0C8968', 'meac', 'nsuspartans.com'),
+    '2428': ('North Carolina Central', 'Eagles', '#880023', 'meac', 'nccueaglepride.com'),
+    '2569': ('South Carolina State', 'Bulldogs', '#7D1315', 'meac', 'scsuathletics.com'),
 }
 
 CONFERENCES = {
@@ -361,6 +434,13 @@ CONFERENCES = {
     'asun': ('ASUN', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/atlantic_sun.png'),
     'uac': ('UAC', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/uac.png'),
     'maac': ('Metro (MAAC)', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/metro.png'),
+    'ovc': ('Ohio Valley', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/ohio_valley.png'),
+    'bigsouth': ('Big South', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/big_south.png'),
+    'patriot': ('Patriot League', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/patriot_league.png'),
+    'ameast': ('America East', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/america_east.png'),
+    'nec': ('NEC', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/northeast.png'),
+    'swac': ('SWAC', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/swac.png'),
+    'meac': ('MEAC', 'https://a.espncdn.com/i/teamlogos/ncaa_conf/500/meac.png'),
 }
 NCAA_LOGO = '/static/img/ncaa.svg'   # referee spot for games between conferences
 
@@ -382,6 +462,7 @@ STAFF_PAGES = {
     'ohiobobcats.com': ('/sports/mbball/roster/', '/sports/wbball/roster/'),
     'tommiesports.com': ('/sports/mbball/roster/', '/sports/wbball/roster/'),
     'ttusports.com': ('/sports/mbkb/coaches/index', '/sports/wbkb/coaches/index'),
+    'ccsubluedevils.com': ('/sports/mbkb/coaches/index', '/sports/wbkb/coaches/index'),
 }
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
@@ -541,6 +622,8 @@ def _staff_from_site(domain, gender):
                 for name, title, photo in found:
                     # drop class years: "Jon Jaques '10" (Cornell), "David Richman ('02, '05)" (NDSU)
                     name = re.sub(r"\s*\(\s*['’]\d{2}(?:\s*,\s*['’]\d{2})*\s*\)|\s+['’]\d{2}\b", '', re.sub(r'\s+', ' ', name)).strip()
+                    if re.sub(r'[^a-z]', '', name.lower()) in ('tba', 'tbd'):   # open spot (Charleston Southern)
+                        continue
                     if name.lower() not in seen:
                         seen.add(name.lower())
                         out.append({'name': name, 'role': re.sub(r'\s+', ' ', title).strip(), 'headshot': photo or None})

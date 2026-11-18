@@ -105,7 +105,7 @@
                     <li>Both teams on one landscape page</li>
                     <li>Drag players into your order and take out anyone who's not playing; each team remembers it</li>
                     <li>Coaching staffs come from each school's site; type in the referee and drop in a photo</li>
-                    <li>ACC, Big Ten, Big 12, SEC, Big East, Pac-12, Mountain West, WCC, American, Atlantic 10, Missouri Valley, Sun Belt, Conference USA, MAC, Ivy League, SoCon, Summit League, Big Sky, Horizon, ASUN, UAC, Metro (MAAC), Big West, CAA and Southland teams</li>
+                    <li>ACC, Big Ten, Big 12, SEC, Big East, Pac-12, Mountain West, WCC, American, Atlantic 10, Missouri Valley, Sun Belt, Conference USA, MAC, Ivy League, SoCon, Summit League, Big Sky, Horizon, ASUN, UAC, Metro (MAAC), Ohio Valley, Big South, Patriot League, America East, NEC, SWAC, MEAC, Big West, CAA and Southland teams</li>
                 </ul>
             </aside>
         </div>
@@ -149,7 +149,7 @@ document.querySelectorAll('#gender button').forEach(b => b.addEventListener('cli
 
 // ---- Team search: type a school, nickname or conference; the hidden selects keep the picks ----
 const TEAM_ORDER = {{ teams|tojson }};   // already grouped by conference
-const CONF_ALSO = { big10: 'b1g big 10', pac12: 'pac 12', aac: 'aac', mwc: 'mwc mw', wcc: 'west coast', bigw: 'bw', caa: 'coastal colonial', a10: 'a10 a 10', mvc: 'mvc mo valley', sunbelt: 'sunbelt', cusa: 'cusa c usa', mac: 'mid american', socon: 'southern', summit: 'summit', asun: 'atlantic sun a sun', uac: 'united athletic wac', maac: 'maac metro atlantic' };
+const CONF_ALSO = { big10: 'b1g big 10', pac12: 'pac 12', aac: 'aac', mwc: 'mwc mw', wcc: 'west coast', bigw: 'bw', caa: 'coastal colonial', a10: 'a10 a 10', mvc: 'mvc mo valley', sunbelt: 'sunbelt', cusa: 'cusa c usa', mac: 'mid american', socon: 'southern', summit: 'summit', asun: 'atlantic sun a sun', uac: 'united athletic wac', maac: 'maac metro atlantic', ovc: 'ovc', bigsouth: 'bigsouth', ameast: 'ae am east', nec: 'nec northeast', swac: 'southwestern hbcu', meac: 'mid eastern hbcu' };
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ'’.]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 TEAM_ORDER.forEach(t => { t.words = norm(`${t.school} ${t.name} ${t.conf_name} ${CONF_ALSO[t.conf] || ''}`).split(' '); });
 // Every word typed has to start some word of the team's name or conference ("big east", "gonz", "st john")
