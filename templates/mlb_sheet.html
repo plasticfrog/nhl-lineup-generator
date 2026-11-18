@@ -6,7 +6,9 @@
     <title>MLB Headshot Sheets</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; }
-        @page { size: letter landscape; margin: 0; }
+        /* Most printers can't print to the edge of the paper, so leave a margin and shrink the
+           sheet to fit inside it (same as the hockey sheet) */
+        @page { size: letter landscape; margin: 0.3in; }
         body { background: #111; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; }
 
         .btn-container { position: fixed; top: 15px; right: 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 0; z-index: 9999; }
@@ -54,7 +56,7 @@
         @media print {
             body { background: white; }
             .btn-container, #ctx-menu { display: none; }
-            .sheet { margin: 0; border-width: 10px; }
+            .sheet { margin: 0; border-width: 10px; zoom: 0.92; }
             .no-data { display: none; }
             [contenteditable="true"]:focus { background: transparent; }
         }

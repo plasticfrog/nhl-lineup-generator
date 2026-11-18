@@ -9,7 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        @page { size: letter landscape; margin: 0; }
+        /* Most printers can't print to the edge of the paper, so leave a margin and shrink the
+           sheet to fit inside it (same as the hockey sheet) */
+        @page { size: letter landscape; margin: 0.3in; }
         body { background: #2a2c30; font-family: Arial, Helvetica, sans-serif; color: #000; }
 
         /* ---------- Sheet ---------- */
@@ -97,7 +99,7 @@
 
         @media print {
             body { background: #fff; }
-            .sheet { margin: 0; box-shadow: none; }
+            .sheet { margin: 0; box-shadow: none; zoom: 0.92; }
             .panel, .x, .swap-btn, .menu, .add, .logo-back { display: none !important; }
             .logo:empty::before, .new [data-ph]:empty::before { content: none; }
             [contenteditable]:focus { background: transparent; }
