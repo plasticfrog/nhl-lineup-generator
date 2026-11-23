@@ -226,6 +226,10 @@ function setupSearch(side) {
         const cur = shown.findIndex(t => t.id === select.value);
         if (cur >= 0) highlight(cur); else active = -1;
     });
+    // The click that puts you in the box would drop the cursor mid-name and undo the select-all: keep the whole name selected
+    let clickedIn = false;
+    input.addEventListener('mousedown', () => { clickedIn = document.activeElement !== input; });
+    input.addEventListener('mouseup', e => { if (clickedIn) { e.preventDefault(); input.select(); clickedIn = false; } });
     input.addEventListener('input', () => { render(input.value); if (shown.length) highlight(0); });
     input.addEventListener('keydown', e => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
