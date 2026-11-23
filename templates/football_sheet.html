@@ -119,11 +119,11 @@
         .modal-foot button { border: 0; border-radius: 7px; padding: 10px 16px; font-weight: 700; font-size: 14px; cursor: pointer; }
         .modal-foot button:disabled { opacity: .4; cursor: not-allowed; }
 
-        .drop-hint { display: none; position: absolute; left: 6%; right: 6%; top: 50%; transform: translateY(-50%); z-index: 2; padding: 6px 4px; border: 2px dashed #f5b400;
-                     border-radius: 6px; background: rgba(255, 250, 225, .94); color: #5b4a00; font: 600 10px/1.25 -apple-system, 'Segoe UI', sans-serif; text-align: center; pointer-events: none; }
-        .drop-hint b { display: block; font-size: 11px; margin-bottom: 1px; }
+        .drop-hint { display: none; position: absolute; left: 8%; right: 8%; bottom: 8%; z-index: 2; padding: 4px 3px; border: 1px dashed #b8bcc4;
+                     border-radius: 5px; background: rgba(255, 255, 255, .85); color: #6b7280; font: 500 9px/1.25 -apple-system, 'Segoe UI', sans-serif; text-align: center; pointer-events: none; }
+        .drop-hint b { display: block; font-weight: 600; color: #4b5563; }
         .photo.missing .drop-hint { display: block; }
-        .drop-on .drop-hint { background: #fff3b0; }
+        .drop-on .drop-hint { border-color: #6b7280; }
 
         @media print {
             body { background: #fff; }
