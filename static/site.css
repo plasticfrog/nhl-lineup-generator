@@ -51,12 +51,10 @@ img { display: block; }
 .league-menu-list { display: none; position: absolute; top: 100%; left: 0; z-index: 20; min-width: 100%; padding: 12px 0 0; }
 .league-menu-list::before { content: ''; position: absolute; inset: 6px 0 0; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
 .league-menu:hover .league-menu-list, .league-menu:focus-within .league-menu-list { display: block; }
-.league-menu-list a, .league-menu-list .soon { position: relative; display: flex; align-items: center; gap: 10px; margin: 0 6px; padding: 9px 12px; border-radius: 8px; font-size: 15px; font-weight: 600; color: var(--ink); text-decoration: none; white-space: nowrap; }
+.league-menu-list a { position: relative; display: flex; align-items: center; gap: 10px; margin: 0 6px; padding: 9px 12px; border-radius: 8px; font-size: 15px; font-weight: 600; color: var(--ink); text-decoration: none; white-space: nowrap; }
 .league-menu-list a:first-child { margin-top: 6px; }
-.league-menu-list .soon { color: var(--muted); margin-bottom: 6px; cursor: default; }
-.league-menu-list .soon small { font-size: 11px; font-weight: 600; }
+.league-menu-list a:last-child { margin-bottom: 6px; }
 .league-menu-list a:hover { background: var(--paper); }
-.league-menu-list .lm-icon { font-size: 20px; }
 
 /* ---------- Page ---------- */
 .page { max-width: 1180px; margin: 0 auto; padding: 36px 20px 64px; }
