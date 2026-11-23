@@ -119,10 +119,16 @@
         .modal-foot button { border: 0; border-radius: 7px; padding: 10px 16px; font-weight: 700; font-size: 14px; cursor: pointer; }
         .modal-foot button:disabled { opacity: .4; cursor: not-allowed; }
 
+        .drop-hint { display: none; position: absolute; left: 6%; right: 6%; top: 50%; transform: translateY(-50%); z-index: 2; padding: 6px 4px; border: 2px dashed #f5b400;
+                     border-radius: 6px; background: rgba(255, 250, 225, .94); color: #5b4a00; font: 600 10px/1.25 -apple-system, 'Segoe UI', sans-serif; text-align: center; pointer-events: none; }
+        .drop-hint b { display: block; font-size: 11px; margin-bottom: 1px; }
+        .photo.missing .drop-hint { display: block; }
+        .drop-on .drop-hint { background: #fff3b0; }
+
         @media print {
             body { background: #fff; }
             .sheet { margin: 0; box-shadow: none; zoom: 0.92; }
-            .panel, .x, .swap-btn, .menu, .pick-prompt, .add-coach, .modal-bg { display: none !important; }
+            .panel, .x, .swap-btn, .menu, .pick-prompt, .add-coach, .modal-bg, .drop-hint { display: none !important; }
             [contenteditable]:focus { background: transparent; }
             .row:hover { outline: 0; }
             .coach.open .photo { border: 0; background: none; }
@@ -185,9 +191,12 @@ function prefsFor(team) {
 }
 function savePrefs(team, p) { const all = readJSON(PREFS_KEY); all[team.abbr] = p; writeJSON(PREFS_KEY, all); }
 
+// No photo (or one that won't load): a screen-only tag says how to add one, since few people read the side panel
+const DROP_HINT = '<div class="drop-hint" title="Or double-click to pick a file"><b>No photo</b>Drop an image here</div>';
 function photoHTML(key, src, fill) {
-    const c = custom[key];
-    return `<div class="photo" data-photo="${esc(key)}"><img class="${c || (fill && src) ? 'custom' : ''}" src="${esc(c || src || SILHOUETTE)}" alt=""></div>`;
+    const c = custom[key], missing = !c && !src;
+    return `<div class="photo${missing ? ' missing' : ''}" data-photo="${esc(key)}"><img class="${c || (fill && src) ? 'custom' : ''}" src="${esc(c || src || SILHOUETTE)}" alt=""
+        onerror="if (!this.dataset.failed) { this.dataset.failed = 1; this.className = ''; this.src = '${SILHOUETTE}'; this.parentElement.classList.add('missing'); }">${DROP_HINT}</div>`;
 }
 function editable(key, text, cls) {
     const v = key in edits ? edits[key] : text;
