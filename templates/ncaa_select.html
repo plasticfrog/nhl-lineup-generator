@@ -43,11 +43,18 @@
             <a href="/"><img src="https://assets.nhle.com/logos/nhl/svg/NHL_light.svg" alt=""><span><span class="l-name">NHL</span><span class="l-sub">Hockey</span></span></a>
             <a href="/pwhl"><img src="https://res.cloudinary.com/pwhl-low/image/upload/PWHL_Logo_Logotype_Ultra_Violet_cgbt5r" alt=""><span><span class="l-name">PWHL</span><span class="l-sub">Women's hockey</span></span></a>
             <a href="/nba"><img src="https://cdn.nba.com/logos/leagues/logo-nba.svg" alt=""><span><span class="l-name">NBA</span><span class="l-sub">Basketball</span></span></a>
-            <a class="on" href="/ncaa" aria-current="page"><img src="{{ url_for('static', filename='img/ncaa.svg') }}" alt=""><span><span class="l-name">NCAA</span><span class="l-sub">Hoops &amp; volleyball</span></span></a>
+            <div class="league-menu">
+                <a class="on" href="/ncaa" aria-current="page"><img src="{{ url_for('static', filename='img/ncaa.svg') }}" alt=""><span><span class="l-name">NCAA <span class="lm-caret" aria-hidden="true">▾</span></span><span class="l-sub" id="ncaa-sub">Hoops &amp; volleyball</span></span></a>
+                <div class="league-menu-list" role="menu">
+                    <a role="menuitem" href="/ncaa?sport=basketball"><span class="lm-icon" aria-hidden="true">🏀</span>Basketball</a>
+                    <a role="menuitem" href="/ncaa?sport=volleyball"><span class="lm-icon" aria-hidden="true">🏐</span>Volleyball</a>
+                    <span class="soon"><span class="lm-icon" aria-hidden="true">🏈</span>Football <small>soon</small></span>
+                </div>
+            </div>
             <a href="/mlb"><img src="https://www.mlbstatic.com/team-logos/league-on-light/1.svg" alt=""><span><span class="l-name">MLB</span><span class="l-sub">Baseball</span></span></a>
         </nav>
         <div class="hero">
-            <h1>College basketball &amp; volleyball headshot sheets</h1>
+            <h1 id="ncaa-title">College basketball &amp; volleyball headshot sheets</h1>
             <p>Pick men's or women's basketball, or women's volleyball, and print one landscape page with both teams: every player, the coaching staffs and a spot for the referee.</p>
         </div>
 
@@ -153,7 +160,9 @@ function setGender(g) {
 function setSport(s) {
     sport = s === 'volleyball' ? 'volleyball' : 'basketball';
     $('sport').value = sport;
-    $('gender').hidden = sport === 'volleyball';
+    $('gender').style.display = sport === 'volleyball' ? 'none' : '';   // volleyball is women's only
+    $('ncaa-sub').textContent = sport === 'volleyball' ? 'Volleyball' : 'Basketball';
+    $('ncaa-title').textContent = `College ${sport} headshot sheets`;
     setGender(gender);
 }
 $('sport').addEventListener('change', () => { setSport($('sport').value); refresh(); });
@@ -283,12 +292,13 @@ $('go').addEventListener('click', async () => {
 try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY)) || {};
     setGender(saved.gender);
-    setSport(saved.sport);
+    setSport(new URLSearchParams(location.search).get('sport') || saved.sport);   // the NCAA menu links pick the sport
     if (TEAMS[saved.away]) $('away-team').value = saved.away;
     if (TEAMS[saved.home]) $('home-team').value = saved.home;
     setGender(gender);   // drops a men-only team if the saved pick is women's
 } catch (e) {}
 if (!document.querySelector('#gender .on')) setGender('mens');
+setSport(new URLSearchParams(location.search).get('sport') || sport);   // also when saved picks can't be read
 refresh();
 </script>
 </body>
