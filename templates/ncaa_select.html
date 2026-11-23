@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NCAA Basketball Headshot Sheets · Headshot Generator</title>
+    <title>NCAA {{ 'Football' if football else 'Basketball' }} Headshot Sheets · Headshot Generator</title>
     <meta name="description" content="Pick a college basketball matchup, men's or women's, and print one landscape headshot sheet with both teams: players, coaches and a referee spot.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -53,8 +53,10 @@
             <a href="/mlb"><img src="https://www.mlbstatic.com/team-logos/league-on-light/1.svg" alt=""><span><span class="l-name">MLB</span><span class="l-sub">Baseball</span></span></a>
         </nav>
         <div class="hero">
-            <h1 id="ncaa-title">College basketball &amp; volleyball headshot sheets</h1>
-            <p>Pick men's or women's basketball, or women's volleyball, and print one landscape page with both teams: every player, the coaching staffs and a spot for the referee.</p>
+            {% if football %}<h1>College football headshot sheets</h1>
+            <p>Pick two teams and print one landscape page: both full rosters down the sides, the players you pick with headshots in the middle, and the coaching staffs.</p>
+            {% else %}<h1 id="ncaa-title">College basketball &amp; volleyball headshot sheets</h1>
+            <p>Pick men's or women's basketball, or women's volleyball, and print one landscape page with both teams: every player, the coaching staffs and a spot for the referee.</p>{% endif %}
         </div>
 
         <div class="layout">
@@ -64,10 +66,10 @@
                         <span class="step-num">1</span>
                         <span class="step-title">Matchup</span>
                         <span class="spacer"></span>
-                        <select id="sport" class="sport-pick" aria-label="Sport"><option value="basketball">Basketball</option><option value="volleyball">Volleyball</option></select>
+                        {% if not football %}<select id="sport" class="sport-pick" aria-label="Sport"><option value="basketball">Basketball</option><option value="volleyball">Volleyball</option></select>
                         <div class="segmented" role="tablist" id="gender">
                             {% for g, label in genders.items() %}<button type="button" data-g="{{ g }}" role="tab">{{ label }}</button>{% endfor %}
-                        </div>
+                        </div>{% endif %}
                     </div>
                     <div class="matchup">
                         <div class="side">
@@ -109,12 +111,18 @@
                 <div class="sheet-shot">
                     <img src="{{ url_for('static', filename='img/sample-ncaa.webp') }}" width="720" height="557" alt="Example college basketball headshot sheet with both teams side by side">
                 </div>
-                <ul class="facts">
+                {% if football %}<ul class="facts">
+                    <li>Both teams on one landscape page</li>
+                    <li>Full rosters down the outside edges; click a name to bold it</li>
+                    <li>Pick 4 to 10 players per team for headshots in the middle</li>
+                    <li>Head coach, coordinators and special teams coach at the bottom, from each school's site</li>
+                    <li>All FBS and FCS teams</li>
+                </ul>{% else %}<ul class="facts">
                     <li>Both teams on one landscape page</li>
                     <li>Drag players into your order and take out anyone who's not playing; each team remembers it</li>
                     <li>Coaching staffs come from each school's site; type in the referee and drop in a photo</li>
                     <li>ACC, Big Ten, Big 12, SEC, Big East, Pac-12, Mountain West, WCC, American, Atlantic 10, Missouri Valley, Sun Belt, Conference USA, MAC, Ivy League, SoCon, Summit League, Big Sky, Horizon, ASUN, UAC, Metro (MAAC), Ohio Valley, Big South, Patriot League, America East, NEC, SWAC, MEAC, Big West, CAA and Southland teams</li>
-                </ul>
+                </ul>{% endif %}
             </aside>
         </div>
     </main>
@@ -127,10 +135,11 @@
 <script>
 const TEAMS = Object.fromEntries({{ teams|tojson }}.map(t => [t.id, t]));
 const GENDERS = {{ genders|tojson }};
-const PREFS_KEY = 'ncaa_landing';
-let gender = 'mens', sport = 'basketball';
+const FOOTBALL = {{ 'true' if football else 'false' }};   // /ncaa/football: same page, football teams
+const PREFS_KEY = FOOTBALL ? 'ncaa_fb_landing' : 'ncaa_landing';
+let gender = 'mens', sport = FOOTBALL ? 'football' : 'basketball';
 const SHEETS = {{ sheets|tojson }};
-const sheetKey = () => sport === 'volleyball' ? 'wvb' : gender;   // volleyball is women's only for now
+const sheetKey = () => FOOTBALL ? 'fb' : sport === 'volleyball' ? 'wvb' : gender;   // volleyball is women's only for now
 const $ = id => document.getElementById(id);
 let busy = false;
 
@@ -152,11 +161,13 @@ const fullName = t => `${t.school} ${t.name}`;
 
 const hidden = t => (sheetKey() !== 'mens' && t.mens_only) || (sheetKey() === 'wvb' && t.no_vb);
 function setGender(g) {
+    if (FOOTBALL) return;
     gender = GENDERS[g] ? g : 'mens';
     document.querySelectorAll('#gender button').forEach(b => { b.classList.toggle('on', b.dataset.g === gender); b.setAttribute('aria-selected', b.dataset.g === gender); });
     ['away-team', 'home-team'].forEach(id => { if (TEAMS[$(id).value] && hidden(TEAMS[$(id).value])) $(id).value = ''; });
 }
 function setSport(s) {
+    if (FOOTBALL) return;
     sport = s === 'volleyball' ? 'volleyball' : 'basketball';
     $('sport').value = sport;
     $('gender').style.display = sport === 'volleyball' ? 'none' : '';   // volleyball is women's only
@@ -164,7 +175,7 @@ function setSport(s) {
     $('ncaa-title').textContent = `College ${sport} headshot sheets`;
     setGender(gender);
 }
-$('sport').addEventListener('change', () => { setSport($('sport').value); refresh(); });
+if (!FOOTBALL) $('sport').addEventListener('change', () => { setSport($('sport').value); refresh(); });
 document.querySelectorAll('#gender button').forEach(b => b.addEventListener('click', () => { setGender(b.dataset.g); refresh(); }));
 
 // ---- Team search: type a school, nickname or conference; the hidden selects keep the picks ----
@@ -272,13 +283,14 @@ $('go').addEventListener('click', async () => {
 
     const form = new FormData(); form.append('gender', sheetKey()); form.append('away_team', away); form.append('home_team', home);
     try {
-        const res = await fetch('/ncaa/generate', { method: 'POST', body: form });
+        const res = await fetch(FOOTBALL ? '/ncaa/football/generate' : '/ncaa/generate', { method: 'POST', body: form });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || "Couldn't build that sheet. Try again in a minute.");
-        localStorage.setItem('ncaa_sheet_data', JSON.stringify(data));
+        localStorage.setItem(FOOTBALL ? 'ncaa_fb_sheet_data' : 'ncaa_sheet_data', JSON.stringify(data));
+        const sheetUrl = FOOTBALL ? '/ncaa/football/sheet' : '/ncaa/sheet';
         clearInterval(timer); step = steps.length; draw();
-        if (win) win.location.href = '/ncaa/sheet'; else window.location.href = '/ncaa/sheet';
-        showStatus('ok', `Your ${TEAMS[away].school} at ${TEAMS[home].school} sheet is open in a new tab. <a href="/ncaa/sheet" target="_blank">Open it again</a>`);
+        if (win) win.location.href = sheetUrl; else window.location.href = sheetUrl;
+        showStatus('ok', `Your ${TEAMS[away].school} at ${TEAMS[home].school} sheet is open in a new tab. <a href="${sheetUrl}" target="_blank">Open it again</a>`);
     } catch (e) {
         clearInterval(timer);
         if (win) win.close();
@@ -296,7 +308,7 @@ try {
     if (TEAMS[saved.home]) $('home-team').value = saved.home;
     setGender(gender);   // drops a men-only team if the saved pick is women's
 } catch (e) {}
-if (!document.querySelector('#gender .on')) setGender('mens');
+if (!FOOTBALL && !document.querySelector('#gender .on')) setGender('mens');
 setSport(new URLSearchParams(location.search).get('sport') || sport);   // also when saved picks can't be read
 refresh();
 </script>

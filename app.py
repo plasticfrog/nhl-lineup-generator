@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from mlb import MLB_TEAMS, fetch_team_data as mlb_fetch_team_data
 import nba
 import ncaa
+import football
 import activity
 import pwhl
 
@@ -1034,6 +1035,36 @@ def ncaa_generate():
 @app.route('/ncaa/sheet')
 def ncaa_sheet():
     return render_template('nba_sheet.html', cfg=SHEET_CFG['ncaa'])
+
+# ---- College football (not public yet: nothing links here) ----
+@app.route('/ncaa/football')
+def football_select():
+    return render_template('ncaa_select.html', teams=football.teams(), conferences=football.conferences(), genders=ncaa.GENDERS,
+                           sheets={'fb': 'Football'}, football=True)
+
+@app.route('/ncaa/football/generate', methods=['POST'])
+def football_generate():
+    start = time.time()
+    away, home = request.form.get('away_team'), request.form.get('home_team')
+    if away not in football.TEAMS or home not in football.TEAMS or away == home:
+        return jsonify({'error': 'Pick two different teams'}), 400
+    summary = f"Football: {football.TEAMS[away][0]} @ {football.TEAMS[home][0]}"
+    try:
+        data = football.matchup(away, home)
+        elapsed = round(time.time() - start, 2)
+        counts = ' | '.join(f"{t['city']}: {len(t['players'])} players, {len(t['coaches'])} coaches" for t in data['teams'])
+        logger.info(f"FOOTBALL GENERATE OK | {summary} | {elapsed}s | {counts}")
+        activity.record('ncaa', summary, True, elapsed, counts)
+        return jsonify(data)
+    except Exception as e:
+        elapsed = round(time.time() - start, 2)
+        logger.error(f"FOOTBALL GENERATE FAIL | {summary} | {elapsed}s | error: {e}")
+        activity.record('ncaa', summary, False, elapsed, str(e)[:300])
+        return jsonify({'error': "Couldn't build that sheet. ESPN may be slow; give it a minute and try again."}), 500
+
+@app.route('/ncaa/football/sheet')
+def football_sheet():
+    return render_template('football_sheet.html')
 
 # ---- Activity dashboard (password: ADMIN_PASSWORD env var; username can be anything) ----
 

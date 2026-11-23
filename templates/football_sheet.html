@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <title>NCAA Football Headshot Sheet</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        @page { size: letter landscape; margin: 0.3in; }
+        body { background: #2a2c30; font-family: Arial, Helvetica, sans-serif; color: #000; }
+
+        /* ---------- Sheet: roster wing | headshots | headshots | roster wing ---------- */
+        .sheet { width: 11in; height: 8.5in; background: #fff; margin: 24px 0 40px 24px; padding: 0.14in 0.16in; display: grid;
+                 grid-template-columns: 1.78in minmax(0, 1fr) 2px minmax(0, 1fr) 1.78in; gap: 0.1in; box-shadow: 0 10px 40px rgba(0,0,0,.45); overflow: hidden; }
+        .divider { background: #000; }
+
+        /* ---------- Wings: the full roster, number order, two columns ---------- */
+        .wing { display: flex; flex-direction: column; min-height: 0; border-top: 4px solid var(--team); }
+        .wing-head { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 13px; text-transform: uppercase; padding: 3px 2px 2px; white-space: nowrap; overflow: hidden; }
+        .roster { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-flow: column; column-gap: 0.06in; }
+        .row { display: flex; align-items: center; gap: 0.04em; min-width: 0; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 500; line-height: 1; cursor: pointer; white-space: nowrap; overflow: hidden; }
+        .row:nth-child(odd) { background: #f3f4f6; }
+        .row .rn { flex: 0 0 1.55em; text-align: right; padding-right: 0.3em; font-weight: 700; }
+        .row .rname { flex-shrink: 0; }
+        .row.bold { font-weight: 800; }
+        .row.bold .rn { font-weight: 800; }
+        .row:hover { outline: 1px solid #999; }
+
+        /* ---------- Middle: team name, picked headshots, coaches ---------- */
+        .half { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+        .head { height: 0.72in; display: flex; align-items: center; gap: 0.08in; margin-bottom: 0.06in; }
+        .half.right .head { flex-direction: row-reverse; }
+        .head img { height: 100%; width: 0.72in; object-fit: contain; }
+        .team-name { flex: 1; min-width: 0; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 26px; line-height: 1; text-transform: uppercase; white-space: nowrap; overflow: hidden; outline: none; }
+        .half.right .team-name { text-align: right; }
+        .picks { flex: 1; min-height: 0; display: grid; gap: 0.06in; justify-content: center; align-content: start; }
+        .pick-prompt { flex: 1; display: flex; align-items: center; justify-content: center; }
+        .pick-prompt button { border: 2px dashed #c7cbd1; border-radius: 8px; background: #f7f8fa; color: #374151; font: 700 15px -apple-system, 'Segoe UI', sans-serif; padding: 18px 22px; cursor: pointer; }
+        .pick-prompt button:hover { border-color: #111; color: #111; }
+        .coaches { height: 1.62in; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.05in; margin-top: 0.08in; padding-top: 0.06in; border-top: 2px solid var(--team); }
+
+        /* ---------- Cards ---------- */
+        .card { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+        .photo-wrap { position: relative; flex: 1; display: flex; min-height: 0; }
+        .photo { position: relative; flex: 1; overflow: hidden; min-height: 0; background: #f1f2f4; }
+        .photo img { position: absolute; left: 50%; top: -3%; height: 116%; width: auto; max-width: none; transform-origin: 50% 25%; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+        .photo img.custom { left: 0; top: 0; height: 100%; width: 100%; object-fit: cover; object-position: 50% 15%; }
+        .first { height: 0.17in; display: flex; align-items: flex-end; justify-content: center; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; outline: none; line-height: 1; }
+        .name { height: 0.24in; display: flex; align-items: flex-start; justify-content: center; font-size: 15px; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; outline: none; }
+        .num { position: absolute; left: 0; bottom: 0; z-index: 2; padding: 0.03in 0.07in 0.01in; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 0.4in; line-height: 1; color: #fff; background: var(--team); border-top-right-radius: 5px; box-shadow: 0 0 0 1.5px #fff; outline: none; }
+        .num:empty { display: none; }
+        .pos { position: absolute; left: 0; top: 0; z-index: 2; padding: 1px 5px; font-size: 10px; font-weight: 800; line-height: 1.25; color: #fff; background: var(--team); border-bottom-right-radius: 4px; outline: none; white-space: nowrap; }
+        .pos:empty { display: none; }
+        .label { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: center; letter-spacing: .02em; padding-bottom: 2px; white-space: nowrap; overflow: hidden; outline: none; }
+        .coach .name { height: 0.3in; font-size: 11px; line-height: 1.1; white-space: normal; align-items: center; }
+        .coach.open .photo { border: 1px dashed #ccc; background: #fafafa; }
+        [contenteditable]:focus { background: #fff6b0; }
+        .num:focus { background: var(--team); }
+        .player { cursor: grab; }
+        .player.dragging { opacity: .35; }
+        .drop-on { outline: 3px solid #f5b400; outline-offset: -1px; }
+        .x { position: absolute; top: 2px; right: 2px; z-index: 3; width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(0,0,0,.72); color: #fff; font-size: 12px; line-height: 20px; cursor: pointer; display: none; }
+        .card:hover .x { display: block; }
+        .x:hover { background: #c62828; }
+        .swap-btn { position: absolute; top: 16px; left: 2px; z-index: 3; height: 20px; padding: 0 7px; border-radius: 10px; border: 0; background: rgba(0,0,0,.72); color: #fff; font-size: 10px; font-weight: 700; cursor: pointer; display: none; }
+        .coach:hover .swap-btn, .coach.open .swap-btn { display: block; }
+        .add-coach { border: 2px dashed #c7cbd1; border-radius: 6px; background: #f7f8fa; color: #4b5563; font: 700 12px -apple-system, 'Segoe UI', sans-serif; cursor: pointer; }
+        .add-coach:hover { border-color: #111; color: #111; }
+
+        /* ---------- Side panel ---------- */
+        .panel { position: fixed; top: 24px; right: 20px; width: 250px; background: #fff; border-radius: 10px; padding: 16px; font: 13px/1.45 -apple-system, 'Segoe UI', sans-serif; box-shadow: 0 6px 24px rgba(0,0,0,.35); max-height: calc(100vh - 48px); overflow: auto; z-index: 50; }
+        .panel button.big { width: 100%; padding: 11px; border: 0; border-radius: 7px; font-weight: 700; font-size: 14px; cursor: pointer; margin-bottom: 8px; }
+        .print { background: #121417; color: #fff; }
+        .plain { background: #eef0f3; color: #121417; }
+        .panel h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: 14px 0 6px; }
+        .tips { color: #374151; font-size: 12px; }
+        .tips b { color: #111; }
+        .menu { position: fixed; z-index: 100; background: #fff; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.35); padding: 6px; font: 13px -apple-system, 'Segoe UI', sans-serif; min-width: 240px; max-height: 70vh; overflow: auto; }
+        .menu div { padding: 7px 10px; border-radius: 5px; cursor: pointer; }
+        .menu div:hover { background: #f1f2f4; }
+        .menu small { color: #6b7280; display: block; font-size: 11px; }
+        .no-data { color: #ddd; font: 18px system-ui; padding: 80px; }
+
+        /* ---------- Player picker ---------- */
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 200; display: flex; align-items: center; justify-content: center; }
+        .modal { width: 560px; max-width: calc(100vw - 32px); height: min(720px, calc(100vh - 48px)); background: #fff; border-radius: 12px; display: flex; flex-direction: column; font: 14px -apple-system, 'Segoe UI', sans-serif; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+        .modal-top { padding: 16px 18px 10px; border-bottom: 1px solid #e5e7eb; }
+        .modal h3 { font-size: 17px; margin-bottom: 2px; }
+        .modal .sub { color: #6b7280; font-size: 13px; margin-bottom: 10px; }
+        .modal input[type=search] { width: 100%; padding: 9px 11px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 14px; margin-bottom: 8px; }
+        .filters { display: flex; gap: 6px; }
+        .filters button { border: 1px solid #d1d5db; background: #fff; border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .filters button.on { background: #121417; color: #fff; border-color: #121417; }
+        .plist { flex: 1; overflow: auto; padding: 4px 8px; }
+        .prow { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+        .prow:hover { background: #f4f5f7; }
+        .prow.on { background: #fff6d6; }
+        .prow.off { opacity: .4; cursor: not-allowed; }
+        .prow img { width: 38px; height: 38px; object-fit: cover; object-position: 50% 15%; border-radius: 50%; background: #eee; flex-shrink: 0; }
+        .prow .pn { width: 30px; text-align: right; font-weight: 800; }
+        .prow .pm { flex: 1; min-width: 0; }
+        .prow .pm small { color: #6b7280; }
+        .prow .tick { width: 20px; height: 20px; border-radius: 5px; border: 2px solid #c7cbd1; flex-shrink: 0; }
+        .prow.on .tick { background: #121417; border-color: #121417; box-shadow: inset 0 0 0 3px #fff; }
+        .modal-foot { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid #e5e7eb; }
+        .modal-foot .count { flex: 1; color: #374151; font-weight: 600; }
+        .modal-foot button { border: 0; border-radius: 7px; padding: 10px 16px; font-weight: 700; font-size: 14px; cursor: pointer; }
+        .modal-foot button:disabled { opacity: .4; cursor: not-allowed; }
+
+        @media print {
+            body { background: #fff; }
+            .sheet { margin: 0; box-shadow: none; zoom: 0.92; }
+            .panel, .x, .swap-btn, .menu, .pick-prompt, .add-coach, .modal-bg { display: none !important; }
+            [contenteditable]:focus { background: transparent; }
+            .row:hover { outline: 0; }
+            .coach.open .photo { border: 0; background: none; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <aside class="panel">
+        <button class="big print" onclick="window.print()">Print sheet</button>
+        <div id="pick-buttons"></div>
+        <button class="big plain" id="reset">Reset picks, bolding &amp; coaches</button>
+        <h4>How to edit</h4>
+        <div class="tips">
+            <b>Click</b> a name in a roster to bold it<br>
+            <b>Pick players</b> chooses the 4 to 10 headshots per team<br>
+            <b>Drag</b> a headshot onto another to swap them<br>
+            <b>✕</b> on a headshot or coach takes them off<br>
+            <b>Swap</b> on a coach picks another staff member<br>
+            <b>Click</b> a name, number, position or title to edit it<br>
+            <b>Double-click</b> a photo to replace it, or drop an image on it<br>
+            <b>Option + scroll</b> zooms a photo, <b>Option + drag</b> moves it
+        </div>
+    </aside>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function readJSON(key, fallback = {}) { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (e) { return fallback; } }
+function writeJSON(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }
+
+// Remembered per team across new sheets: { ABBR: { picks: [ids], bold: [ids], coaches: [ids|''], titles: [text] } }
+const PREFS_KEY = 'ncaa_fb_team_prefs';
+const ADJUST_KEY = 'ncaa_fb_photo_adjust';   // { photoKey: { s, x, y } }
+const SILHOUETTE = 'https://cdn.nba.com/headshots/nba/latest/1040x760/1.png';
+const MIN_PICKS = 4, MAX_PICKS = 10, MAX_COACHES = 6;
+const ROLES = ['Head Coach', 'Off. Coordinator', 'Def. Coordinator', 'Special Teams'];
+
+const data = readJSON('ncaa_fb_sheet_data', null);
+let SERVER_PHOTOS = {};      // coach photos saved for everyone: { slug: url }
+const custom = {};           // photos dropped on players this visit: { photoKey: dataUrl }
+const edits = {};            // typed changes this visit: { 'p:ID:last': text, ... }
+const slug = name => (name || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const teamBy = abbr => data.teams.find(t => t.abbr === abbr);
+
+function prefsFor(team) {
+    const p = Object.assign({ picks: [], bold: [], coaches: null, titles: null }, readJSON(PREFS_KEY)[team.abbr]);
+    const ids = new Set(team.players.map(x => x.id));
+    p.picks = p.picks.filter(id => ids.has(id));
+    p.bold = p.bold.filter(id => ids.has(id));
+    const staff = team.coaches.map(c => c.id);
+    if (!p.coaches || p.coaches.some(id => id && !staff.includes(id))) {
+        // Head coach, offensive and defensive coordinators, special teams: the first staff member with each job
+        p.coaches = ROLES.map((_, slot) => (team.coaches.find(c => c.slot === slot) || {}).id || '');
+        p.titles = ROLES.slice();
+    }
+    if (!p.titles) p.titles = ROLES.slice();
+    while (p.titles.length < p.coaches.length) p.titles.push('Assistant Coach');
+    return p;
+}
+function savePrefs(team, p) { const all = readJSON(PREFS_KEY); all[team.abbr] = p; writeJSON(PREFS_KEY, all); }
+
+function photoHTML(key, src, fill) {
+    const c = custom[key];
+    return `<div class="photo" data-photo="${esc(key)}"><img class="${c || (fill && src) ? 'custom' : ''}" src="${esc(c || src || SILHOUETTE)}" alt=""></div>`;
+}
+function editable(key, text, cls) {
+    const v = key in edits ? edits[key] : text;
+    return `<div class="${cls}" contenteditable="true" spellcheck="false" data-edit="${esc(key)}">${esc(v)}</div>`;
+}
+
+function wing(t, p) {
+    const bold = new Set(p.bold), rows = Math.ceil(t.players.length / 2);
+    return `<section class="wing" style="--team:${t.color}">
+        <div class="wing-head">${esc(t.city)} roster</div>
+        <div class="roster" data-team="${t.abbr}" style="grid-template-rows: repeat(${rows}, minmax(0, 1fr))">
+            ${t.players.map(x => `<div class="row${bold.has(x.id) ? ' bold' : ''}" data-id="${x.id}" title="Click to bold"><span class="rn">${esc(x.number)}</span><span class="rname">${esc(x.first)} ${esc(x.last)}</span></div>`).join('')}
+        </div>
+    </section>`;
+}
+
+function playerCard(t, x) {
+    return `<div class="card player" draggable="true" data-team="${t.abbr}" data-id="${x.id}">
+        <div class="photo-wrap">
+            ${photoHTML(`p:${x.id}`, x.headshot, x.fill)}
+            ${editable(`p:${x.id}:number`, x.number, 'num')}
+            ${editable(`p:${x.id}:pos`, x.pos, 'pos')}
+        </div>
+        ${editable(`p:${x.id}:first`, x.first, 'first')}
+        ${editable(`p:${x.id}:last`, x.last, 'name')}
+        <button class="x" type="button" title="Take ${esc(x.first)} ${esc(x.last)} off the headshots">✕</button>
+    </div>`;
+}
+
+function coachCard(t, p, slot) {
+    const c = t.coaches.find(x => x.id === p.coaches[slot]);
+    const title = `<div class="label" contenteditable="true" spellcheck="false" data-title="${slot}">${esc(p.titles[slot])}</div>`;
+    if (!c) return `<div class="card coach open" data-team="${t.abbr}" data-slot="${slot}">${title}<div class="photo"></div><div class="name"></div>
+        <button class="swap-btn" type="button">Pick</button><button class="x" type="button" title="Remove this spot">✕</button></div>`;
+    const [first, ...rest] = c.name.split(' ');
+    return `<div class="card coach" data-team="${t.abbr}" data-slot="${slot}" data-coach="${esc(c.name)}" title="${esc(c.role)}">
+        ${title}
+        ${photoHTML(`c:${c.id}`, SERVER_PHOTOS[slug(c.name)] || c.headshot, true)}
+        ${editable(`c:${c.id}:name`, `${first}\n${rest.join(' ')}`, 'name').replace(/\n/, '<br>')}
+        <button class="swap-btn" type="button" title="Show a different staff member">Swap</button>
+        <button class="x" type="button" title="Take ${esc(c.name)} off the sheet">✕</button>
+    </div>`;
+}
+
+function half(t, p, side) {
+    const byId = Object.fromEntries(t.players.map(x => [x.id, x]));
+    const picks = p.picks.map(id => byId[id]);
+    const n = p.coaches.length;   // the "+ Coach" cell is screen-only, so printed coaches take its room
+    return `<section class="half ${side}" style="--team:${t.color}">
+        <div class="head"><img src="${esc(t.logo)}" alt="">${editable(`team:${t.abbr}`, `${t.city} ${t.name}`, 'team-name')}</div>
+        ${picks.length ? `<div class="picks" data-team="${t.abbr}" data-n="${picks.length}">${picks.map(x => playerCard(t, x)).join('')}</div>`
+                       : `<div class="pick-prompt"><button type="button" data-pick="${t.abbr}">+ Pick ${MIN_PICKS}–${MAX_PICKS} ${esc(t.city)} players</button></div>`}
+        <div class="coaches">
+            ${p.coaches.map((_, s) => coachCard(t, p, s)).join('')}
+            ${n < MAX_COACHES ? `<button class="add-coach" type="button" data-team="${t.abbr}">+ Coach</button>` : ''}
+        </div>
+    </section>`;
+}
+
+function render() {
+    if (!data || !data.teams) { $('root').innerHTML = '<div class="no-data">No sheet found. Go back to the football page and pick a matchup.</div>'; return; }
+    const [a, h] = data.teams, pa = prefsFor(a), ph = prefsFor(h);
+    $('root').innerHTML = `<div class="sheet">${wing(a, pa)}${half(a, pa, 'left')}<div class="divider"></div>${half(h, ph, 'right')}${wing(h, ph)}</div>`;
+    document.title = `${a.name} @ ${h.name} · NCAA Football Headshot Sheet`;
+    $('pick-buttons').innerHTML = data.teams.map(t => `<button class="big plain" type="button" data-pick="${t.abbr}">Pick ${esc(t.city)} players</button>`).join('');
+    layout();
+    wire();
+}
+
+// Headshot grid: 2 columns for up to 4 players, else 3; cards keep a portrait shape and sit at the top
+function layout() {
+    document.querySelectorAll('.picks').forEach(g => {
+        const n = +g.dataset.n, cols = n <= 4 ? 2 : 3, rows = Math.ceil(n / cols), gap = 6;
+        const w = (g.clientWidth - gap * (cols - 1)) / cols, hgt = (g.clientHeight - gap * (rows - 1)) / rows;
+        const cw = Math.min(w, hgt * 0.8);
+        g.style.gridTemplateColumns = `repeat(${cols}, ${cw}px)`;
+        g.style.gridTemplateRows = `repeat(${rows}, ${Math.min(hgt, cw / 0.8)}px)`;
+    });
+    // Roster rows: the font fills each row's height
+    document.querySelectorAll('.roster').forEach(r => {
+        const row = r.querySelector('.row');
+        if (!row) return;
+        const size = Math.max(6, Math.min(13, row.clientHeight * 0.86));
+        r.querySelectorAll('.row').forEach(el => { el.style.fontSize = size + 'px'; });
+        r.querySelectorAll('.row').forEach(el => {   // long names shrink to fit their column
+            const name = el.querySelector('.rname'), num = el.querySelector('.rn');
+            let s = size;
+            while (s > 5 && num.offsetWidth + name.offsetWidth > el.clientWidth) { s -= 0.25; el.style.fontSize = s + 'px'; }
+        });
+    });
+    document.querySelectorAll('.name, .first, .team-name, .label').forEach(el => {
+        el.style.fontSize = '';
+        let size = parseFloat(getComputedStyle(el).fontSize);
+        while (size > (el.classList.contains('label') ? 6 : 7) && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) { size -= 0.5; el.style.fontSize = size + 'px'; }
+    });
+}
+
+// ---------- Interactions ----------
+let dragging = null;
+
+function wire() {
+    document.querySelectorAll('[data-edit]').forEach(el => el.addEventListener('input', () => { edits[el.dataset.edit] = el.innerText.trim(); }));
+    document.querySelectorAll('[contenteditable]').forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } }));
+    document.querySelectorAll('[data-title]').forEach(el => el.addEventListener('blur', () => {
+        const t = teamBy(el.closest('.coach').dataset.team), p = prefsFor(t);
+        p.titles[+el.dataset.title] = el.innerText.trim(); savePrefs(t, p);
+    }));
+    document.querySelectorAll('.roster .row').forEach(row => row.onclick = () => {
+        const t = teamBy(row.parentElement.dataset.team), p = prefsFor(t), id = row.dataset.id;
+        p.bold = p.bold.includes(id) ? p.bold.filter(b => b !== id) : p.bold.concat(id);
+        savePrefs(t, p); row.classList.toggle('bold');
+    });
+    document.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => openPicker(teamBy(b.dataset.pick)));
+    document.querySelectorAll('.player .x').forEach(b => b.onclick = () => {
+        const card = b.closest('.player'), t = teamBy(card.dataset.team), p = prefsFor(t);
+        p.picks = p.picks.filter(id => id !== card.dataset.id); savePrefs(t, p); render();
+    });
+    document.querySelectorAll('.coach .x').forEach(b => b.onclick = e => {
+        e.stopPropagation();
+        const card = b.closest('.coach'), t = teamBy(card.dataset.team), p = prefsFor(t), s = +card.dataset.slot;
+        if (p.coaches[s]) p.coaches[s] = '';
+        else { p.coaches.splice(s, 1); p.titles.splice(s, 1); }   // an empty spot's ✕ removes the spot
+        savePrefs(t, p); render();
+    });
+    document.querySelectorAll('.coach .swap-btn').forEach(b => b.onclick = e => { e.stopPropagation(); coachMenu(b.closest('.coach')); });
+    document.querySelectorAll('.add-coach').forEach(b => b.onclick = e => {
+        e.stopPropagation();
+        const t = teamBy(b.dataset.team), p = prefsFor(t);
+        p.coaches.push(''); p.titles.push('Assistant Coach'); savePrefs(t, p); render();
+        coachMenu(document.querySelector(`.coach[data-team="${t.abbr}"][data-slot="${p.coaches.length - 1}"]`), true);
+    });
+
+    // Drag a headshot onto another of the same team to swap them
+    document.querySelectorAll('.player').forEach(card => {
+        card.addEventListener('dragstart', e => {
+            if (e.target !== card) return;
+            dragging = card; card.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.dataset.id);
+        });
+        card.addEventListener('dragend', () => { dragging = null; card.classList.remove('dragging'); clearDrop(); });
+    });
+    document.querySelectorAll('.player, .coach').forEach(target => {
+        target.addEventListener('dragover', e => {
+            const files = e.dataTransfer.types.includes('Files');
+            if (!files && !(dragging && target.classList.contains('player') && target.dataset.team === dragging.dataset.team && target !== dragging)) return;
+            e.preventDefault(); clearDrop(); target.classList.add('drop-on');
+        });
+        target.addEventListener('dragleave', () => target.classList.remove('drop-on'));
+        target.addEventListener('drop', e => {
+            e.preventDefault(); clearDrop();
+            const file = e.dataTransfer.files[0];
+            if (file) { if (file.type.startsWith('image/')) setPhoto(target, file); return; }
+            if (!dragging) return;
+            const t = teamBy(dragging.dataset.team), p = prefsFor(t);
+            const a = p.picks.indexOf(dragging.dataset.id), b = p.picks.indexOf(target.dataset.id);
+            [p.picks[a], p.picks[b]] = [p.picks[b], p.picks[a]];
+            savePrefs(t, p); render();
+        });
+    });
+    document.querySelectorAll('.photo[data-photo]').forEach(box => {
+        const card = box.closest('.card');
+        enableAdjust(box, card);
+        box.parentElement.addEventListener('dblclick', e => {
+            if (e.altKey || e.target.isContentEditable) return;
+            const f = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*' });
+            f.onchange = () => f.files[0] && setPhoto(card, f.files[0]);
+            f.click();
+        });
+    });
+}
+function clearDrop() { document.querySelectorAll('.drop-on').forEach(el => el.classList.remove('drop-on')); }
+
+// Option+scroll zooms, Option+drag moves, Option+double-click resets. Remembered per photo.
+function enableAdjust(box, card) {
+    const key = box.dataset.photo, img = box.querySelector('img');
+    let adj = Object.assign({ s: 1, x: 0, y: 0 }, readJSON(ADJUST_KEY)[key]);
+    const apply = () => {
+        img.style.transform = img.classList.contains('custom')
+            ? `translate(${adj.x}px, ${adj.y}px) scale(${adj.s})`
+            : `translate(calc(-50% + ${adj.x}px), ${adj.y}px) scale(${adj.s})`;
+    };
+    const save = () => { const all = readJSON(ADJUST_KEY); all[key] = adj; writeJSON(ADJUST_KEY, all); };
+    apply();
+    box.addEventListener('wheel', e => {
+        if (!e.altKey) return;
+        e.preventDefault();
+        adj.s = Math.max(0.4, Math.min(4, adj.s + (e.deltaY > 0 ? -0.03 : 0.03))); apply(); save();
+    }, { passive: false });
+    box.addEventListener('mousedown', e => {
+        if (!e.altKey || e.button !== 0) return;
+        e.preventDefault(); e.stopPropagation();
+        card.draggable = false;
+        const start = { mx: e.clientX, my: e.clientY, x: adj.x, y: adj.y };
+        const move = ev => { adj.x = start.x + ev.clientX - start.mx; adj.y = start.y + ev.clientY - start.my; apply(); };
+        const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); card.draggable = card.classList.contains('player'); save(); };
+        window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    });
+    box.parentElement.addEventListener('dblclick', e => {
+        if (!e.altKey) return;
+        e.stopImmediatePropagation();
+        adj = { s: 1, x: 0, y: 0 }; apply();
+        const all = readJSON(ADJUST_KEY); delete all[key]; writeJSON(ADJUST_KEY, all);
+    });
+}
+
+// Coach photos are saved on the server by name for everyone; player photos last this visit only
+async function setPhoto(card, file) {
+    const box = card.querySelector('.photo[data-photo]');
+    if (!box) return;
+    const key = box.dataset.photo;
+    const all = readJSON(ADJUST_KEY); delete all[key]; writeJSON(ADJUST_KEY, all);
+    if (card.classList.contains('coach') && card.dataset.coach) {
+        try {
+            const form = new FormData(); form.append('name', card.dataset.coach); form.append('photo', file);
+            const res = await fetch('/coach_photos', { method: 'POST', body: form });
+            const out = await res.json();
+            if (!res.ok) throw new Error(out.error || res.status);
+            SERVER_PHOTOS[slug(card.dataset.coach)] = out.url;
+            delete custom[key];
+            return render();
+        } catch (err) {
+            alert(`Couldn't save the photo for everyone (${err.message}). It's on this sheet only.`);
+        }
+    }
+    custom[key] = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
+    render();
+}
+
+function coachMenu(card, fresh = false) {
+    closeMenu();
+    const t = teamBy(card.dataset.team), p = prefsFor(t), slot = +card.dataset.slot;
+    const menu = document.createElement('div'); menu.className = 'menu';
+    const options = t.coaches.filter(c => !p.coaches.includes(c.id)).map(c => ({ label: c.name, sub: c.role, id: c.id }));
+    if (p.coaches[slot]) options.push({ label: 'Leave this spot empty', sub: '', id: '' });
+    menu.innerHTML = options.length ? options.map((o, i) => `<div data-i="${i}">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</div>`).join('')
+                                    : "<div>No other staff listed on the school's site</div>";
+    menu.querySelectorAll('[data-i]').forEach(el => el.onclick = () => {
+        const c = t.coaches.find(x => x.id === options[+el.dataset.i].id);
+        p.coaches[slot] = c ? c.id : '';
+        if (c && slot >= ROLES.length && fresh) p.titles[slot] = shortTitle(c.role);   // an added coach is titled by their job
+        savePrefs(t, p); closeMenu(); render();
+    });
+    document.body.appendChild(menu);
+    const r = card.getBoundingClientRect();
+    menu.style.left = Math.min(r.left, innerWidth - menu.offsetWidth - 10) + 'px';
+    menu.style.top = Math.max(10, Math.min(r.bottom + 4, innerHeight - menu.offsetHeight - 10)) + 'px';
+    setTimeout(() => document.addEventListener('click', closeMenu, { once: true }));
+}
+function closeMenu() { document.querySelectorAll('.menu').forEach(m => m.remove()); }
+// "Assistant Head Coach / Running Backs" -> "Running Backs"; endowed names and "Coach" dropped
+function shortTitle(role) {
+    const parts = role.split(/\s*[\/,(]\s*|\s+-\s+|\s+and\s+/i).map(s => s.replace(/[)]/g, '').trim()).filter(Boolean);
+    const job = parts.find(s => !/^(assistant|associate|asst\.?)( head)?( football)? coach$/i.test(s)) || parts[0] || role;
+    return job.replace(/^.*?\b(?=(offensive|defensive|special|quarterbacks|running|wide|tight|offensive|defensive|linebackers|cornerbacks|safeties|outside|inside|nickel|secondary|defensive backs)\b)/i, '')
+              .replace(/\s+coach$/i, '');
+}
+
+// ---------- Player picker: 4 to 10 headshots per team ----------
+function openPicker(t) {
+    const p = prefsFor(t);
+    let picked = p.picks.slice(), side = 'all', q = '';
+    const bg = document.createElement('div'); bg.className = 'modal-bg';
+    bg.innerHTML = `<div class="modal" style="--team:${t.color}">
+        <div class="modal-top">
+            <h3>${esc(t.city)} ${esc(t.name)}: pick ${MIN_PICKS} to ${MAX_PICKS} players</h3>
+            <div class="sub">They get headshots in the middle of the sheet, in the order you pick them.</div>
+            <input type="search" placeholder="Search a name, number or position" autocomplete="off">
+            <div class="filters">${[['all', 'All'], ['OFF', 'Offense'], ['DEF', 'Defense'], ['ST', 'Special teams'], ['picked', 'Picked']].map(([v, l]) => `<button type="button" data-side="${v}">${l}</button>`).join('')}</div>
+        </div>
+        <div class="plist"></div>
+        <div class="modal-foot"><span class="count"></span><button type="button" class="plain" data-act="cancel">Cancel</button><button type="button" class="print" data-act="done">Done</button></div>
+    </div>`;
+    document.body.appendChild(bg);
+    const list = bg.querySelector('.plist'), input = bg.querySelector('input');
+    const draw = () => {
+        const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+        const shown = t.players.filter(x => (side === 'all' || (side === 'picked' ? picked.includes(x.id) : x.side === side))
+            && words.every(w => `${x.number} ${x.first} ${x.last} ${x.pos}`.toLowerCase().split(' ').some(s => s.startsWith(w))));
+        const full = picked.length >= MAX_PICKS;
+        list.innerHTML = shown.map(x => {
+            const on = picked.includes(x.id);
+            return `<div class="prow${on ? ' on' : full ? ' off' : ''}" data-id="${x.id}"><span class="tick"></span><span class="pn">${esc(x.number)}</span>
+                <img src="${esc(x.headshot || SILHOUETTE)}" alt="" loading="lazy"><span class="pm">${esc(x.first)} ${esc(x.last)} <small>${esc(x.pos)}${x.year ? ' · ' + esc(x.year) : ''}</small></span>${on ? `<b>${picked.indexOf(x.id) + 1}</b>` : ''}</div>`;
+        }).join('') || '<div style="padding:16px;color:#6b7280">No players match</div>';
+        bg.querySelectorAll('.filters button').forEach(b => b.classList.toggle('on', b.dataset.side === side));
+        bg.querySelector('.count').textContent = `${picked.length} picked` + (picked.length < MIN_PICKS ? ` · pick at least ${MIN_PICKS}` : picked.length >= MAX_PICKS ? ' · that\'s the most' : '');
+        bg.querySelector('[data-act=done]').disabled = picked.length < MIN_PICKS;
+    };
+    list.onclick = e => {
+        const row = e.target.closest('.prow');
+        if (!row) return;
+        const id = row.dataset.id;
+        if (picked.includes(id)) picked = picked.filter(x => x !== id);
+        else if (picked.length < MAX_PICKS) picked.push(id);
+        draw();
+    };
+    input.oninput = () => { q = input.value; draw(); };
+    bg.querySelectorAll('.filters button').forEach(b => b.onclick = () => { side = b.dataset.side; draw(); });
+    const close = () => { bg.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    bg.querySelector('[data-act=cancel]').onclick = close;
+    bg.onclick = e => { if (e.target === bg) close(); };
+    bg.querySelector('[data-act=done]').onclick = () => {
+        const fresh = prefsFor(t); fresh.picks = picked; savePrefs(t, fresh); close(); render();
+        const next = data.teams.find(x => x !== t && !prefsFor(x).picks.length);   // then prompt for the other team
+        if (next) openPicker(next);
+    };
+    draw();
+    input.focus();
+}
+
+$('reset').onclick = () => {
+    if (!data || !confirm('Clear the picked players, bolded names and coach choices for both teams?')) return;
+    const all = readJSON(PREFS_KEY); data.teams.forEach(t => delete all[t.abbr]); writeJSON(PREFS_KEY, all); render();
+    openPicker(data.teams[0]);
+};
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+window.addEventListener('resize', () => data && layout());
+
+let lastPrint = 0;
+window.addEventListener('beforeprint', () => {
+    if (Date.now() - lastPrint < 5000 || !data) return;
+    lastPrint = Date.now();
+    const f = new FormData(); f.append('kind', 'print_ncaa'); f.append('summary', `Football: ${data.teams[0].name} @ ${data.teams[1].name}`);
+    navigator.sendBeacon('/activity/event', f);
+});
+
+(async () => {
+    try { SERVER_PHOTOS = await fetch('/coach_photos').then(r => r.json()); } catch (e) {}
+    render();
+    document.fonts && document.fonts.ready.then(() => data && layout());
+    const first = data && data.teams.find(t => !prefsFor(t).picks.length);   // prompt for the headshots right away
+    if (first) openPicker(first);
+})();
+</script>
+</body>
+</html>

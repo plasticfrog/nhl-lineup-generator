@@ -859,7 +859,12 @@ def _short_pos(pos):
     return '/'.join(_POS.get(p.lower(), p) for p in parts)
 
 def _vb_players(domain):
-    for path in _sport_paths(domain, 'wvb'):
+    return site_players(domain, _sport_paths(domain, 'wvb'))
+
+
+def site_players(domain, paths, least=6, deep=True):
+    """Roster from a school site page (volleyball, and photos for football). deep: also open each player's page for a photo (Arkansas)"""
+    for path in paths:
         base = f'https://{domain}{path}'
         try:
             res = requests.get(base, headers=HEADERS, timeout=12)
@@ -868,10 +873,12 @@ def _vb_players(domain):
         if res.status_code != 200:
             continue
         arr = _nuxt(res.text)
-        for found in ([_vb_players_sidearm(arr, base), _vb_players_wmt(arr, base)] if arr else []) + [
-                _vb_players_classic(res.text, base), _vb_players_links(res.text, base), _vb_players_json(res.text, base),
-                _vb_players_presto(res.text, base), _vb_players_table(res.text, base)]:
-            if len(found) >= 6:
+        parsers = ([lambda: _vb_players_sidearm(arr, base), lambda: _vb_players_wmt(arr, base)] if arr else []) + [
+            lambda: _vb_players_classic(res.text, base), lambda: _vb_players_links(res.text, base), lambda: _vb_players_json(res.text, base),
+            lambda: _vb_players_presto(res.text, base)] + ([lambda: _vb_players_table(res.text, base)] if deep else [])
+        for parse in parsers:
+            found = parse()
+            if len(found) >= least:
                 seen, out = set(), []
                 for first, last, num, pos, photo in found:
                     if (first, last) in seen:
