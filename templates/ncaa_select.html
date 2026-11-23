@@ -109,10 +109,11 @@
             </section>
 
             <aside class="aside">
-                {% if not football %}<div class="preview-label">What you'll print</div>
+                <div class="preview-label">What you'll print</div>
                 <div class="sheet-shot">
-                    <img src="{{ url_for('static', filename='img/sample-ncaa.webp') }}" width="720" height="557" alt="Example college basketball headshot sheet with both teams side by side">
-                </div>{% endif %}
+                    {% if football %}<img src="{{ url_for('static', filename='img/sample-football.webp') }}" width="720" height="557" alt="Example college football headshot sheet: full rosters down both sides, picked players' headshots and the coaching staffs in the middle">
+                    {% else %}<img src="{{ url_for('static', filename='img/sample-ncaa.webp') }}" width="720" height="557" alt="Example college basketball headshot sheet with both teams side by side">{% endif %}
+                </div>
                 {% if football %}<ul class="facts">
                     <li>Both teams on one landscape page</li>
                     <li>Full rosters down the outside edges; click a name to bold it</li>
