@@ -258,10 +258,22 @@ function render() {
         const byId = Object.fromEntries(playersOf(t, p).map(x => [x.id, x]));
         const coach = id => t.coaches.find(c => c.id === id);
         const total = rows * 5;
-        let grid = p.order.map(id => playerCard(t, byId[id])).join('');
-        const used = cells[i];
-        grid += Array.from({ length: total - used }, () => `<div class="empty" data-team="${t.abbr}"><button class="add" type="button">+ Add player</button></div>`).join('');
-        if (i === refSide) grid += refSpot();
+        const cards = p.order.map(id => playerCard(t, byId[id]));
+        const empties = n => Array.from({ length: n }, () => `<div class="empty" data-team="${t.abbr}"><button class="add" type="button">+ Add player</button></div>`);
+        let grid;
+        if (i === 0) grid = cards.concat(empties(total - cells[i]), i === refSide ? [refSpot()] : []).join('');
+        else {
+            // Right team: a short last row hugs the outside (right) edge, so the open space and the referee sit in the middle
+            const full = cards.length - cards.length % 5, rest = cards.slice(full), out = cards.slice(0, full);
+            let ref = i === refSide, filled = full;
+            if (rest.length) {
+                const gap = 5 - rest.length;
+                if (ref && gap >= 2) { out.push(refSpot(), ...empties(gap - 2)); ref = false; } else out.push(...empties(gap));
+                out.push(...rest); filled += 5;
+            }
+            if (ref) { out.push(refSpot()); filled += 2; }
+            grid = out.concat(empties(total - filled)).join('');
+        }
         return `<section class="half" style="--team:${t.color}">
             <div class="head">
                 ${coachCard(t, coach(p.coaches[0]), 0, true)}
