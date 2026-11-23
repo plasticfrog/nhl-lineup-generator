@@ -144,7 +144,7 @@
         <h4>How to edit</h4>
         <div class="tips">
             <b>Click</b> a name in a roster to bold it<br>
-            <b>Pick players</b> chooses the 4 to 10 headshots per team<br>
+            <b>Pick players</b> chooses the 4 to 12 headshots per team<br>
             <b>Drag</b> a headshot onto another to swap them<br>
             <b>✕</b> on a headshot or coach takes them off<br>
             <b>Swap</b> on a coach picks another staff member<br>
@@ -164,7 +164,7 @@ function writeJSON(key, value) { try { localStorage.setItem(key, JSON.stringify(
 const PREFS_KEY = 'ncaa_fb_team_prefs';
 const ADJUST_KEY = 'ncaa_fb_photo_adjust';   // { photoKey: { s, x, y } }
 const SILHOUETTE = 'https://cdn.nba.com/headshots/nba/latest/1040x760/1.png';
-const MIN_PICKS = 4, MAX_PICKS = 10, MAX_COACHES = 6;
+const MIN_PICKS = 4, MAX_PICKS = 12, MAX_COACHES = 6;
 const ROLES = ['Head Coach', 'Off. Coordinator', 'Def. Coordinator', 'Special Teams'];
 
 const data = readJSON('ncaa_fb_sheet_data', null);
@@ -468,7 +468,7 @@ function shortTitle(role) {
               .replace(/\s+coach$/i, '');
 }
 
-// ---------- Player picker: 4 to 10 headshots per team ----------
+// ---------- Player picker: 4 to 12 headshots per team ----------
 function openPicker(t) {
     const p = prefsFor(t);
     let picked = p.picks.slice(), side = 'all', q = '';
