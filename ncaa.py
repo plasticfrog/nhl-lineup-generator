@@ -445,7 +445,27 @@ CONFERENCES = {
 NCAA_LOGO = '/static/img/ncaa.svg'   # referee spot for games between conferences
 
 GENDERS = {'mens': "Men's", 'womens': "Women's"}
+# What a sheet can be; 'wvb' (women's volleyball) rosters come from the school sites, not ESPN
+SHEETS = {'mens': "Men's basketball", 'womens': "Women's basketball", 'wvb': "Women's volleyball"}
+# schools without a women's volleyball team: Boston University, Detroit Mercy, Drexel, George Mason, Longwood, Maine, Monmouth, Mount St. Mary's, Oklahoma State, Richmond, Saint Joseph's, St. Bonaventure, VMI, Vermont
+NO_VOLLEYBALL = {'197', '2182', '2405', '2244', '257', '2603', '179', '2678', '2174', '116', '2344', '104', '311', '261'}
 MENS_ONLY = {'2643', '2678'}   # The Citadel and VMI have no women's team
+
+# Schools whose volleyball page isn't at /sports/womens-volleyball/roster or /sports/volleyball/roster
+VB_PAGES = {
+    'ramblinwreck.com': '/sports/w-volley/roster/',
+    'hawkeyesports.com': '/sports/wvball/roster/',
+    'golobos.com': '/sports/wvball/roster/',
+    'roarlions.com': '/sports/wvball/roster/',
+    'fightingirish.com': '/sports/wvball/roster/',
+    'ohiobobcats.com': '/sports/wvball/roster/',
+    'tommiesports.com': '/sports/wvball/roster/',
+    'virginiasports.com': '/sports/wvball/roster/',
+    'vucommodores.com': '/sports/wvolley/roster',
+    'lsusports.net': '/sports/vb/roster',
+    'ukathletics.com': '/sports/wvball/roster/',
+    'gamecocksonline.com': '/sports/wvball/roster/',
+}
 
 # Schools whose basketball pages aren't at /sports/<mens|womens>-basketball/: (men's page, women's page)
 STAFF_PAGES = {
@@ -484,7 +504,7 @@ def _cached(key, seconds, fn):
 
 def team_key(gender, team_id):
     """One id per team per gender, so each sheet remembers its own order and coaches"""
-    return f"{gender[0]}{team_id}"
+    return f"{'v' if gender == 'wvb' else gender[0]}{team_id}"
 
 
 def logo_url(team_id):
@@ -495,7 +515,7 @@ def teams():
     """[{id, school, name, color, conf, conf_name, logo}] grouped by conference, then school."""
     order = list(CONFERENCES)
     return sorted(({'id': i, 'school': s, 'name': n, 'color': c, 'conf': conf, 'conf_name': CONFERENCES[conf][0], 'logo': logo_url(i),
-                    'mens_only': i in MENS_ONLY}
+                    'mens_only': i in MENS_ONLY, 'no_vb': i in NO_VOLLEYBALL}
                    for i, (s, n, c, conf, _) in NCAA_TEAMS.items()), key=lambda t: (order.index(t['conf']), t['school']))
 
 
@@ -597,11 +617,23 @@ def _from_staff_table(s, base):
     return [(name, title, url) for (_, name, title), url in zip(coaches, photos)]
 
 
-def _staff_from_site(domain, gender):
+def _sport_paths(domain, gender):
+    if gender == 'wvb':
+        return [VB_PAGES[domain]] if domain in VB_PAGES else ['/sports/womens-volleyball/roster', '/sports/volleyball/roster']
     custom = STAFF_PAGES.get(domain, (None, None))[0 if gender == 'mens' else 1]
-    paths = [custom] if custom else [f'/sports/{gender}-basketball/coaches', f'/sports/{gender}-basketball/roster']
+    return [custom] if custom else [f'/sports/{gender}-basketball/coaches', f'/sports/{gender}-basketball/roster']
+
+
+# A head coach titled only "Director of Women's Volleyball" (Stanford's "The Montag Family Director of Women's Volleyball")
+_VB_HEAD = re.compile(r"director of (?:women['’]?s )?volleyball\s*$", re.I)
+
+
+def _staff_from_site(domain, gender):
+    paths = _sport_paths(domain, gender)
+    if gender == 'wvb':   # some schools list volleyball coaches on their own page, not under the roster
+        paths = paths + [re.sub(r'/roster/?$', '/coaches', p) for p in paths]
     not_bench = ('strength', 's&c', 'conditioning', 'performance', 'trainer', 'video', 'academic')
-    keep = lambda cs: [c for c in cs if 'coach' in c[1].lower() and not any(w in c[1].lower() for w in not_bench)]
+    keep = lambda cs: [c for c in cs if ('coach' in c[1].lower() or _VB_HEAD.search(c[1])) and not any(w in c[1].lower() for w in not_bench)]
     for path in paths:
         base = f'https://{domain}{path}'
         try:
@@ -617,7 +649,7 @@ def _staff_from_site(domain, gender):
             lambda: _from_staff_table(res.text, base)]
         for parse in parsers:
             found = keep(parse())
-            if len(found) >= 2:
+            if len(found) >= (1 if gender == 'wvb' else 2):   # small volleyball staffs can be just the head coach
                 seen, out = set(), []
                 for name, title, photo in found:
                     # drop class years: "Jon Jaques '10" (Cornell), "David Richman ('02, '05)" (NDSU)
@@ -637,6 +669,8 @@ def _rank(role):
         return 1
     if 'advisor' in r or 'to the head' in r:
         return 3
+    if _VB_HEAD.search(r):
+        return 0
     # endowed Ivy titles: "Elizabeth F. Turner '98 Coaching Chair for Women's Basketball" (Brown)
     if ('head' in r or 'coaching chair' in r) and 'assistant' not in r and 'associate' not in r:
         return 0
@@ -698,18 +732,135 @@ def _roster_by_player(gender, team_id):
     return {'athletes': athletes} if athletes else None
 
 
+# ---------- Volleyball rosters from the school sites (ESPN has none) ----------
+def _vb_players_sidearm(arr, base):
+    v = lambda i: arr[i] if isinstance(i, int) and 0 <= i < len(arr) else None
+    out = []
+    for o in arr:
+        if isinstance(o, dict) and 'jerseyNumber' in o and 'firstName' in o and 'lastName' in o:
+            first, last = v(o['firstName']), v(o['lastName'])
+            if not isinstance(first, str):
+                continue
+            img = v(o.get('image')); url = ''
+            if isinstance(img, dict):
+                url = v(img.get('absoluteUrl')) or v(img.get('url')) or ''
+            out.append((first, last or '', v(o['jerseyNumber']), v(o.get('positionShort')), urljoin(base, url) if url else ''))
+    return out
+
+def _vb_players_wmt(arr, base):
+    """WMT sites (Stanford): each roster entry points at a player, a position and a photo"""
+    v = lambda i: arr[i] if isinstance(i, int) and 0 <= i < len(arr) else None
+    out = []
+    for o in arr:
+        if isinstance(o, dict) and 'jersey_number' in o and 'player' in o:
+            pl, pos, ph = v(o['player']), v(o.get('player_position')), v(o.get('photo'))
+            if not isinstance(pl, dict) or not isinstance(v(pl.get('first_name')), str):
+                continue
+            out.append((v(pl.get('first_name')), v(pl.get('last_name')) or '', v(o.get('jersey_number_label')) or v(o['jersey_number']),
+                        v(pos.get('abbreviation')) if isinstance(pos, dict) else '', (v(ph.get('url')) if isinstance(ph, dict) else '') or ''))
+    return out
+
+def _vb_players_classic(s, base):
+    """Older SIDEARM roster pages: one <li class="sidearm-roster-player"> per player"""
+    out = []
+    for chunk in re.split(r'class="sidearm-roster-player[ "]', s)[1:]:
+        num = re.search(r'sidearm-roster-player-jersey-number[^>]*>\s*(\d+)', chunk)
+        name = re.search(r'sidearm-roster-player-name[^>]*>.*?<a[^>]*>\s*([^<]+?)\s*</a>', chunk, re.S)
+        pos = re.search(r'sidearm-roster-player-position[^>]*>\s*(?:<[^>]+>\s*)*([^<]+?)\s*<', chunk)
+        img = re.search(r'(?:data-src|src)="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"', chunk, re.I)
+        if num and name:
+            first, _, last = html.unescape(name.group(1)).strip().partition(' ')
+            out.append((first, last, num.group(1), html.unescape(pos.group(1)).strip() if pos else '', urljoin(base, img.group(1).split('?')[0]) if img else ''))
+    return out
+
+def _vb_players_links(s, base):
+    """Older WMT pages (Kentucky, South Carolina, LSU): each player's photo, number, name and position sit around a /roster/player/ link"""
+    cards = []   # a player's photo link and name link are separate <a>s: keep them together
+    for chunk in re.split(r'(?=<a[^>]+href="[^"]*/roster/player/)', s)[1:]:
+        slug = re.search(r'/roster/player/([^/"]+)', chunk).group(1)
+        if cards and cards[-1][0] == slug:
+            cards[-1][1] += chunk
+        else:
+            cards.append([slug, chunk])
+    out, seen = [], set()
+    for slug, chunk in cards:
+        if slug in seen:
+            continue
+        part = chunk[:5000]
+        name = (re.search(r'(?:title|alt)="([^"]{3,60})"', part) or re.search(r'roster-item__name[^>]*>\s*([^<]+)', part)
+                or re.search(r'person__name[^>]*>\s*<a[^>]*>\s*([^<]+?)\s*<', part))
+        num = re.search(r'class="[^"]*number[^"]*"[^>]*>\s*#?(\d{1,2})\s*<', part)
+        pos = (re.search(r'class="[^"]*position[^"]*"[^>]*>\s*([A-Z/]{1,7})\s*<', part)
+               or re.search(r'roster-item__info[^>]*>\s*([A-Z/]{1,7})\s*-', part))
+        img = re.search(r'(?:data-src|data-bg|src)="(https?://[^"]+/imgproxy/[^"]+)"', part)
+        if name and num:
+            seen.add(slug)
+            first, _, last = html.unescape(name.group(1)).strip().partition(' ')
+            out.append((first, last, num.group(1), pos.group(1) if pos else '', img.group(1) if img else ''))
+    return out
+
+def _vb_players_json(s, base):
+    """SIDEARM table rosters (Bradley, Utah State) carry the players as JSON in the page"""
+    i = s.find('"players":[{')
+    if i < 0:
+        return []
+    try:
+        arr, _ = json.JSONDecoder().raw_decode(s[i + 10:])
+    except Exception:
+        return []
+    return [(p.get('first_name') or '', p.get('last_name') or '', p.get('jersey_number'), p.get('position_short') or '',
+             urljoin(base, (p.get('image') or {}).get('fullpath') or '') if (p.get('image') or {}).get('fullpath') else '')
+            for p in arr if isinstance(p, dict) and p.get('first_name')]
+
+_POS = {'outside hitter': 'OH', 'outside': 'OH', 'middle blocker': 'MB', 'middle': 'MB', 'setter': 'S', 'opposite': 'OPP',
+        'opposite hitter': 'OPP', 'right side': 'RS', 'right side hitter': 'RS', 'libero': 'L', 'defensive specialist': 'DS', 'pin hitter': 'PIN'}
+
+def _short_pos(pos):
+    """'Defensive Specialist / Libero' -> 'DS/L' (LSU spells them out)"""
+    parts = [p.strip() for p in re.split(r'[/,]', pos or '') if p.strip()]
+    return '/'.join(_POS.get(p.lower(), p) for p in parts)
+
+def _vb_players(domain):
+    for path in _sport_paths(domain, 'wvb'):
+        base = f'https://{domain}{path}'
+        try:
+            res = requests.get(base, headers=HEADERS, timeout=12)
+        except Exception:
+            continue
+        if res.status_code != 200:
+            continue
+        arr = _nuxt(res.text)
+        for found in ([_vb_players_sidearm(arr, base), _vb_players_wmt(arr, base)] if arr else []) + [
+                _vb_players_classic(res.text, base), _vb_players_links(res.text, base), _vb_players_json(res.text, base)]:
+            if len(found) >= 6:
+                seen, out = set(), []
+                for first, last, num, pos, photo in found:
+                    if (first, last) in seen:
+                        continue
+                    seen.add((first, last))
+                    if photo and '/images/' in photo and '?' not in photo:
+                        photo += '?width=400'   # SIDEARM serves full-size originals otherwise
+                    out.append({'id': re.sub(r'[^a-z0-9]+', '-', f'{first} {last}'.lower()).strip('-'), 'first': first.strip(), 'last': last.strip(),
+                                'number': str(num or '').strip(), 'pos': _short_pos(pos), 'headshot': photo or None})
+                return out
+    return []
+
+
 def team_data(gender, team_id):
     """Everything the sheet needs for one team: players (jersey order) and coaching staff."""
-    school, name, color, conf, _ = NCAA_TEAMS[team_id]
-    data = _roster(gender, team_id)
-    players = []
-    for a in data.get('athletes') or []:
-        players.append({'id': str(a['id']), 'first': a.get('firstName') or '', 'last': a.get('lastName') or a.get('displayName') or '',
-                        'number': str(a.get('jersey') or '').strip(), 'pos': (a.get('position') or {}).get('abbreviation') or '',
-                        'headshot': (a.get('headshot') or {}).get('href')})
+    school, name, color, conf, domain = NCAA_TEAMS[team_id]
+    players, espn_head = [], ''
+    if gender == 'wvb':
+        players = list(_cached(f'vbroster:{domain}', ROSTER_SECONDS, lambda: _vb_players(domain)))
+    else:
+        data = _roster(gender, team_id)
+        for a in data.get('athletes') or []:
+            players.append({'id': str(a['id']), 'first': a.get('firstName') or '', 'last': a.get('lastName') or a.get('displayName') or '',
+                            'number': str(a.get('jersey') or '').strip(), 'pos': (a.get('position') or {}).get('abbreviation') or '',
+                            'headshot': (a.get('headshot') or {}).get('href')})
+        head = data.get('coach') or []
+        espn_head = f"{head[0].get('firstName', '')} {head[0].get('lastName', '')}".strip() if head else ''
     players.sort(key=lambda p: (not p['number'].isdigit(), int(p['number']) if p['number'].isdigit() else 0, p['last']))
-    head = data.get('coach') or []
-    espn_head = f"{head[0].get('firstName', '')} {head[0].get('lastName', '')}".strip() if head else ''
     return {'abbr': team_key(gender, team_id), 'city': school, 'name': name, 'color': color, 'conf': conf,
             'logo': logo_url(team_id), 'players': players, 'coaches': _coaches(team_id, gender, espn_head)}
 

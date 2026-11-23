@@ -1004,18 +1004,20 @@ def nba_sheet():
 
 @app.route('/ncaa')
 def ncaa_select():
-    return render_template('ncaa_select.html', teams=ncaa.teams(), conferences=ncaa.CONFERENCES, genders=ncaa.GENDERS)
+    return render_template('ncaa_select.html', teams=ncaa.teams(), conferences=ncaa.CONFERENCES, genders=ncaa.GENDERS, sheets=ncaa.SHEETS)
 
 @app.route('/ncaa/generate', methods=['POST'])
 def ncaa_generate():
     start = time.time()
     gender = request.form.get('gender')
     away, home = request.form.get('away_team'), request.form.get('home_team')
-    if gender not in ncaa.GENDERS or away not in ncaa.NCAA_TEAMS or home not in ncaa.NCAA_TEAMS or away == home:
+    if gender not in ncaa.SHEETS or away not in ncaa.NCAA_TEAMS or home not in ncaa.NCAA_TEAMS or away == home:
         return jsonify({'error': 'Pick two different teams'}), 400
-    if gender == 'womens' and (away in ncaa.MENS_ONLY or home in ncaa.MENS_ONLY):
+    if gender != 'mens' and (away in ncaa.MENS_ONLY or home in ncaa.MENS_ONLY):
         return jsonify({'error': f"{ncaa.NCAA_TEAMS[away if away in ncaa.MENS_ONLY else home][0]} has no women's team"}), 400
-    summary = f"{ncaa.GENDERS[gender]}: {ncaa.NCAA_TEAMS[away][0]} @ {ncaa.NCAA_TEAMS[home][0]}"
+    if gender == 'wvb' and (away in ncaa.NO_VOLLEYBALL or home in ncaa.NO_VOLLEYBALL):
+        return jsonify({'error': f"{ncaa.NCAA_TEAMS[away if away in ncaa.NO_VOLLEYBALL else home][0]} has no volleyball team"}), 400
+    summary = f"{ncaa.SHEETS[gender]}: {ncaa.NCAA_TEAMS[away][0]} @ {ncaa.NCAA_TEAMS[home][0]}"
     try:
         data = ncaa.matchup(gender, away, home)
         elapsed = round(time.time() - start, 2)

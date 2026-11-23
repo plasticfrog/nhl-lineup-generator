@@ -42,6 +42,9 @@
         .first + .name { height: 0.2in; align-items: flex-start; }
         .coach .name { height: 0.3in; font-size: 10px; line-height: 1.1; white-space: normal; }
         .head-coach .name { font-size: 11px; }
+        /* Volleyball position (OH, MB, S, OPP, L) in the photo's top-left corner (the ✕ takes the top-right) */
+        .pos { position: absolute; left: 0; top: 0; z-index: 2; padding: 1px 4px; font-size: 9px; font-weight: 800; line-height: 1.2; color: #fff; background: var(--team); border-bottom-right-radius: 4px; outline: none; white-space: nowrap; }
+        .pos:empty { display: none; }
         .num { position: absolute; left: 0.03in; bottom: -0.02in; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; font-size: 0.46in; line-height: 1; outline: none; z-index: 2; min-width: 0.2in; }
         /* Number styles (picked in the side panel) */
         body.num-badge .num { left: 0; bottom: 0; padding: 0.03in 0.07in 0.01in; font-size: 0.38in; color: #fff; background: var(--team); border-top-right-radius: 5px; box-shadow: 0 0 0 1.5px #fff; }
@@ -153,6 +156,7 @@ const SILHOUETTE = 'https://cdn.nba.com/headshots/nba/latest/1040x760/1.png';
 const COACH_SLOTS = 5;
 
 const data = readJSON(`${CFG.key}_sheet_data`, null);
+const VOLLEYBALL = !!data && data.gender === 'wvb';   // school portraits fill the photo box, positions shown
 let SERVER_PHOTOS = {};                  // coach and referee photos saved for everyone: { slug: url }
 const custom = {};                       // photos dropped on players this visit: { photoKey: dataUrl }
 const edits = {};                        // typed changes this visit: { 'p:ID:last': text, ... }
@@ -215,8 +219,9 @@ function playerCard(team, p) {
         : editable(`p:${p.id}:${key}`, text, cls);
     return `<div class="card player${added && !p.headshot ? ' new' : added ? ' new has-photo' : ''}" draggable="true" data-team="${team.abbr}" data-id="${p.id}">
         <div class="photo-wrap" style="position:relative;flex:1;display:flex;min-height:0">
-            ${photoHTML(`p:${p.id}`, p.headshot)}
+            ${photoHTML(`p:${p.id}`, p.headshot, VOLLEYBALL && !added)}
             ${field('number', p.number, 'num', '#')}
+            ${VOLLEYBALL && !added ? editable(`p:${p.id}:pos`, p.pos || '', 'pos') : ''}
         </div>
         ${showFirst() ? field('first', p.first, 'first', 'First') : ''}
         ${field('last', p.last, 'name', 'Name')}
