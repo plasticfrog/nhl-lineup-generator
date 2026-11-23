@@ -1036,7 +1036,7 @@ def ncaa_generate():
 def ncaa_sheet():
     return render_template('nba_sheet.html', cfg=SHEET_CFG['ncaa'])
 
-# ---- College football (not public yet: nothing links here) ----
+# ---- College football ----
 @app.route('/ncaa/football')
 def football_select():
     return render_template('ncaa_select.html', teams=football.teams(), conferences=football.conferences(), genders=ncaa.GENDERS,

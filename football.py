@@ -1,6 +1,4 @@
 """College football headshot sheets: rosters and headshots from ESPN, coaching staffs from the school sites.
-
-Not public yet: the pages are only reachable at /ncaa/football.
 """
 import html
 import logging
