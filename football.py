@@ -3,6 +3,7 @@
 import html
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urljoin
 
@@ -48,6 +49,9 @@ EXTRA = {
 }
 # Schools whose football pages aren't at /sports/football/: path of the coaches or roster page
 STAFF_PAGES = {
+    'miamihurricanes.com': '/staff-directory',
+    'ttusports.com': '/sports/fball/coaches/index',
+    'ccsubluedevils.com': '/sports/fball/coaches/index',
     'arkansasrazorbacks.com': '/sport/m-footbl/roster/',
     'ramblinwreck.com': '/sports/m-footbl/roster/',
 }
@@ -127,7 +131,13 @@ def _merge(players, site):
 
 def _site_roster(domain):
     path = STAFF_PAGES.get(domain, '/sports/football/roster')
-    path = re.sub(r'/coaches(/index)?/?$', '/roster', path)
+    if path == '/staff-directory':
+        path = '/sports/football/roster'
+    elif path.endswith('/coaches/index'):   # PrestoSports rosters are per season: '2026-27' from July on
+        y = time.localtime().tm_year - (time.localtime().tm_mon < 7)
+        path = path.replace('/coaches/index', f'/{y}-{(y + 1) % 100:02d}/roster')
+    else:
+        path = re.sub(r'/coaches/?$', '/roster', path)
     try:
         return ncaa.site_players(domain, [path], least=30, deep=False)
     except Exception as e:
@@ -178,8 +188,45 @@ def _from_bio_blocks(s, base):
             re.findall(r'<img[^>]*src="([^"]+)"[^>]*>\s*</p>\s*<p>\s*<strong>\s*([^<|]+?)\s*\|\s*</strong>.*?<br\s*/?>\s*([^<]+?)\s*<br', s, re.S)]
 
 
+def _from_directory(s, base):
+    """The school's whole staff directory (Austin Peay, Indiana State, Tarleton): keep the rows tagged Football"""
+    out = []
+    for row in re.findall(r'<tr class="sidearm-staff-member[^"]*"[^>]*>(.*?)</tr>', s, re.S):
+        label = re.search(r"aria-label='([^']+)'", row)
+        title = re.search(r'col-staff_title[^"]*"[^>]*>\s*(.*?)\s*</td>', row, re.S)
+        if not label or not title:
+            continue
+        name, _, rest = html.unescape(label.group(1)).partition(', ')
+        if not rest.lower().startswith('football'):
+            continue
+        img = re.search(r"<img src='([^']+)'", row)
+        out.append((name, re.sub(r'\s*<br\s*/?>\s*', ' / ', html.unescape(title.group(1))).strip(),
+                    urljoin(base, img.group(1).split('?')[0]) if img else ''))
+    return out
+
+
+def _from_wmt_directory(arr, base):
+    """WMT staff directories (Miami): only the people in the Football department"""
+    v = lambda i: arr[i] if isinstance(i, int) and 0 <= i < len(arr) else None
+    out = []
+    for dep in arr:
+        if not (isinstance(dep, dict) and 'department_staff_member_positions' in dep and v(dep.get('name')) == 'Football'):
+            continue
+        for ref in v(dep['department_staff_member_positions']) or []:
+            pos = v(ref)
+            person = v(pos.get('staff_member')) if isinstance(pos, dict) else None
+            if not isinstance(person, dict) or not isinstance(v(person.get('first_name')), str):
+                continue
+            title = v(pos.get('position')) or v(person.get('position'))
+            photo = v(person.get('master_photo'))
+            out.append((f"{v(person['first_name'])} {v(person.get('last_name')) or ''}".strip(), title if isinstance(title, str) else '',
+                        (v(photo.get('url')) or '') if isinstance(photo, dict) else ''))
+    return out
+
+
 def _staff_from_site(domain):
-    paths = [STAFF_PAGES[domain]] if domain in STAFF_PAGES else ['/sports/football/coaches', '/sports/football/roster']
+    # last resort: the football staff page, which many schools send to the whole staff directory
+    paths = [STAFF_PAGES[domain]] if domain in STAFF_PAGES else ['/sports/football/coaches', '/sports/football/roster', '/sports/football/staff']
     best = []
     for path in paths:
         base = f'https://{domain}{path}'
@@ -190,10 +237,13 @@ def _staff_from_site(domain):
         if res.status_code != 200:
             continue
         arr = ncaa._nuxt(res.text)
-        parsers = ([lambda: ncaa._from_sidearm_data(arr, base), lambda: ncaa._from_wmt_data(arr, base)] if arr else []) + [
+        parsers = ([lambda: ncaa._from_sidearm_data(arr, base), lambda: ncaa._from_wmt_data(arr, base), lambda: _from_wmt_directory(arr, base)] if arr else []) + [
             lambda: ncaa._from_sidearm_cards(res.text, base), lambda: ncaa._from_sidearm_classic(res.text, base),
             lambda: ncaa._from_coach_links(res.text, base), lambda: ncaa._from_presto_cards(res.text, base),
-            lambda: ncaa._from_staff_table(res.text, base), lambda: _from_coach_rows(res.text, base), lambda: _from_bio_blocks(res.text, base)]
+            lambda: ncaa._from_staff_table(res.text, base), lambda: _from_coach_rows(res.text, base), lambda: _from_bio_blocks(res.text, base),
+            lambda: _from_directory(res.text, base)]
+        if path.endswith('/staff-directory'):   # everyone in athletics: only the football department will do
+            parsers = ([lambda: _from_wmt_directory(arr, base)] if arr else []) + [lambda: _from_directory(res.text, base)]
         for parse in parsers:   # pages often carry the staff twice, once cut short: keep the fullest read
             try:
                 found = [c for c in parse() if _is_coach(c[1])]
@@ -209,7 +259,7 @@ def _staff_from_site(domain):
         if name.lower() in seen or re.sub(r'[^a-z]', '', name.lower()) in ('tba', 'tbd'):
             continue
         seen.add(name.lower())
-        out.append({'name': name, 'role': re.sub(r'\s+', ' ', title).strip(), 'headshot': photo or None})
+        out.append({'name': name, 'role': re.sub(r'\s*\|\s*', ' / ', re.sub(r'\s+', ' ', title)).strip(), 'headshot': photo or None})
     return out
 
 
